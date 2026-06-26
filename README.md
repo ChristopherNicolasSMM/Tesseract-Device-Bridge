@@ -33,7 +33,7 @@ tesseract-device-bridge/
 │   ├── base.py             # interface abstrata GPIOBackend (read/write/setup/teardown)
 │   ├── simulated_backend.py # ✅ implementado e testado (Fase 1)
 │   └── real_backend.py     # ⏳ pendente (Fase 5 — só ao testar em Pi real)
-├── config.py               # ⏳ pendente (Fase 2)
+├── config.py               # ✅ implementado e testado (Fase 2)
 ├── mqtt_client.py          # ⏳ pendente (Fase 4)
 ├── bridge.py               # ⏳ pendente (Fase 4) — inclui lógica de failsafe local (Fase 5→4, antecipada)
 ├── panel/                  # ⏳ pendente (Fase 3)
@@ -49,7 +49,7 @@ tesseract-device-bridge/
 | Fase | Item | Status |
 |---|---|---|
 | 1 | `gpio/base.py` + `gpio/simulated_backend.py` + testes | ✅ Concluído (19/19 testes) |
-| 2 | `config.py` (carregar/validar `devices.yml`) | ⏳ Próximo |
+| 2 | `config.py` (carregar/validar `devices.yml`) | ✅ Concluído (19 testes próprios, 38/38 no total) |
 | 3 | `panel/` (Flask) sobre `SimulatedGPIOBackend` | ⏳ Pendente |
 | 4 | `mqtt_client.py` + `bridge.py` | ⏳ Pendente |
 | 4b | Lógica de failsafe local (`failsafe_timeout_seconds`) | ⏳ Pendente — antecipada para v1 |
