@@ -72,6 +72,17 @@ python run_panel.py
 # abrir http://localhost:8088
 ```
 
+## Bugs corrigidos
+
+- **`run_panel.py` falhava com `ConfigError` se `devices.yml` não existisse** —
+  causa raiz: `main()` chamava `BridgeConfig.load(config_path)` direto, sem
+  nenhum bootstrap; em um clone novo do repositório só existe
+  `devices.yml.example`, nunca `devices.yml`. Corrigido com
+  `ensure_config_file()`: se o caminho não existir, copia
+  `devices.yml.example` para esse caminho antes de carregar. Se o exemplo
+  também não existir, levanta `ConfigError` explícito em vez de deixar o
+  erro de cópia subir cru. Nunca sobrescreve um `devices.yml` já existente.
+
 ## Rodando os testes
 
 ```bash
