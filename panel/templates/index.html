@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Tesseract Device Bridge — Painel Manual</title>
+  <style>
+    body { font-family: -apple-system, Segoe UI, sans-serif; background: #11151c; color: #e7e9ec; margin: 0; padding: 24px; }
+    h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+    .subtitle { color: #8b93a1; font-size: 13px; margin-bottom: 20px; }
+    .status-bar { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 8px; background: #1c2230; font-size: 13px; margin-bottom: 20px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #6b7280; }
+    .dot.connected { background: #22c55e; }
+    .dot.disconnected { background: #ef4444; }
+    .dot.disabled { background: #6b7280; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+    .card { background: #1c2230; border-radius: 12px; padding: 16px; }
+    .card h3 { margin: 0 0 4px; font-size: 15px; }
+    .card .meta { color: #8b93a1; font-size: 12px; margin-bottom: 12px; }
+    .value { font-size: 24px; font-weight: 600; margin-bottom: 10px; }
+    .risk-tag { display: inline-block; font-size: 11px; background: #7c2d12; color: #fdba74; padding: 2px 6px; border-radius: 6px; margin-left: 6px; }
+    input[type="range"] { width: 100%; }
+    button { background: #2563eb; color: white; border: none; border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
+    button.danger { background: #7c2d12; }
+    .row { display: flex; align-items: center; gap: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Tesseract Device Bridge</h1>
+  <div class="subtitle">Painel manual — acesso direto ao hardware, sem passar por MQTT</div>
+  <div class="status-bar"><span id="status-dot" class="dot"></span><span id="status-text">verificando...</span></div>
+  <div id="grid" class="grid"></div>
+
+  <script>
+    async function fetchStatus() {
+      const res = await fetch("/api/status");
+      const data = await res.json();
+      const dot = document.getElementById("status-dot");
+      const text = document.getElementById("status-text");
+      dot.className = "dot " + data.mqtt;
+      const labels = { connected: "MQTT conectado", disconnected: "MQTT desconectado", disabled: "MQTT desabilitado", unknown: "MQTT — status desconhecido" };
+      text.textContent = labels[data.mqtt] || data.mqtt;
+    }
+
+    function renderSensor(device) {
+      const min = device.range?.min ?? 0;
+      const max = device.range?.max ?? 100;
+      return `
+        <div class="card" id="card-${device.id}">
+          <h3>${device.name}</h3>
+          <div class="meta">sensor · ${device.subtype || "digital"}</div>
+          <div class="value">${device.value}${device.unit || ""}</div>
+          <input type="range" min="${min}" max="${max}" step="0.1" value="${device.value}"
+                 oninput="simulate('${device.id}', this.value)">
+        </div>`;
+    }
+
+    function renderActuator(device) {
+      const riskTag = device.is_risk ? '<span class="risk-tag">risco</span>' : "";
+      if (device.subtype === "pwm") {
+        return `
+          <div class="card" id="card-${device.id}">
+            <h3>${device.name}${riskTag}</h3>
+            <div class="meta">atuador · pwm</div>
+            <div class="value">${device.value}${device.unit || ""}</div>
+            <input type="range" min="0" max="100" step="1" value="${device.value}"
+                   oninput="command('${device.id}', parseFloat(this.value))">
+          </div>`;
+      }
+      const isOn = device.value === true || device.value === "true";
+      return `
+        <div class="card" id="card-${device.id}">
+          <h3>${device.name}${riskTag}</h3>
+          <div class="meta">atuador · digital</div>
+          <div class="value">${isOn ? "Ligado" : "Desligado"}</div>
+          <div class="row">
+            <button onclick="command('${device.id}', true)">Ligar</button>
+            <button class="danger" onclick="command('${device.id}', false)">Desligar</button>
+          </div>
+        </div>`;
+    }
+
+    async function refresh() {
+      const res = await fetch("/api/devices");
+      const devices = await res.json();
+      const grid = document.getElementById("grid");
+      grid.innerHTML = devices.map(d => d.role === "sensor" ? renderSensor(d) : renderActuator(d)).join("");
+    }
+
+    async function simulate(id, value) {
+      await fetch(`/api/devices/${id}/simulate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: parseFloat(value) }),
+      });
+    }
+
+    async function command(id, value) {
+      await fetch(`/api/devices/${id}/command`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value }),
+      });
+      refresh();
+    }
+
+    fetchStatus();
+    refresh();
+    setInterval(fetchStatus, 4000);
+    setInterval(refresh, 2500);
+  </script>
+</body>
+</html>

@@ -34,12 +34,20 @@ tesseract-device-bridge/
 │   ├── simulated_backend.py # ✅ implementado e testado (Fase 1)
 │   └── real_backend.py     # ⏳ pendente (Fase 5 — só ao testar em Pi real)
 ├── config.py               # ✅ implementado e testado (Fase 2)
+├── device_runtime.py       # ✅ implementado e testado (Fase 3) — ponte config <-> backend, reusada pelo bridge.py na Fase 4
 ├── mqtt_client.py          # ⏳ pendente (Fase 4)
 ├── bridge.py               # ⏳ pendente (Fase 4) — inclui lógica de failsafe local (Fase 5→4, antecipada)
-├── panel/                  # ⏳ pendente (Fase 3)
+├── panel/                  # ✅ implementado e testado (Fase 3)
+│   ├── app.py               # factory Flask (create_panel_app)
+│   ├── api.py                # endpoints: status, listar devices, comando, simulação de sensor
+│   └── templates/index.html  # painel manual (sliders/toggles, status MQTT)
+├── run_panel.py            # ✅ entrada standalone — roda o painel sem MQTT
 ├── tests/
-│   └── test_simulated_backend.py  # ✅ 19 testes passando
-├── devices.yml.example     # ✅ atualizado com failsafe_timeout_seconds
+│   ├── test_simulated_backend.py  # ✅ 19 testes
+│   ├── test_config.py             # ✅ 19 testes
+│   ├── test_device_runtime.py     # ✅ 13 testes
+│   └── test_panel.py               # ✅ 14 testes (via Flask test client)
+├── devices.yml.example     # ✅
 ├── requirements.txt        # ✅
 └── README.md
 ```
@@ -49,11 +57,20 @@ tesseract-device-bridge/
 | Fase | Item | Status |
 |---|---|---|
 | 1 | `gpio/base.py` + `gpio/simulated_backend.py` + testes | ✅ Concluído (19/19 testes) |
-| 2 | `config.py` (carregar/validar `devices.yml`) | ✅ Concluído (19 testes próprios, 38/38 no total) |
-| 3 | `panel/` (Flask) sobre `SimulatedGPIOBackend` | ⏳ Pendente |
-| 4 | `mqtt_client.py` + `bridge.py` | ⏳ Pendente |
-| 4b | Lógica de failsafe local (`failsafe_timeout_seconds`) | ⏳ Pendente — antecipada para v1 |
+| 2 | `config.py` (carregar/validar `devices.yml`) | ✅ Concluído (19 testes próprios) |
+| 3 | `device_runtime.py` + `panel/` (Flask) sobre `SimulatedGPIOBackend` | ✅ Concluído (13 + 14 testes próprios, 65/65 no total) |
+| 4 | `mqtt_client.py` + `bridge.py` | ⏳ Próximo |
+| 4b | Lógica de failsafe local (`failsafe_timeout_seconds`) | ⏳ Pendente — junto da Fase 4 |
 | 5 | `gpio/real_backend.py` | ⏳ Pendente — só com Pi real disponível |
+
+## Rodando o painel isoladamente (sem MQTT)
+
+```bash
+pip install -r requirements.txt
+cp devices.yml.example devices.yml   # ou aponte para outro arquivo
+python run_panel.py
+# abrir http://localhost:8088
+```
 
 ## Rodando os testes
 
