@@ -1,0 +1,59 @@
+mqtt:
+  enabled: true              # false = roda só em modo painel manual, sem cliente MQTT nenhum
+  host: localhost
+  port: 1883
+  username: null
+  password: null
+  client_id: tesseract_bridge_01
+  topic_prefix: brewery
+  reconnect_interval_seconds: 5
+
+backend: simulated            # "real" ou "simulated" — nunca autodetectado
+
+panel:
+  enabled: true
+  host: 0.0.0.0
+  port: 8088
+
+devices:
+  - id: mash_tun_temp
+    name: "Temperatura Mostura"
+    role: sensor
+    subtype: temperature
+    unit: "°C"
+    state_topic: "sensors/mash_tun_temp/state"   # resolvido com topic_prefix -> brewery/sensors/mash_tun_temp/state
+    hardware:
+      pin: 4
+      driver: ds18b20                            # identifica qual leitura real usar (modo "real")
+    simulated:
+      initial_value: 25.0
+      min: 0
+      max: 120
+
+  - id: mash_heater
+    name: "Resistência Mostura"
+    role: actuator
+    subtype: pwm
+    unit: "%"
+    command_topic: "actuators/mash_heater/set"
+    state_topic: "actuators/mash_heater/state"    # opcional, confirma estado aplicado
+    hardware:
+      pin: 18
+      pwm_frequency: 1000
+    failsafe_value: 0          # replicado aqui só para o painel mostrar; o LWT real é registrado pelo Tesseract, não por este bridge
+    is_risk: true
+    failsafe_timeout_seconds: 30   # se ficar sem conexão MQTT por mais que isso, aplica failsafe_value localmente
+    limits:
+      min: 0
+      max: 100
+
+  - id: mash_pump
+    name: "Bomba Mostura"
+    role: actuator
+    subtype: digital
+    command_topic: "actuators/mash_pump/set"
+    hardware:
+      pin: 20
+    failsafe_value: false
+    is_risk: true
+    failsafe_timeout_seconds: 30
