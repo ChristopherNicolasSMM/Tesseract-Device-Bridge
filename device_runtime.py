@@ -47,6 +47,7 @@ class DeviceState:
     is_risk: bool
     failsafe_value: Any
     range: Dict[str, Any]
+    gpio: int | None
 
 
 def resolve_mode(role: str, subtype: str | None) -> str:
@@ -159,4 +160,5 @@ class DeviceRuntime:
             is_risk=device.is_risk,
             failsafe_value=device.failsafe_value,
             range=device_range,
+            gpio=device.hardware["pin"],
         )

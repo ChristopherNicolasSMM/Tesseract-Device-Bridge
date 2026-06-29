@@ -6,7 +6,7 @@ from config import BridgeConfig
 from device_runtime import DeviceRuntime
 from gpio.simulated_backend import SimulatedGPIOBackend
 from panel.app import create_panel_app
-
+ 
 
 YAML_CONTENT = """
 mqtt:
@@ -83,6 +83,15 @@ def test_list_devices_includes_range(client):
     data = res.get_json()
     sensor = next(d for d in data if d["id"] == "mash_tun_temp")
     assert sensor["range"] == {"min": 0, "max": 120}
+    
+    
+def test_list_devices_includes_gpio_pin(client):
+    res = client.get("/api/devices")
+    data = res.get_json()
+    sensor = next(d for d in data if d["id"] == "mash_tun_temp")
+    actuator = next(d for d in data if d["id"] == "mash_heater")
+    assert sensor["gpio"] == 4
+    assert actuator["gpio"] == 18    
 
 
 def test_get_single_device(client):
