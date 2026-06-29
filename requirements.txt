@@ -2,3 +2,4 @@ PyYAML>=6.0
 paho-mqtt>=1.6
 Flask>=3.0
 pytest>=8.0
+gpiozero>=2.0   # só necessário com backend=real (devices.yml); roda em modo mock para testes sem Pi

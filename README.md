@@ -32,7 +32,7 @@ tesseract-device-bridge/
 ├── gpio/
 │   ├── base.py             # interface abstrata GPIOBackend (read/write/setup/teardown)
 │   ├── simulated_backend.py # ✅ implementado e testado (Fase 1)
-│   └── real_backend.py     # ⏳ pendente (Fase 5 — só ao testar em Pi real)
+│   └── real_backend.py     # ✅ Fase 5 — gpiozero, validado via mock (não substitui Pi real)
 ├── config.py               # ✅ implementado e testado (Fase 2)
 ├── device_runtime.py       # ✅ implementado e testado (Fase 3) — ponte config <-> backend
 ├── failsafe_coercion.py    # ✅ Fase 4 — string do Tesseract -> tipo certo (float/bool) por subtype
@@ -60,7 +60,22 @@ tesseract-device-bridge/
 | 2 | `config.py` (carregar/validar `devices.yml`) | ✅ Concluído |
 | 3 | `device_runtime.py` + `panel/` (Flask) | ✅ Concluído |
 | 4 | `mqtt_client.py` + `bridge.py` + failsafe (agregado + timeout local) | ✅ Concluído (102/102 testes no total) |
-| 5 | `gpio/real_backend.py` | ⏳ Pendente — só com Pi real disponível |
+| 5 | `gpio/real_backend.py` (gpiozero) | ✅ Concluído — wiring validado via `gpiozero.pins.mock`, **não substitui teste em Pi real** |
+
+## ⚠️ Sobre a validação da Fase 5
+
+Os testes de `gpio/real_backend.py` usam `gpiozero.pins.mock` (MockFactory +
+MockPWMPin) — confirmam que o mode certo instancia a classe gpiozero certa
+e que valores são escritos/lidos na escala esperada (PWM em 0–100, não
+0.0–1.0 do gpiozero). **Isso não é prova de que o hardware físico funciona.**
+Primeiro teste real em Pi: rodar com `backend: real` no `devices.yml` e
+confirmar visualmente que o pino correspondente liga/desliga / varia PWM.
+
+`input_analog` (ex.: `driver: ds18b20` do `devices.yml.example`) não tem
+implementação real ainda — só o mecanismo de registro
+(`register_analog_driver()`). Implementar o driver real do ds18b20 (via
+`w1thermsensor` ou leitura direta do filesystem 1-Wire) é trabalho futuro,
+só quando houver o sensor físico disponível para validar.
 
 ## ⚠️ Acoplamento implícito com o repositório Tesseract (Core)
 
