@@ -34,19 +34,19 @@ tesseract-device-bridge/
 │   ├── simulated_backend.py # ✅ implementado e testado (Fase 1)
 │   └── real_backend.py     # ⏳ pendente (Fase 5 — só ao testar em Pi real)
 ├── config.py               # ✅ implementado e testado (Fase 2)
-├── device_runtime.py       # ✅ implementado e testado (Fase 3) — ponte config <-> backend, reusada pelo bridge.py na Fase 4
-├── mqtt_client.py          # ⏳ pendente (Fase 4)
-├── bridge.py               # ⏳ pendente (Fase 4) — inclui lógica de failsafe local (Fase 5→4, antecipada)
+├── device_runtime.py       # ✅ implementado e testado (Fase 3) — ponte config <-> backend
+├── failsafe_coercion.py    # ✅ Fase 4 — string do Tesseract -> tipo certo (float/bool) por subtype
+├── status_handler.py       # ✅ Fase 4 — processa status agregado (LWT corrigido), matching por command_topic
+├── failsafe_watchdog.py    # ✅ Fase 4 — timeout local (bridge perdeu broker, Tesseract pode estar vivo)
+├── mqtt_client.py          # ✅ Fase 4 — wrapper paho-mqtt (conexão, assinatura, despacho por tópico)
+├── bridge.py               # ✅ Fase 4 — orquestração (DeviceRuntime + status + watchdog + mqtt)
 ├── panel/                  # ✅ implementado e testado (Fase 3)
-│   ├── app.py               # factory Flask (create_panel_app)
-│   ├── api.py                # endpoints: status, listar devices, comando, simulação de sensor
-│   └── templates/index.html  # painel manual (sliders/toggles, status MQTT)
-├── run_panel.py            # ✅ entrada standalone — roda o painel sem MQTT
-├── tests/
-│   ├── test_simulated_backend.py  # ✅ 19 testes
-│   ├── test_config.py             # ✅ 19 testes
-│   ├── test_device_runtime.py     # ✅ 13 testes
-│   └── test_panel.py               # ✅ 14 testes (via Flask test client)
+│   ├── app.py
+│   ├── api.py
+│   └── templates/index.html
+├── run_panel.py            # ✅ entrada standalone — só painel, sem MQTT
+├── run_bridge.py           # ✅ Fase 4 — entrada completa (MQTT + painel em paralelo)
+├── tests/                   # ✅ 102 testes (ver detalhamento abaixo)
 ├── devices.yml.example     # ✅
 ├── requirements.txt        # ✅
 └── README.md
@@ -56,12 +56,47 @@ tesseract-device-bridge/
 
 | Fase | Item | Status |
 |---|---|---|
-| 1 | `gpio/base.py` + `gpio/simulated_backend.py` + testes | ✅ Concluído (19/19 testes) |
-| 2 | `config.py` (carregar/validar `devices.yml`) | ✅ Concluído (19 testes próprios) |
-| 3 | `device_runtime.py` + `panel/` (Flask) sobre `SimulatedGPIOBackend` | ✅ Concluído (13 + 14 testes próprios, 65/65 no total) |
-| 4 | `mqtt_client.py` + `bridge.py` | ⏳ Próximo |
-| 4b | Lógica de failsafe local (`failsafe_timeout_seconds`) | ⏳ Pendente — junto da Fase 4 |
+| 1 | `gpio/base.py` + `gpio/simulated_backend.py` + testes | ✅ Concluído |
+| 2 | `config.py` (carregar/validar `devices.yml`) | ✅ Concluído |
+| 3 | `device_runtime.py` + `panel/` (Flask) | ✅ Concluído |
+| 4 | `mqtt_client.py` + `bridge.py` + failsafe (agregado + timeout local) | ✅ Concluído (102/102 testes no total) |
 | 5 | `gpio/real_backend.py` | ⏳ Pendente — só com Pi real disponível |
+
+## ⚠️ Acoplamento implícito com o repositório Tesseract (Core)
+
+A correção de protocolo MQTT (1 LWT por conexão, não por atuador) já
+está incorporada aqui. Pontos que dependem de convenção compartilhada
+com o lado Tesseract, sem nenhuma validação automática entre os dois
+repositórios:
+
+- **Tópico de status**: `system/tesseract/status` (relativo, resolvido
+  com `topic_prefix`) — constante hardcoded em `mqtt_client.py`
+  (`STATUS_TOPIC_RELATIVE`). Se o lado Tesseract mudar essa string, a
+  mensagem simplesmente nunca chega aqui — sem erro visível.
+- **Matching de atuador é por `command_topic` completo**, nunca por
+  `external_id` (que é um UUID interno do `DeviceActor`, sem vínculo
+  com o `id` do `devices.yml`).
+- **`failsafe_value` chega como string** do lado Tesseract — coercido
+  aqui conforme o `subtype` do device local (`pwm`/`analog`/`temperature`
+  → float, `digital`/desconhecido → bool).
+- **Mensagem de status é retained (qos=1)**, mas estática até o próximo
+  reconnect do lado Tesseract — tratada aqui como snapshot, nunca como
+  garantia de estar atualizada.
+- **Ao voltar para `status: "online"`, nenhuma ação automática** —
+  atuador em failsafe só sai desse estado ao receber um comando normal
+  (decisão registrada nesta sessão).
+- **Formato do payload de comando normal (`command_topic` individual)
+  não fez parte do contrato confirmado** — `bridge.py` assume JSON
+  `{"value": ...}` ou valor cru como fallback; se o formato real do
+  Tesseract divergir, ajustar `Bridge._handle_command_message`.
+
+## Rodando o bridge completo (MQTT + painel)
+
+```bash
+pip install -r requirements.txt
+cp devices.yml.example devices.yml   # ajuste mqtt.host para o broker real
+python run_bridge.py
+```
 
 ## Rodando o painel isoladamente (sem MQTT)
 

@@ -131,6 +131,17 @@ class DeviceRuntime:
             )
         return self.set_actuator(device_id, device.failsafe_value)
 
+    def get_device_config(self, device_id: str) -> DeviceConfig:
+        """
+        Expõe o DeviceConfig (incl. subtype, command_topic resolvido pelo
+        chamador) — usado por mqtt_client.py para decidir como coercer o
+        failsafe_value vindo do Tesseract (string -> float/bool).
+        """
+        return self._config.get_device(device_id)
+
+    def list_device_configs(self) -> List[DeviceConfig]:
+        return list(self._config.devices)
+
     def _state_of(self, device: DeviceConfig) -> DeviceState:
         value = self._backend.read(device.hardware["pin"])
         source = device.simulated if device.role == "sensor" else device.limits
