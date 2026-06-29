@@ -2,111 +2,639 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <title>Tesseract Device Bridge — Painel Manual</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tesseract Device Bridge — Painel de Controle</title>
   <style>
-    body { font-family: -apple-system, Segoe UI, sans-serif; background: #11151c; color: #e7e9ec; margin: 0; padding: 24px; }
-    h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
-    .subtitle { color: #8b93a1; font-size: 13px; margin-bottom: 20px; }
-    .status-bar { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 8px; background: #1c2230; font-size: 13px; margin-bottom: 20px; }
-    .dot { width: 8px; height: 8px; border-radius: 50%; background: #6b7280; }
-    .dot.connected { background: #22c55e; }
-    .dot.disconnected { background: #ef4444; }
-    .dot.disabled { background: #6b7280; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
-    .card { background: #1c2230; border-radius: 12px; padding: 16px; }
-    .card h3 { margin: 0 0 4px; font-size: 15px; }
-    .card .meta { color: #8b93a1; font-size: 12px; margin-bottom: 12px; }
-    .value { font-size: 24px; font-weight: 600; margin-bottom: 10px; }
-    .risk-tag { display: inline-block; font-size: 11px; background: #7c2d12; color: #fdba74; padding: 2px 6px; border-radius: 6px; margin-left: 6px; }
-    input[type="range"] { width: 100%; }
-    button { background: #2563eb; color: white; border: none; border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
-    button.danger { background: #7c2d12; }
-    .row { display: flex; align-items: center; gap: 10px; }
+    /* ===== RESET & VARIÁVEIS ===== */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      background: #0b0e14;
+      color: #e2e8f0;
+      padding: 0;
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    :root {
+      --bg-primary: #0f141e;
+      --bg-card: #1a1f2e;
+      --bg-card-hover: #232a3d;
+      --border-subtle: #2a3246;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --accent-blue: #2563eb;
+      --accent-blue-glow: rgba(37, 99, 235, 0.3);
+      --danger: #dc2626;
+      --success: #22c55e;
+      --warning: #eab308;
+      --radius: 12px;
+      --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    }
+
+    /* ===== SCROLLBAR ===== */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-primary); }
+    ::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 8px; }
+
+    /* ===== HEADER ===== */
+    .app-header {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 16px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand h1 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      background: linear-gradient(135deg, #60a5fa, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .brand small {
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--text-secondary);
+      -webkit-text-fill-color: var(--text-secondary);
+      background: none;
+      margin-left: 4px;
+    }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+    .mqtt-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg-primary);
+      padding: 6px 14px 6px 10px;
+      border-radius: 40px;
+      font-size: 13px;
+      border: 1px solid var(--border-subtle);
+    }
+    .led-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      transition: 0.3s;
+    }
+    .led-dot.connected { background: var(--success); box-shadow: 0 0 10px var(--success); }
+    .led-dot.disconnected { background: var(--danger); box-shadow: 0 0 10px var(--danger); }
+    .led-dot.disabled { background: var(--text-secondary); }
+    .led-dot.unknown { background: var(--warning); animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
+    .clock { font-size: 14px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+    /* ===== NAV TABS ===== */
+    .nav-tabs {
+      background: var(--bg-card);
+      padding: 0 32px;
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .nav-tab {
+      padding: 14px 24px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: 0.2s;
+      background: none;
+      border-top: none;
+      border-left: none;
+      border-right: none;
+      font-family: inherit;
+    }
+    .nav-tab:hover { color: var(--text-primary); background: var(--bg-primary); }
+    .nav-tab.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); }
+
+    /* ===== MAIN CONTENT ===== */
+    .main-content {
+      flex: 1;
+      padding: 24px 32px;
+      max-width: 1400px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    .tab-pane { display: none; animation: fadeIn 0.25s ease; }
+    .tab-pane.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ===== DASHBOARD ===== */
+    .section-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 24px 0 12px 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-title:first-of-type { margin-top: 0; }
+    .section-title .badge {
+      font-size: 12px;
+      background: var(--border-subtle);
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-weight: 400;
+      color: var(--text-secondary);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 16px;
+    }
+
+    /* ===== CARDS ===== */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      transition: 0.2s;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .card:hover { background: var(--bg-card-hover); border-color: #3a4460; transform: translateY(-2px); box-shadow: var(--shadow); }
+    .card.risk { border-left: 4px solid var(--danger); }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .card-header h3 {
+      font-size: 15px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .card-header .type-tag {
+      font-size: 10px;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      background: var(--bg-primary);
+      padding: 2px 8px;
+      border-radius: 12px;
+      color: var(--text-secondary);
+    }
+    .card-value {
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .card-value .unit { font-size: 16px; font-weight: 400; color: var(--text-secondary); margin-left: 4px; }
+    .card-meta { font-size: 12px; color: var(--text-secondary); display: flex; gap: 12px; flex-wrap: wrap; }
+    .card-actions { display: flex; align-items: center; gap: 12px; margin-top: 4px; flex-wrap: wrap; }
+
+    /* ===== TOGGLE SWITCH (para atuadores digitais) ===== */
+    .toggle-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .toggle {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      background: #3a4460;
+      border-radius: 40px;
+      cursor: pointer;
+      transition: 0.3s;
+      flex-shrink: 0;
+    }
+    .toggle.active { background: var(--accent-blue); box-shadow: 0 0 12px var(--accent-blue-glow); }
+    .toggle .thumb {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 18px;
+      height: 18px;
+      background: white;
+      border-radius: 50%;
+      transition: 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .toggle.active .thumb { left: 23px; }
+    .toggle-label { font-size: 14px; font-weight: 500; min-width: 60px; }
+
+    /* ===== RANGE SLIDER ===== */
+    input[type="range"] {
+      width: 100%;
+      height: 4px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: var(--border-subtle);
+      border-radius: 8px;
+      outline: none;
+      transition: 0.2s;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent-blue);
+      cursor: pointer;
+      box-shadow: 0 0 8px var(--accent-blue-glow);
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent-blue);
+      cursor: pointer;
+      border: none;
+    }
+    .range-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary); }
+
+    /* ===== BOTÕES GENÉRICOS ===== */
+    .btn {
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: none;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.2s;
+      font-family: inherit;
+      background: var(--border-subtle);
+      color: var(--text-primary);
+    }
+    .btn:hover { filter: brightness(1.2); }
+    .btn-primary { background: var(--accent-blue); color: white; }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-sm { padding: 4px 12px; font-size: 12px; }
+
+    /* ===== GERENCIAMENTO (TABELA) ===== */
+    .table-wrapper {
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      border: 1px solid var(--border-subtle);
+      overflow-x: auto;
+      padding: 4px 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    th {
+      text-align: left;
+      padding: 14px 16px;
+      color: var(--text-secondary);
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      border-bottom: 1px solid var(--border-subtle);
+      background: var(--bg-primary);
+    }
+    td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+    }
+    tr:last-child td { border-bottom: none; }
+    .status-indicator { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
+    .status-indicator.on { background: var(--success); }
+    .status-indicator.off { background: var(--text-secondary); }
+
+    /* ===== TOAST ===== */
+    #toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 9999;
+    }
+    .toast {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      padding: 12px 20px;
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      color: var(--text-primary);
+      font-size: 14px;
+      min-width: 200px;
+      max-width: 400px;
+      backdrop-filter: blur(4px);
+      animation: slideIn 0.3s ease;
+      border-left: 4px solid var(--accent-blue);
+    }
+    .toast.error { border-left-color: var(--danger); }
+    .toast.success { border-left-color: var(--success); }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+
+    /* ===== RESPONSIVO ===== */
+    @media (max-width: 700px) {
+      .app-header { padding: 12px 16px; flex-direction: column; align-items: stretch; }
+      .header-actions { justify-content: space-between; flex-wrap: wrap; }
+      .nav-tabs { padding: 0 16px; overflow-x: auto; gap: 0; }
+      .nav-tab { padding: 12px 14px; font-size: 13px; white-space: nowrap; }
+      .main-content { padding: 16px; }
+      .grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 480px) {
+      .brand h1 { font-size: 17px; }
+      .mqtt-status { font-size: 12px; padding: 4px 10px; }
+      .clock { font-size: 12px; }
+    }
   </style>
 </head>
 <body>
-  <h1>Tesseract Device Bridge</h1>
-  <div class="subtitle">Painel manual — acesso direto ao hardware, sem passar por MQTT</div>
-  <div class="status-bar"><span id="status-dot" class="dot"></span><span id="status-text">verificando...</span></div>
-  <div id="grid" class="grid"></div>
+
+  <!-- ===== HEADER ===== -->
+  <header class="app-header">
+    <div class="brand">
+      <h1>⬡ Tesseract <small>Device Bridge</small></h1>
+    </div>
+    <div class="header-actions">
+      <div class="mqtt-status">
+        <span class="led-dot unknown" id="statusDot"></span>
+        <span id="statusText">Conectando...</span>
+      </div>
+      <span class="clock" id="clockDisplay"></span>
+    </div>
+  </header>
+
+  <!-- ===== NAVEGAÇÃO ===== -->
+  <nav class="nav-tabs">
+    <button class="nav-tab active" data-tab="dashboard">📊 Painel</button>
+    <button class="nav-tab" data-tab="management">⚙️ Gerenciamento</button>
+  </nav>
+
+  <!-- ===== CONTEÚDO ===== -->
+  <main class="main-content">
+
+    <!-- PAINEL -->
+    <section id="dashboard" class="tab-pane active">
+      <div id="sensorSection">
+        <div class="section-title">📡 Sensores <span class="badge" id="sensorCount">0</span></div>
+        <div id="sensorGrid" class="grid"></div>
+      </div>
+      <div id="actuatorSection">
+        <div class="section-title">⚡ Atuadores <span class="badge" id="actuatorCount">0</span></div>
+        <div id="actuatorGrid" class="grid"></div>
+      </div>
+    </section>
+
+    <!-- GERENCIAMENTO -->
+    <section id="management" class="tab-pane">
+      <div class="section-title">📋 Inventário de Dispositivos</div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nome</th>
+              <th>Papel</th>
+              <th>Tipo</th>
+              <th>GPIO</th>
+              <th>Valor Atual</th>
+              <th>Range</th>
+              <th>Risco</th>
+            </tr>
+          </thead>
+          <tbody id="deviceTableBody">
+            <tr><td colspan="8" style="text-align:center; color: var(--text-secondary);">Carregando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin-top: 16px; font-size: 13px; color: var(--text-secondary);">
+        ℹ️ Esta tabela reflete os dados em tempo real do bridge. Configurações avançadas (como mapeamento de GPIO) devem ser ajustadas no arquivo <code>config.yaml</code> ou via variáveis de ambiente.
+      </p>
+    </section>
+  </main>
+
+  <!-- ===== TOAST CONTAINER ===== -->
+  <div id="toast-container"></div>
 
   <script>
+    // ===== HELPERS =====
+    const $ = id => document.getElementById(id);
+    const toast = (msg, type = 'info') => {
+      const container = $('toast-container');
+      const el = document.createElement('div');
+      el.className = `toast ${type}`;
+      el.textContent = msg;
+      container.appendChild(el);
+      setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateX(40px)'; setTimeout(() => el.remove(), 300); }, 3500);
+    };
+
+    // ===== RELÓGIO =====
+    function updateClock() {
+      const now = new Date();
+      $('clockDisplay').textContent = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // ===== TABS =====
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+        $(tab.dataset.tab).classList.add('active');
+      });
+    });
+
+    // ===== STATUS MQTT =====
     async function fetchStatus() {
-      const res = await fetch("/api/status");
-      const data = await res.json();
-      const dot = document.getElementById("status-dot");
-      const text = document.getElementById("status-text");
-      dot.className = "dot " + data.mqtt;
-      const labels = { connected: "MQTT conectado", disconnected: "MQTT desconectado", disabled: "MQTT desabilitado", unknown: "MQTT — status desconhecido" };
-      text.textContent = labels[data.mqtt] || data.mqtt;
-    }
-
-    function renderSensor(device) {
-      const min = device.range?.min ?? 0;
-      const max = device.range?.max ?? 100;
-      return `
-        <div class="card" id="card-${device.id}">
-          <h3>${device.name}</h3>
-          <div class="meta">sensor · ${device.subtype || "digital"}</div>
-          <div class="value">${device.value}${device.unit || ""}</div>
-          <input type="range" min="${min}" max="${max}" step="0.1" value="${device.value}"
-                 oninput="simulate('${device.id}', this.value)">
-        </div>`;
-    }
-
-    function renderActuator(device) {
-      const riskTag = device.is_risk ? '<span class="risk-tag">risco</span>' : "";
-      if (device.subtype === "pwm") {
-        return `
-          <div class="card" id="card-${device.id}">
-            <h3>${device.name}${riskTag}</h3>
-            <div class="meta">atuador · pwm</div>
-            <div class="value">${device.value}${device.unit || ""}</div>
-            <input type="range" min="0" max="100" step="1" value="${device.value}"
-                   oninput="command('${device.id}', parseFloat(this.value))">
-          </div>`;
+      try {
+        const res = await fetch('/api/status');
+        if (!res.ok) throw new Error('Status API error');
+        const data = await res.json();
+        const dot = $('statusDot');
+        const text = $('statusText');
+        dot.className = 'led-dot ' + (data.mqtt || 'unknown');
+        const labels = { connected: 'MQTT Conectado', disconnected: 'MQTT Desconectado', disabled: 'MQTT Desabilitado', unknown: 'Status Desconhecido' };
+        text.textContent = labels[data.mqtt] || data.mqtt;
+      } catch (e) {
+        $('statusDot').className = 'led-dot unknown';
+        $('statusText').textContent = 'Erro ao buscar status';
       }
-      const isOn = device.value === true || device.value === "true";
-      return `
-        <div class="card" id="card-${device.id}">
-          <h3>${device.name}${riskTag}</h3>
-          <div class="meta">atuador · digital</div>
-          <div class="value">${isOn ? "Ligado" : "Desligado"}</div>
-          <div class="row">
-            <button onclick="command('${device.id}', true)">Ligar</button>
-            <button class="danger" onclick="command('${device.id}', false)">Desligar</button>
-          </div>
-        </div>`;
     }
 
-    async function refresh() {
-      const res = await fetch("/api/devices");
-      const devices = await res.json();
-      const grid = document.getElementById("grid");
-      grid.innerHTML = devices.map(d => d.role === "sensor" ? renderSensor(d) : renderActuator(d)).join("");
+    // ===== RENDER =====
+    function renderDevices(devices) {
+      // Atualiza contadores
+      const sensors = devices.filter(d => d.role === 'sensor');
+      const actuators = devices.filter(d => d.role === 'actuator');
+      $('sensorCount').textContent = sensors.length;
+      $('actuatorCount').textContent = actuators.length;
+
+      // Grid Sensores
+      const sensorGrid = $('sensorGrid');
+      if (sensors.length === 0) {
+        sensorGrid.innerHTML = '<p style="color: var(--text-secondary); grid-column: 1/-1;">Nenhum sensor configurado.</p>';
+      } else {
+        sensorGrid.innerHTML = sensors.map(d => renderCard(d)).join('');
+      }
+
+      // Grid Atuadores
+      const actuatorGrid = $('actuatorGrid');
+      if (actuators.length === 0) {
+        actuatorGrid.innerHTML = '<p style="color: var(--text-secondary); grid-column: 1/-1;">Nenhum atuador configurado.</p>';
+      } else {
+        actuatorGrid.innerHTML = actuators.map(d => renderCard(d)).join('');
+      }
+
+      // Tabela de gerenciamento
+      const tbody = $('deviceTableBody');
+      if (devices.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color: var(--text-secondary);">Nenhum dispositivo encontrado.</td></tr>';
+      } else {
+        tbody.innerHTML = devices.map(d => `
+          <tr>
+            <td><code style="background:var(--bg-primary);padding:2px 6px;border-radius:4px;">${d.id}</code></td>
+            <td><strong>${d.name}</strong></td>
+            <td><span style="text-transform:capitalize;">${d.role}</span></td>
+            <td>${d.subtype || 'digital'}</td>
+            <td>${d.gpio ?? '—'}</td>
+            <td>
+              <span class="status-indicator ${(d.value === true || d.value === 'true' || d.value > 0) ? 'on' : 'off'}"></span>
+              ${typeof d.value === 'boolean' ? (d.value ? 'Ligado' : 'Desligado') : d.value}${d.unit || ''}
+            </td>
+            <td>${d.range ? `${d.range.min} – ${d.range.max}` : '—'}</td>
+            <td>${d.is_risk ? '⚠️ Sim' : '❌ Não'}</td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    function renderCard(d) {
+      const isRisk = d.is_risk ? 'risk' : '';
+      const unit = d.unit || '';
+      let valueDisplay = d.value;
+      if (typeof d.value === 'boolean') valueDisplay = d.value ? 'Ligado' : 'Desligado';
+
+      let controlsHtml = '';
+      if (d.role === 'sensor') {
+        // Sensor: mostra slider de simulação
+        const min = d.range?.min ?? 0;
+        const max = d.range?.max ?? 100;
+        const step = (d.subtype === 'digital') ? 1 : 0.1;
+        controlsHtml = `
+          <input type="range" min="${min}" max="${max}" step="${step}" value="${d.value}" 
+                 oninput="simulate('${d.id}', parseFloat(this.value))">
+          <div class="range-labels"><span>${min}</span><span>${max}</span></div>
+          <small style="color:var(--text-secondary);font-size:11px;">🔄 Arraste para simular</small>
+        `;
+      } else {
+        // Atuador
+        if (d.subtype === 'pwm') {
+          controlsHtml = `
+            <input type="range" min="0" max="100" step="1" value="${d.value}" 
+                   oninput="command('${d.id}', parseFloat(this.value))">
+            <div class="range-labels"><span>0%</span><span>100%</span></div>
+          `;
+        } else {
+          // Digital: toggle switch
+          const isOn = d.value === true || d.value === 'true' || d.value === 1;
+          controlsHtml = `
+            <div class="toggle-wrapper">
+              <div class="toggle ${isOn ? 'active' : ''}" onclick="toggleActuator('${d.id}', ${!isOn})">
+                <div class="thumb"></div>
+              </div>
+              <span class="toggle-label">${isOn ? 'Ligado' : 'Desligado'}</span>
+            </div>
+          `;
+        }
+      }
+
+      const riskBadge = isRisk ? ' ⚠️' : '';
+      const roleTag = d.role === 'sensor' ? '📊' : '🔧';
+
+      return `
+        <div class="card ${isRisk}">
+          <div class="card-header">
+            <h3>${d.name}${riskBadge}</h3>
+            <span class="type-tag">${roleTag} ${d.subtype || d.role}</span>
+          </div>
+          <div class="card-value">${valueDisplay}<span class="unit">${unit}</span></div>
+          <div class="card-meta">
+            <span>ID: ${d.id}</span>
+            ${d.gpio !== undefined ? `<span>GPIO: ${d.gpio}</span>` : ''}
+          </div>
+          <div class="card-actions">
+            ${controlsHtml}
+          </div>
+        </div>
+      `;
+    }
+
+    // ===== API FUNCTIONS =====
+    async function command(id, value) {
+      try {
+        const res = await fetch(`/api/devices/${id}/command`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value })
+        });
+        if (!res.ok) throw new Error('Falha ao executar comando');
+        toast(`✅ Comando enviado para ${id}`, 'success');
+        refresh();
+      } catch (e) {
+        toast(`❌ Erro: ${e.message}`, 'error');
+      }
     }
 
     async function simulate(id, value) {
-      await fetch(`/api/devices/${id}/simulate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ value: parseFloat(value) }),
-      });
+      try {
+        const res = await fetch(`/api/devices/${id}/simulate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: parseFloat(value) })
+        });
+        if (!res.ok) throw new Error('Falha na simulação');
+        // Não damos toast a cada arrasto para não poluir, apenas atualizamos silenciosamente
+      } catch (e) {
+        toast(`❌ Erro na simulação: ${e.message}`, 'error');
+      }
     }
 
-    async function command(id, value) {
-      await fetch(`/api/devices/${id}/command`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ value }),
-      });
-      refresh();
+    // Função especial para toggle (evita dupla chamada)
+    window.toggleActuator = function(id, newState) {
+      command(id, newState);
+    };
+
+    async function refresh() {
+      try {
+        const res = await fetch('/api/devices');
+        if (!res.ok) throw new Error('Falha ao buscar dispositivos');
+        const devices = await res.json();
+        renderDevices(devices);
+      } catch (e) {
+        toast(`❌ Erro ao atualizar: ${e.message}`, 'error');
+      }
     }
 
+    // ===== INIT =====
     fetchStatus();
     refresh();
     setInterval(fetchStatus, 4000);
-    setInterval(refresh, 2500);
+    setInterval(refresh, 3000);
   </script>
 </body>
 </html>
