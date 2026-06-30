@@ -9,7 +9,7 @@ campo `backend`).
 """
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Optional
 
 
 class GPIOBackend(ABC):
@@ -20,6 +20,14 @@ class GPIOBackend(ABC):
     `hardware.pin` no devices.yml. O backend não conhece o conceito de
     "device" (sensor/atuador) — isso é responsabilidade de bridge.py, que
     traduz device <-> pino antes de chamar o backend.
+
+    `address` (opcional) desambigua múltiplos devices compartilhando o
+    mesmo `pin` — caso real: vários sensores DS18B20 no mesmo barramento
+    1-Wire, cada um identificado por seu endereço ROM único
+    (`hardware.address` no devices.yml), não pelo pino (todos usam o
+    mesmo GPIO4 fisicamente). Quando `address` é None (caso comum, 1
+    pino = 1 device), o comportamento é idêntico ao de antes desta
+    extensão.
     """
 
     @abstractmethod
@@ -33,14 +41,18 @@ class GPIOBackend(ABC):
             ex.: leitura de termistor/ADC).
         :param kwargs: parâmetros extras específicos do tipo de pino, ex.:
             `pwm_frequency` para mode="pwm" (mesmo nome de chave usado no
-            devices.yml, em `hardware.pwm_frequency`).
+            devices.yml, em `hardware.pwm_frequency`); `address` quando o
+            pino é compartilhado entre múltiplos devices (barramento
+            1-Wire) — extraído de `hardware.address` pelo chamador.
         """
         raise NotImplementedError
 
     @abstractmethod
-    def read(self, pin: int) -> Any:
+    def read(self, pin: int, address: Optional[str] = None) -> Any:
         """
-        Lê o valor atual de um pino já configurado via `setup()`.
+        Lê o valor atual de um pino (e, se aplicável, device específico
+        dentro de um barramento compartilhado) já configurado via
+        `setup()`.
 
         Retorno depende do mode: bool para "input", float para
         "input_analog"/"pwm" (estado aplicado), conforme o tipo configurado.
@@ -48,7 +60,7 @@ class GPIOBackend(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def write(self, pin: int, value: Any) -> None:
+    def write(self, pin: int, value: Any, address: Optional[str] = None) -> None:
         """
         Aplica um valor a um pino de saída ("output" ou "pwm").
 
@@ -58,9 +70,10 @@ class GPIOBackend(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def teardown(self, pin: int) -> None:
+    def teardown(self, pin: int, address: Optional[str] = None) -> None:
         """
-        Libera um pino previamente configurado (ex.: ao desativar um
-        device em runtime, ou no shutdown do bridge).
+        Libera um pino (e device específico, se aplicável) previamente
+        configurado (ex.: ao desativar um device em runtime, ou no
+        shutdown do bridge).
         """
         raise NotImplementedError

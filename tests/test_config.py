@@ -353,4 +353,144 @@ def test_example_yaml_in_repo_is_valid():
     """
     config = BridgeConfig.load("devices.yml.example")
     assert config.backend == "simulated"
-    assert len(config.devices) == 3
+    assert len(config.devices) == 7
+
+
+def test_ds18b20_sensors_can_share_same_pin_with_different_address(tmp_path):
+    yaml_content = """
+    mqtt:
+      enabled: false
+    backend: simulated
+    panel:
+      enabled: false
+    devices:
+      - id: sensor_a
+        name: "A"
+        role: sensor
+        state_topic: "sensors/a/state"
+        hardware:
+          pin: 4
+          driver: ds18b20
+          address: "28-aaa"
+      - id: sensor_b
+        name: "B"
+        role: sensor
+        state_topic: "sensors/b/state"
+        hardware:
+          pin: 4
+          driver: ds18b20
+          address: "28-bbb"
+    """
+    path = write_yaml(tmp_path, yaml_content)
+    config = BridgeConfig.load(path)
+    assert len(config.devices) == 2
+
+
+def test_ds18b20_without_address_raises_config_error(tmp_path):
+    yaml_content = """
+    mqtt:
+      enabled: false
+    backend: simulated
+    panel:
+      enabled: false
+    devices:
+      - id: sensor_a
+        name: "A"
+        role: sensor
+        state_topic: "sensors/a/state"
+        hardware:
+          pin: 4
+          driver: ds18b20
+    """
+    path = write_yaml(tmp_path, yaml_content)
+    with pytest.raises(ConfigError, match="requer hardware.address"):
+        BridgeConfig.load(path)
+
+
+def test_ds18b20_duplicate_address_raises_config_error(tmp_path):
+    yaml_content = """
+    mqtt:
+      enabled: false
+    backend: simulated
+    panel:
+      enabled: false
+    devices:
+      - id: sensor_a
+        name: "A"
+        role: sensor
+        state_topic: "sensors/a/state"
+        hardware:
+          pin: 4
+          driver: ds18b20
+          address: "28-same"
+      - id: sensor_b
+        name: "B"
+        role: sensor
+        state_topic: "sensors/b/state"
+        hardware:
+          pin: 4
+          driver: ds18b20
+          address: "28-same"
+    """
+    path = write_yaml(tmp_path, yaml_content)
+    with pytest.raises(ConfigError, match="address '28-same' duplicado"):
+        BridgeConfig.load(path)
+
+
+def test_non_ds18b20_devices_still_cannot_share_pin(tmp_path):
+    """
+    A flexibilização de pino é exclusiva pra barramento 1-Wire — dois
+    atuadores digitais comuns no mesmo pino continua sendo erro de
+    configuração (curto-circuito de wiring na prática).
+    """
+    yaml_content = """
+    mqtt:
+      enabled: false
+    backend: simulated
+    panel:
+      enabled: false
+    devices:
+      - id: act_a
+        name: "A"
+        role: actuator
+        command_topic: "actuators/a/set"
+        hardware:
+          pin: 17
+      - id: act_b
+        name: "B"
+        role: actuator
+        command_topic: "actuators/b/set"
+        hardware:
+          pin: 17
+    """
+    path = write_yaml(tmp_path, yaml_content)
+    with pytest.raises(ConfigError, match="usado em mais de um device"):
+        BridgeConfig.load(path)
+
+
+def test_ds18b20_cannot_share_pin_with_non_ds18b20_device(tmp_path):
+    yaml_content = """
+    mqtt:
+      enabled: false
+    backend: simulated
+    panel:
+      enabled: false
+    devices:
+      - id: sensor_a
+        name: "A"
+        role: sensor
+        state_topic: "sensors/a/state"
+        hardware:
+          pin: 4
+          driver: ds18b20
+          address: "28-aaa"
+      - id: act_a
+        name: "Atuador no mesmo pino"
+        role: actuator
+        command_topic: "actuators/a/set"
+        hardware:
+          pin: 4
+    """
+    path = write_yaml(tmp_path, yaml_content)
+    with pytest.raises(ConfigError, match="usado em mais de um device"):
+        BridgeConfig.load(path)

@@ -142,6 +142,16 @@ class DeviceConfig:
             if not self.command_topic:
                 raise ConfigError(f"{prefix}: actuator requer command_topic.")
 
+        if self.hardware.get("driver") == "ds18b20":
+            if not self.hardware.get("address"):
+                raise ConfigError(
+                    f"{prefix}: driver 'ds18b20' requer hardware.address (ROM ID do "
+                    f"sensor, ex.: '28-0000071234ab') — vários sensores compartilham "
+                    f"o mesmo hardware.pin (barramento 1-Wire) e são distinguidos só "
+                    f"pelo address. Use o utilitário de scan (gpio/ds18b20_scan.py) "
+                    f"para descobrir os endereços conectados."
+                )
+
         if self.is_risk and self.failsafe_value is None:
             raise ConfigError(
                 f"{prefix}: is_risk=true requer failsafe_value explícito "
@@ -208,6 +218,7 @@ class BridgeConfig:
 
         seen_ids: Dict[str, int] = {}
         seen_pins: Dict[int, str] = {}
+        seen_addresses: Dict[str, str] = {}
 
         for device in self.devices:
             device.validate()
@@ -217,12 +228,26 @@ class BridgeConfig:
             seen_ids[device.id] = 1
 
             pin = device.hardware["pin"]
-            if pin in seen_pins:
+            is_shared_bus = device.hardware.get("driver") == "ds18b20"
+
+            if pin in seen_pins and not is_shared_bus:
                 raise ConfigError(
                     f"hardware.pin {pin} usado em mais de um device "
-                    f"('{seen_pins[pin]}' e '{device.id}')."
+                    f"('{seen_pins[pin]}' e '{device.id}'). Pino só pode repetir "
+                    f"entre sensores com driver 'ds18b20' (barramento 1-Wire "
+                    f"compartilhado, distinguidos por hardware.address)."
                 )
             seen_pins[pin] = device.id
+
+            if is_shared_bus:
+                address = device.hardware["address"]
+                if address in seen_addresses:
+                    raise ConfigError(
+                        f"hardware.address '{address}' duplicado entre "
+                        f"'{seen_addresses[address]}' e '{device.id}' — cada sensor "
+                        f"ds18b20 precisa de um endereço ROM único."
+                    )
+                seen_addresses[address] = device.id
 
     def resolve_topic(self, topic: str) -> str:
         """

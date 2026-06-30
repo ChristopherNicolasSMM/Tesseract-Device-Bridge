@@ -80,6 +80,10 @@ class DeviceRuntime:
             kwargs.update(device.limits)
             if "pwm_frequency" in device.hardware:
                 kwargs["pwm_frequency"] = device.hardware["pwm_frequency"]
+            if "driver" in device.hardware:
+                kwargs["driver"] = device.hardware["driver"]
+            if "address" in device.hardware:
+                kwargs["address"] = device.hardware["address"]
             self._backend.setup(pin=device.hardware["pin"], mode=mode, **kwargs)
 
     def list_devices(self) -> List[DeviceState]:
@@ -100,7 +104,7 @@ class DeviceRuntime:
             raise DeviceRuntimeError(
                 f"set_actuator chamado em '{device_id}', que não é actuator (role='{device.role}')."
             )
-        self._backend.write(device.hardware["pin"], value)
+        self._backend.write(device.hardware["pin"], value, address=device.hardware.get("address"))
         return self._state_of(device)
 
     def inject_sensor(self, device_id: str, value: Any) -> DeviceState:
@@ -116,7 +120,7 @@ class DeviceRuntime:
             raise DeviceRuntimeError(
                 f"inject_sensor chamado em '{device_id}', que não é sensor (role='{device.role}')."
             )
-        self._backend.inject(device.hardware["pin"], value)
+        self._backend.inject(device.hardware["pin"], value, address=device.hardware.get("address"))
         return self._state_of(device)
 
     def apply_failsafe(self, device_id: str) -> DeviceState:
@@ -144,7 +148,7 @@ class DeviceRuntime:
         return list(self._config.devices)
 
     def _state_of(self, device: DeviceConfig) -> DeviceState:
-        value = self._backend.read(device.hardware["pin"])
+        value = self._backend.read(device.hardware["pin"], address=device.hardware.get("address"))
         source = device.simulated if device.role == "sensor" else device.limits
         device_range = {
             "min": source.get("min", 0),

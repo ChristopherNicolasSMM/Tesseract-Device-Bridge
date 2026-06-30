@@ -1,0 +1,52 @@
+Como aplicar esta entrega (Fundação Hardware Mazza + recipe_engine):
+
+ARQUIVOS MODIFICADOS (substituir os existentes):
+  gpio/base.py
+  gpio/simulated_backend.py
+  gpio/real_backend.py
+  config.py
+  device_runtime.py
+  devices.yml.example
+  README.md
+  tests/test_config.py
+  tests/test_simulated_backend.py
+  tests/test_real_backend.py
+
+ARQUIVOS NOVOS (criar):
+  gpio/ds18b20_driver.py
+  gpio/ds18b20_scan.py
+  recipe_engine/__init__.py
+  recipe_engine/pid.py
+  recipe_engine/time_proportioning.py
+  tests/test_ds18b20_driver.py
+  tests/test_ds18b20_scan.py
+  tests/test_pid.py
+  tests/test_time_proportioning.py
+
+Passos:
+1. Copie todos os arquivos deste zip para as pastas correspondentes
+   no seu repositório (mesma estrutura de pastas do zip).
+2. Rode: python -m pytest tests/ -v
+   (deve dar 159 passed)
+3. git add -A
+   git commit -m "Fundação hardware Mazza CraftBeerPi: DS18B20 compartilhado, driver real, scan CLI, PID + time-proportioning"
+   git push
+
+O que mudou (resumo):
+- config.py: sensores DS18B20 podem compartilhar o mesmo hardware.pin,
+  desde que cada um tenha hardware.address único (driver: ds18b20).
+- gpio/base.py, simulated_backend.py, real_backend.py: read/write/teardown
+  ganharam parâmetro `address` opcional (retrocompatível, default None).
+- gpio/ds18b20_driver.py: driver real, lê /sys/bus/w1/devices/<addr>/w1_slave.
+- gpio/ds18b20_scan.py: CLI "python -m gpio.ds18b20_scan" lista sensores
+  conectados e seus endereços.
+- devices.yml.example: atualizado para o hardware real (CraftBeerPi MAZZA),
+  4 atuadores digitais (GPIO17/27/22/26) + 3 sensores em GPIO4 compartilhado.
+- recipe_engine/pid.py + time_proportioning.py: fundação do motor de
+  receitas (PID com anti-windup + tradução pra liga/desliga em janela de
+  tempo, já que as saídas da placa são NPN digital simples, não PWM).
+  A máquina de estado de receita (rampas, patamares, persistência,
+  pausa em crash) e a aba do painel ainda NÃO foram implementadas —
+  são a próxima entrega.
+
+159/159 testes passando.

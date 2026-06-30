@@ -166,3 +166,67 @@ def test_multiple_pins_are_independent():
 
     assert backend.read(4) == 40.0
     assert backend.read(20) is True
+
+
+def test_shared_pin_with_different_address_are_independent():
+    """
+    Cenário real: 3 sensores DS18B20 no mesmo GPIO (barramento 1-Wire),
+    cada um com endereço ROM próprio — devem ter estado totalmente
+    independente apesar do pin idêntico.
+    """
+    backend = SimulatedGPIOBackend()
+    backend.setup(pin=4, mode="input_analog", address="28-aaa", initial_value=20.0)
+    backend.setup(pin=4, mode="input_analog", address="28-bbb", initial_value=30.0)
+    backend.setup(pin=4, mode="input_analog", address="28-ccc", initial_value=40.0)
+
+    assert backend.read(4, address="28-aaa") == 20.0
+    assert backend.read(4, address="28-bbb") == 30.0
+    assert backend.read(4, address="28-ccc") == 40.0
+
+    backend.inject(4, 99.0, address="28-bbb")
+    assert backend.read(4, address="28-aaa") == 20.0
+    assert backend.read(4, address="28-bbb") == 99.0
+    assert backend.read(4, address="28-ccc") == 40.0
+
+
+def test_read_with_wrong_address_raises_key_error():
+    backend = SimulatedGPIOBackend()
+    backend.setup(pin=4, mode="input_analog", address="28-aaa", initial_value=20.0)
+    with pytest.raises(KeyError):
+        backend.read(4, address="28-does-not-exist")
+
+
+def test_read_without_address_does_not_match_device_set_up_with_address():
+    """
+    Um device configurado com address específico não deve "vazar" pra
+    quem chama read(pin) sem informar address — são chaves diferentes
+    de propósito, não um fallback silencioso.
+    """
+    backend = SimulatedGPIOBackend()
+    backend.setup(pin=4, mode="input_analog", address="28-aaa", initial_value=20.0)
+    with pytest.raises(KeyError):
+        backend.read(4)  # sem address
+
+
+def test_teardown_with_address_only_removes_matching_device():
+    backend = SimulatedGPIOBackend()
+    backend.setup(pin=4, mode="input_analog", address="28-aaa", initial_value=20.0)
+    backend.setup(pin=4, mode="input_analog", address="28-bbb", initial_value=30.0)
+
+    backend.teardown(4, address="28-aaa")
+
+    with pytest.raises(KeyError):
+        backend.read(4, address="28-aaa")
+    assert backend.read(4, address="28-bbb") == 30.0
+
+
+def test_snapshot_includes_composite_keys_for_shared_pins():
+    backend = SimulatedGPIOBackend()
+    backend.setup(pin=4, mode="input_analog", address="28-aaa", initial_value=20.0)
+    backend.setup(pin=18, mode="output")
+
+    snapshot = backend.snapshot()
+
+    assert (4, "28-aaa") in snapshot
+    assert 18 in snapshot
+    assert snapshot[(4, "28-aaa")]["value"] == 20.0

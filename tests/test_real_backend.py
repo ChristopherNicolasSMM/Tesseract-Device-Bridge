@@ -74,7 +74,7 @@ def test_invalid_mode_raises_value_error():
 def test_input_analog_without_registered_driver_raises_not_implemented():
     backend = RealGPIOBackend()
     with pytest.raises(NotImplementedError, match="Nenhum driver analógico"):
-        backend.setup(pin=4, mode="input_analog", driver="ds18b20")
+        backend.setup(pin=4, mode="input_analog", driver="totally_unknown_driver", address="x")
 
 
 def test_input_analog_with_registered_driver():
@@ -86,6 +86,29 @@ def test_input_analog_with_registered_driver():
     backend = RealGPIOBackend()
     backend.setup(pin=4, mode="input_analog", driver="fake_driver")
     assert backend.read(4) == 42.0
+
+
+def test_multiple_ds18b20_sensors_share_same_pin_distinguished_by_address(tmp_path):
+    """
+    Cenário real da interface CraftBeerPi (MAZZA): 3 sensores DS18B20 no
+    mesmo GPIO4, cada um com endereço ROM próprio.
+    """
+    for address, milli_c in [("28-aaa", 25000), ("28-bbb", 67000), ("28-ccc", 18500)]:
+        device_dir = tmp_path / address
+        device_dir.mkdir()
+        (device_dir / "w1_slave").write_text(
+            f"4e 01 4b 46 7f ff 0e 10 68 : crc=68 YES\n4e 01 4b 46 7f ff 0e 10 68 t={milli_c}\n",
+            encoding="ascii",
+        )
+
+    backend = RealGPIOBackend()
+    backend.setup(pin=4, mode="input_analog", driver="ds18b20", address="28-aaa", base_path=str(tmp_path))
+    backend.setup(pin=4, mode="input_analog", driver="ds18b20", address="28-bbb", base_path=str(tmp_path))
+    backend.setup(pin=4, mode="input_analog", driver="ds18b20", address="28-ccc", base_path=str(tmp_path))
+
+    assert backend.read(4, address="28-aaa") == 25.0
+    assert backend.read(4, address="28-bbb") == 67.0
+    assert backend.read(4, address="28-ccc") == 18.5
 
 
 def test_read_unconfigured_pin_raises_key_error():
