@@ -1,6 +1,7 @@
 """
 Bridge — orquestra DeviceRuntime + MQTT (status agregado, comandos,
-publicação de sensores) + watchdog de timeout local.
+publicação de sensores) + watchdog de timeout local + RecipeEngine
+opcional (motor de receita autônomo, ver recipe_engine/).
 
 Dois mecanismos de fail-safe, complementares:
 - StatusTopicHandler: Tesseract caiu (LWT agregado, "status: offline").
@@ -9,6 +10,16 @@ Dois mecanismos de fail-safe, complementares:
 
 Ambos chamam, no fim das contas, DeviceRuntime.set_actuator/apply_failsafe
 — um único caminho de aplicação de fail-safe, dois gatilhos diferentes.
+
+⚠️ Limitação conhecida (não resolvida nesta entrega): se um device for
+controlado ao mesmo tempo por uma receita ativa (RecipeEngine) E por
+comando MQTT individual (command_topic), os dois podem competir pelo
+mesmo atuador sem nenhum mecanismo de prioridade/lock entre eles. Para
+o caso de uso atual (receita 100% autônoma, MQTT tipicamente
+desabilitado ou usado só para os devices fora da receita) isso não é
+um problema na prática, mas se os dois forem usados simultaneamente
+sobre os mesmos devices, é preciso decidir uma regra de prioridade
+antes — sinalizar se isso virar necessidade real.
 """
 
 from __future__ import annotations
@@ -23,15 +34,22 @@ from device_runtime import DeviceRuntime, DeviceRuntimeError
 from failsafe_coercion import coerce_value
 from failsafe_watchdog import FailsafeTimeoutWatchdog, devices_with_timeout
 from mqtt_client import MqttClientWrapper
+from recipe_engine.engine import RecipeEngine
 from status_handler import StatusTopicHandler, build_command_topic_lookup
 
 logger = logging.getLogger("tesseract_bridge.bridge")
 
 
 class Bridge:
-    def __init__(self, config: BridgeConfig, runtime: DeviceRuntime) -> None:
+    def __init__(
+        self,
+        config: BridgeConfig,
+        runtime: DeviceRuntime,
+        recipe_engine: Optional[RecipeEngine] = None,
+    ) -> None:
         self._config = config
         self._runtime = runtime
+        self._recipe_engine = recipe_engine
 
         self._command_topic_lookup = build_command_topic_lookup(runtime, config.resolve_topic)
         self._status_handler = StatusTopicHandler(runtime, self._command_topic_lookup)
@@ -55,6 +73,10 @@ class Bridge:
     @property
     def watchdog(self) -> FailsafeTimeoutWatchdog:
         return self._watchdog
+
+    @property
+    def recipe_engine(self) -> Optional[RecipeEngine]:
+        return self._recipe_engine
 
     def _handle_command_message(self, device_id: str, payload: str) -> None:
         """
@@ -97,6 +119,10 @@ class Bridge:
     def check_watchdog(self, now: float) -> list[str]:
         return self._watchdog.check(now)
 
+    def tick_recipe(self, now: float) -> None:
+        if self._recipe_engine is not None:
+            self._recipe_engine.tick(now)
+
     def start(self) -> None:
         if self._mqtt:
             self._mqtt.connect()
@@ -109,8 +135,10 @@ class Bridge:
         self.start()
         try:
             while True:
+                now = time.time()
                 self.publish_sensor_states()
-                self.check_watchdog(time.time())
+                self.check_watchdog(now)
+                self.tick_recipe(now)
                 time.sleep(poll_interval_seconds)
         except KeyboardInterrupt:
             logger.info("Encerrando bridge (KeyboardInterrupt).")

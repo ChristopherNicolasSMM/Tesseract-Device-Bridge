@@ -68,8 +68,8 @@ tesseract-device-bridge/
 | 5 | `gpio/real_backend.py` (gpiozero) | ✅ Concluído — wiring validado via `gpiozero.pins.mock`, **não substitui teste em Pi real** |
 | 6 | Hardware Mazza CraftBeerPi: barramento DS18B20 compartilhado, driver real, scan CLI | ✅ Concluído |
 | 7 | `recipe_engine/`: PID + time-proportioning (fundação) | ✅ Concluído (159/159 testes no total) |
-| 8 | `recipe_engine/`: máquina de estado de receita (ramp/hold), persistência, crash-safe pause | ⏳ Próximo |
-| 9 | Painel: aba "Receitas" (criar/editar/iniciar/pausar, gráfico setpoint vs. real) | ⏳ Próximo |
+| 8 | `recipe_engine/`: máquina de estado de receita (ramp/hold), persistência, crash-safe pause | ✅ Concluído (201/201 testes no total) |
+| 9 | Painel: aba visual "Receitas" (criar/editar receita, gráfico setpoint vs. real) | ⏳ Próximo — controle via API já funciona (ver abaixo), falta só a UI |
 
 ## ⚠️ Sobre a validação da Fase 5
 
@@ -184,6 +184,91 @@ Os devices de aquecimento (`mash_heater`, `boil_heater`) no
 `DeviceRuntime`/`GPIOBackend` continuam vendo um relé liga/desliga
 comum; é o `recipe_engine` (próxima entrega) que decide quando ligar e
 desligar, usando PID + time-proportioning por cima.
+
+## Motor de receita — `recipe_engine/` (Fase 8)
+
+Máquina de estado 100% autônoma — roda mesmo com `mqtt.enabled: false`,
+não depende do Tesseract nem do painel pra funcionar, só do loop
+principal do `bridge.py` (`run_forever`, chamado a cada
+`poll_interval_seconds`, default 2s).
+
+### Modelo de receita (`recipe.yml`, separado do `devices.yml`)
+
+Uma receita declara `vessels` (cada uma com `heater_device_id`,
+`sensor_device_id`, ganhos de PID `kp`/`ki`/`kd`, e `window_seconds`
+do time-proportioning) e `steps` (cada um com `vessel`, `target_temp`,
+`hold_minutes`, e `pumps` — lista de device_id de bombas ligadas
+durante aquela etapa). Toda referência a device_id é validada contra
+o `devices.yml` carregado no boot — falha cedo com mensagem clara se
+referenciar algo que não existe. Ver `recipe.yml.example`.
+
+### Comportamento
+
+- **Rampa (`ramping`)**: PID calcula a saída (0-100%) a cada tick,
+  `TimeProportioningController` traduz isso em liga/desliga do heater
+  dentro da janela configurada. Transição pra `holding` assim que a
+  leitura do sensor atinge `target_temp`.
+- **Patamar (`holding`)**: decisão registrada — o tempo de patamar só
+  começa a contar a partir do instante em que `target_temp` foi
+  atingido, nunca desde o início da etapa. PID continua ativo durante
+  o patamar (mantém a temperatura, não só "desliga e espera").
+- **Bombas**: ligadas/desligadas conforme a lista `pumps` de cada
+  step — comparação de conjunto a cada tick, sem esperar o próximo
+  ciclo pra desligar bombas que não pertencem mais à etapa atual.
+- **Avanço de etapa**: ao completar o patamar, desliga o heater da
+  vasilha anterior, reseta PID e time-proportioning (evita herdar
+  integral acumulado de uma etapa não relacionada), aplica as bombas
+  da nova etapa imediatamente.
+- **Última etapa concluída**: status `finished`, tudo desligado.
+
+### Recuperação de crash (decisão registrada)
+
+Se o processo cair (`kill -9`, queda de energia, qualquer encerramento
+não-gracioso) no meio de `ramping`/`holding`, o **construtor** do
+`RecipeEngine` detecta isso ao carregar `recipe_state.json` persistido
+— não depende de nenhum signal handler nem `try/finally` de shutdown
+(funciona mesmo em `SIGKILL`, que não dá chance de rodar código de
+limpeza). Ao detectar, aplica `apply_failsafe` em **todos** os
+atuadores `is_risk: true` do `devices.yml` inteiro (não só os da
+receita — segurança ampla), marca o estado como `paused_after_crash`,
+e **nunca retoma sozinho**. Validado neste teste real (não só
+automatizado): processo morto com `kill -9` no meio de uma rampa,
+reiniciado, heater confirmado desligado e status confirmado
+`paused_after_crash` via `curl`.
+
+Retomar exige chamada explícita a `POST /api/recipe/resume` — se a
+pausa ocorreu durante `holding`, o tempo de patamar já decorrido é
+preservado (não reinicia a contagem do zero).
+
+### Controle via API (painel ainda sem aba visual — Fase 9 pendente)
+
+```
+GET  /api/recipe/status   -> status atual, etapa, receita carregada
+POST /api/recipe/start    -> inicia (ou reinicia do zero) a receita
+POST /api/recipe/abort    -> cancela, aplica failsafe em tudo
+POST /api/recipe/resume   -> retoma de paused_after_crash
+```
+
+### ⚠️ Limitação conhecida
+
+Se um device for controlado simultaneamente por uma receita ativa E
+por comando MQTT individual (`command_topic`), não há mecanismo de
+prioridade/lock entre os dois — podem competir pelo mesmo atuador.
+Não é um problema no uso atual (receita autônoma, MQTT tipicamente
+desabilitado ou usado só para devices fora da receita), mas precisa
+de uma regra de prioridade explícita se os dois forem usados ao mesmo
+tempo sobre os mesmos devices.
+
+### Rodando com receita
+
+```bash
+cp recipe.yml.example recipe.yml   # ajuste vessels/steps pra sua receita real
+python run_bridge.py devices.yml recipe.yml
+# ou só: python run_bridge.py   (usa devices.yml e recipe.yml por default)
+```
+
+Se `recipe.yml` não existir, o bridge roda normalmente sem motor de
+receita — funcionalidade puramente opcional.
 
 ## Rodando o bridge completo (MQTT + painel)
 

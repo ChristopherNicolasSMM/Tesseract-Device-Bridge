@@ -7,16 +7,23 @@ sem broker nem Tesseract de pé.
 
 Decisão de segurança registrada no README: sem autenticação na v1,
 assume-se rede local confiável.
+
+Endpoints de receita (/api/recipe/*) usam time.time() diretamente —
+única exceção à convenção de "now explícito" do resto do código, já
+que esta é a fronteira de I/O real (requisição HTTP do usuário), não
+lógica pura testável.
 """
 
 from __future__ import annotations
 
+import time
 from dataclasses import asdict
 from typing import Callable, Optional
 
 from flask import Blueprint, current_app, jsonify, request
 
 from device_runtime import DeviceRuntime, DeviceRuntimeError
+from recipe_engine.engine import RecipeEngine, RecipeEngineError
 
 bp = Blueprint("panel_api", __name__, url_prefix="/api")
 
@@ -27,6 +34,10 @@ def _runtime() -> DeviceRuntime:
 
 def _mqtt_status_provider() -> Callable[[], str]:
     return current_app.config["MQTT_STATUS_PROVIDER"]
+
+
+def _recipe_engine() -> Optional[RecipeEngine]:
+    return current_app.config.get("RECIPE_ENGINE")
 
 
 @bp.get("/status")
@@ -93,3 +104,55 @@ def simulate_device(device_id: str):
                      "(disponível apenas em backend='simulated')."
         }), 400
     return jsonify(asdict(state))
+
+
+def _recipe_status_payload(engine: RecipeEngine) -> dict:
+    state = engine.state
+    return {
+        "loaded_recipe_name": engine.recipe_name,
+        "recipe_name": state.recipe_name,
+        "status": state.status,
+        "step_index": state.step_index,
+        "step_started_at": state.step_started_at,
+        "hold_started_at": state.hold_started_at,
+        "hold_elapsed_seconds_at_pause": state.hold_elapsed_seconds_at_pause,
+        "paused_from_status": state.paused_from_status,
+    }
+
+
+@bp.get("/recipe/status")
+def recipe_status():
+    engine = _recipe_engine()
+    if engine is None:
+        return jsonify({"error": "Nenhuma receita carregada neste bridge."}), 404
+    return jsonify(_recipe_status_payload(engine))
+
+
+@bp.post("/recipe/start")
+def recipe_start():
+    engine = _recipe_engine()
+    if engine is None:
+        return jsonify({"error": "Nenhuma receita carregada neste bridge."}), 404
+    engine.start(now=time.time())
+    return jsonify(_recipe_status_payload(engine))
+
+
+@bp.post("/recipe/abort")
+def recipe_abort():
+    engine = _recipe_engine()
+    if engine is None:
+        return jsonify({"error": "Nenhuma receita carregada neste bridge."}), 404
+    engine.abort(now=time.time())
+    return jsonify(_recipe_status_payload(engine))
+
+
+@bp.post("/recipe/resume")
+def recipe_resume():
+    engine = _recipe_engine()
+    if engine is None:
+        return jsonify({"error": "Nenhuma receita carregada neste bridge."}), 404
+    try:
+        engine.resume(now=time.time())
+    except RecipeEngineError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(_recipe_status_payload(engine))

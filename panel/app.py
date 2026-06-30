@@ -17,6 +17,7 @@ from flask import Flask
 from config import BridgeConfig
 from device_runtime import DeviceRuntime
 from panel.api import bp as api_bp
+from recipe_engine.engine import RecipeEngine
 
 
 def default_status_provider(config: BridgeConfig) -> Callable[[], str]:
@@ -29,10 +30,12 @@ def create_panel_app(
     config: BridgeConfig,
     runtime: DeviceRuntime,
     mqtt_status_provider: Optional[Callable[[], str]] = None,
+    recipe_engine: Optional[RecipeEngine] = None,
 ) -> Flask:
     app = Flask(__name__)
     app.config["DEVICE_RUNTIME"] = runtime
     app.config["MQTT_STATUS_PROVIDER"] = mqtt_status_provider or default_status_provider(config)
+    app.config["RECIPE_ENGINE"] = recipe_engine
 
     app.register_blueprint(api_bp)
 

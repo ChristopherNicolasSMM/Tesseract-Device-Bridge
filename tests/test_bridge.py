@@ -180,6 +180,51 @@ def test_disconnect_callback_wires_to_watchdog(mock_client_cls, tmp_path):
     assert applied == ["mash_heater"]
 
 
+def test_tick_recipe_is_noop_when_no_recipe_engine(tmp_path):
+    bridge, runtime, config = build_bridge(tmp_path, YAML_MQTT_DISABLED)
+    bridge.tick_recipe(now=1000.0)  # não deve lançar
+    assert bridge.recipe_engine is None
+
+
+def test_tick_recipe_delegates_to_engine_when_present(tmp_path):
+    import textwrap
+    from config import BridgeConfig
+    from recipe_engine.engine import RecipeEngine
+    from recipe_engine.models import Recipe
+
+    path = tmp_path / "devices.yml"
+    path.write_text(textwrap.dedent(YAML_MQTT_DISABLED), encoding="utf-8")
+    config = BridgeConfig.load(path)
+    backend = SimulatedGPIOBackend()
+    runtime = DeviceRuntime(config, backend)
+
+    recipe_yaml = """
+    name: "Teste"
+    vessels:
+      mash:
+        heater_device_id: mash_heater
+        sensor_device_id: mash_tun_temp
+        pid: { kp: 50.0, ki: 0.0, kd: 0.0 }
+        window_seconds: 10
+    steps:
+      - vessel: mash
+        target_temp: 35.0
+        hold_minutes: 1
+    """
+    recipe_path = tmp_path / "recipe.yml"
+    recipe_path.write_text(textwrap.dedent(recipe_yaml), encoding="utf-8")
+    recipe = Recipe.load(recipe_path, config)
+    state_path = tmp_path / "recipe_state.json"
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+
+    bridge = Bridge(config, runtime, recipe_engine=engine)
+    bridge.tick_recipe(now=1000.0)
+    bridge.tick_recipe(now=1001.0)
+
+    assert runtime.get_state("mash_heater").value is True
+
+
 def time_now_plus(seconds):
     import time
     return time.time() + seconds
