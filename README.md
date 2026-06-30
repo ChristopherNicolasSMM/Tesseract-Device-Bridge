@@ -337,10 +337,11 @@ POST /api/recipe/reset_step    -> reinicia a etapa atual sem mudar de etapa
 
 Inspirado na referência de UI enviada (CraftBeerPi-style: botões
 anterior / reset / play-pause / próxima + cronômetro grande da etapa
-atual). Implementado nesta entrega: **só o backend** (`RecipeEngine` +
-endpoints) — a integração visual na timeline (botões + cronômetro)
-fica pra um patch seguinte, focado, pra não conflitar com edições que
-você já está fazendo direto em `index.html`.
+atual). Implementado nesta entrega: backend (`RecipeEngine` +
+endpoints) **e** a barra de transporte visual (4 botões + cronômetro
+grande + tempo total/decorrido), inserida acima dos medidores de
+vasilha — não substitui a timeline horizontal nem os cards já
+existentes, é aditiva.
 
 - **`pause()`**: só válido durante `ramping`/`holding`. Aplica
   failsafe em todos os atuadores de risco (mesma segurança do crash
@@ -363,6 +364,26 @@ você já está fazendo direto em `index.html`.
   `total_elapsed_seconds(now)` é o tempo real decorrido desde
   `start()` — congela automaticamente quando a receita termina ou é
   cancelada (não continua contando depois disso).
+
+### Barra de transporte (UI)
+
+Botões `⏮` (anterior) / `↺` (reiniciar etapa) / `⏯` (play-pause,
+alterna entre iniciar/pausar/retomar conforme o status atual) / `⏭`
+(próxima), habilitados só durante `ramping`/`holding`. Cronômetro
+grande (fonte monoespaçada): mostra tempo restante do patamar quando
+`holding`, tempo decorrido de rampa quando `ramping`, e mensagem
+contextual quando parado/pausado/concluído. Atualizado localmente a
+cada 1s (interpolação client-side a partir do último poll, sem precisar
+de uma requisição por segundo) e resincronizado a cada poll de 2.5s
+pra não acumular deriva. Linha de tempo total (decorrido/previsto) logo
+abaixo.
+
+⚠️ Nota de compatibilidade: o CSS desta barra evita a propriedade
+`gap` em flexbox (usa `margin` explícita nos itens) — mesma cautela já
+aplicada ao medidor circular (`inset: 0` evitado antes por motivo
+parecido). `gap` em flexbox tem suporte amplo em navegadores modernos,
+mas evitamos depender disso pra não arriscar quebra de layout em
+ambientes mais conservadores.
 
 ### ⚠️ Limitação conhecida
 
