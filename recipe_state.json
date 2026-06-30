@@ -1,9 +1,14 @@
 {
   "recipe_name": "Lagers da Casa",
-  "status": "aborted",
+  "status": "ramping",
   "step_index": 0,
-  "step_started_at": 1782840448.3748682,
+  "step_started_at": 1782843802.6629236,
   "hold_started_at": null,
   "hold_elapsed_seconds_at_pause": 0.0,
-  "paused_from_status": null
+  "paused_from_status": null,
+  "recipe_started_at": 1782843740.93268,
+  "total_elapsed_seconds_frozen": null,
+  "pending_alarms": [],
+  "next_alarm_id": 2,
+  "fired_hop_alarm_keys": []
 }

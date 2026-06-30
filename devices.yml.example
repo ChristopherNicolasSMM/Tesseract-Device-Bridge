@@ -1,5 +1,5 @@
 mqtt:
-  enabled: true              # false = roda só em modo painel manual, sem cliente MQTT nenhum
+  enabled: false              # false = roda só em modo painel manual, sem cliente MQTT nenhum | true ai roda com MQTT
   host: localhost
   port: 1883
   username: null
