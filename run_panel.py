@@ -66,3 +66,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+#Modo real testar |   python -m gpio.ds18b20_scan
