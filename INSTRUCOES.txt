@@ -1,12 +1,17 @@
-Como aplicar esta entrega (Fase 8 — Motor de Receita: ramp/hold,
-persistência, crash-safe pause):
+Como aplicar esta entrega (Fase 8 + Fase 9 — Motor de Receita completo
++ UI visual "Receitas"):
+
+Esta entrega substitui inteiramente a tentativa anterior de Fase 8
+(que não chegou a ser aplicada no repositório). Aplique esta de uma
+vez só.
 
 ARQUIVOS MODIFICADOS (substituir os existentes):
   bridge.py
   run_bridge.py
+  README.md
   panel/app.py
   panel/api.py
-  README.md
+  panel/templates/index.html
   tests/test_bridge.py
   tests/test_panel.py
 
@@ -14,6 +19,7 @@ ARQUIVOS NOVOS (criar):
   recipe_engine/models.py
   recipe_engine/state.py
   recipe_engine/engine.py
+  recipe_engine/time_proportioning.py   (substitui o da entrega anterior — ganhou duty_cycle_percent)
   recipe.yml.example
   tests/test_recipe_models.py
   tests/test_recipe_state.py
@@ -22,38 +28,49 @@ ARQUIVOS NOVOS (criar):
 Passos:
 1. Copie todos os arquivos deste zip para as pastas correspondentes.
 2. Rode: python -m pytest tests/ -v
-   (deve dar 201 passed)
+   (deve dar 206 passed)
 3. git add -A
-   git commit -m "Fase 8: motor de receita (ramp/hold, PID, crash-safe pause) + controle via API"
+   git commit -m "Fase 8+9: motor de receita completo + aba visual Receitas no painel"
    git push
 
 O que mudou (resumo):
-- recipe_engine/models.py: schema de receita (vessels + steps), valida
-  contra devices.yml.
+
+FASE 8 — Motor de receita:
+- recipe_engine/models.py: schema de receita (vessels + steps).
 - recipe_engine/state.py: estado de execução persistido em JSON.
 - recipe_engine/engine.py: RecipeEngine — ramp/hold com PID +
   time-proportioning, controle de bombas por etapa, RECUPERAÇÃO DE
-  CRASH (detecta no construtor se o processo caiu em ramping/holding,
-  aplica failsafe em TODOS os atuadores de risco do devices.yml,
-  marca paused_after_crash, nunca retoma sozinho).
-- bridge.py: novo parâmetro opcional recipe_engine, tick_recipe() no
-  loop principal (run_forever).
-- run_bridge.py: carrega recipe.yml automaticamente se existir
-  (opcional — sem ele, bridge funciona exatamente como antes).
-- panel/api.py: endpoints GET /api/recipe/status, POST
-  /api/recipe/start, /abort, /resume.
-- recipe.yml.example: receita de exemplo (Pilsen, mostura + fervura).
+  CRASH (detecta no construtor, aplica failsafe em todos os atuadores
+  de risco, marca paused_after_crash, nunca retoma sozinho).
+- bridge.py / run_bridge.py: motor integrado ao loop principal,
+  carrega recipe.yml automaticamente se existir (opcional).
 
-Validado com teste real de crash: processo morto com kill -9 no meio
-de uma rampa, reiniciado, heater confirmado desligado e status
-confirmado "paused_after_crash" via curl.
+FASE 9 — UI visual "Receitas" (panel/templates/index.html):
+- Nova aba com identidade visual própria: accent cobre, numerais
+  monoespaçados (instrumentação), medidor circular por vasilha (anel
+  preenche conforme % de potência do PID — dado real).
+- Timeline horizontal de etapas, gráfico ao vivo (SVG nativo, sem
+  lib externa) de temperatura real vs. setpoint.
+- Banner de recuperação de crash com botão "Retomar".
+- panel/api.py: endpoint novo GET /api/recipe/definition (vasilhas +
+  etapas), e /api/recipe/status agora inclui current_vessel e
+  current_duty_percent (usado pelo medidor).
+- recipe_engine/time_proportioning.py: propriedade pública nova
+  duty_cycle_percent.
+- recipe_engine/engine.py: método novo current_duty(vessel_name).
+
+Validado com:
+- 206/206 testes automatizados.
+- Teste real de crash recovery via curl + kill -9 (processo morto no
+  meio de uma rampa, reiniciado, failsafe confirmado).
+- Screenshot real do CSS/HTML da aba Receitas (renderizado com dados
+  de exemplo) para revisão visual — layout, medidor e timeline
+  conferidos visualmente, não só por inspeção de código.
 
 ⚠️ Limitação conhecida (documentada no README): não há lock entre
-comando MQTT individual e controle pela receita sobre o mesmo device
-— se usar os dois ao mesmo tempo sobre os mesmos atuadores, pode
-haver disputa. Sinalizar se isso virar necessidade real.
+comando MQTT individual e controle pela receita sobre o mesmo device.
 
-⏳ Ainda falta (próxima entrega): aba visual "Receitas" no painel
-(hoje o controle funciona só via API/curl, sem UI).
-
-201/201 testes passando.
+⚠️ Nota sobre fontes: a aba usa 'JetBrains Mono' com fallback para
+fontes monoespaçadas do sistema (SFMono-Regular, Consolas) — não
+requer instalar nada, mas fica ainda mais fiel ao visual pretendido
+se você tiver a JetBrains Mono instalada no SO.

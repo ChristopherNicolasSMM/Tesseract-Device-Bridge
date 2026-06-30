@@ -140,6 +140,23 @@ def test_tick_drives_heater_via_pid_during_ramping(setup):
     assert runtime.get_state("mash_heater").value is True
 
 
+def test_current_duty_reflects_pid_output(setup):
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    assert engine.current_duty("mash") == 0.0  # antes de qualquer tick
+
+    engine.start(now=1000.0)
+    engine.tick(now=1000.0)
+    engine.tick(now=1001.0)
+    assert engine.current_duty("mash") == 100.0  # erro grande, kp alto -> satura em 100%
+
+
+def test_current_duty_unknown_vessel_returns_zero(setup):
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    assert engine.current_duty("does_not_exist") == 0.0
+
+
 def test_tick_activates_step_pumps(setup):
     runtime, recipe, state_path = setup
     engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)

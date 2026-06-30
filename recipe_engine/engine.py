@@ -66,6 +66,17 @@ class RecipeEngine:
         """Nome da receita carregada nesta engine, independente do status de execução."""
         return self._recipe.name
 
+    @property
+    def recipe(self):
+        """Definição completa da receita carregada (somente leitura)."""
+        return self._recipe
+
+    def current_duty(self, vessel_name: str) -> float:
+        """Potência atual (0-100%) calculada pelo PID para a vasilha — usado pela UI (medidor)."""
+        if vessel_name not in self._tpc:
+            return 0.0
+        return self._tpc[vessel_name].duty_cycle_percent
+
     # ---- ações de usuário -------------------------------------------------
 
     def start(self, now: float) -> None:

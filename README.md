@@ -69,7 +69,7 @@ tesseract-device-bridge/
 | 6 | Hardware Mazza CraftBeerPi: barramento DS18B20 compartilhado, driver real, scan CLI | ✅ Concluído |
 | 7 | `recipe_engine/`: PID + time-proportioning (fundação) | ✅ Concluído (159/159 testes no total) |
 | 8 | `recipe_engine/`: máquina de estado de receita (ramp/hold), persistência, crash-safe pause | ✅ Concluído (201/201 testes no total) |
-| 9 | Painel: aba visual "Receitas" (criar/editar receita, gráfico setpoint vs. real) | ⏳ Próximo — controle via API já funciona (ver abaixo), falta só a UI |
+| 9 | Painel: aba visual "Receitas" (medidor por vasilha, timeline, gráfico setpoint vs. real) | ✅ Concluído (206/206 testes no total) |
 
 ## ⚠️ Sobre a validação da Fase 5
 
@@ -240,13 +240,50 @@ Retomar exige chamada explícita a `POST /api/recipe/resume` — se a
 pausa ocorreu durante `holding`, o tempo de patamar já decorrido é
 preservado (não reinicia a contagem do zero).
 
-### Controle via API (painel ainda sem aba visual — Fase 9 pendente)
+### Aba visual "Receitas" (Fase 9)
+
+Nova aba no painel (`panel/templates/index.html`), com identidade
+visual própria — accent cobre (referência literal ao caldeirão de
+cobre da brassagem), numerais em fonte monoespaçada para os
+readouts de temperatura (como instrumentação industrial real), e um
+**medidor circular por vasilha** como elemento de assinatura: o anel
+preenche conforme a potência (`current_duty_percent`) que o PID está
+aplicando naquele instante — é dado real, não decoração.
+
+Composição da aba:
+- **Cards de vasilha** (um por `vessel` da receita): medidor circular
+  com temperatura atual + % de potência no centro, alvo da etapa
+  atual, chips de bomba (acende quando a bomba daquela vasilha está
+  ligada). Vasilha fora da etapa atual fica visualmente neutra
+  ("aguardando").
+- **Timeline horizontal**: um nó por step, conectados por linha —
+  etapas concluídas em cobre sólido, etapa atual destacada (âmbar
+  durante rampa, verde durante patamar, com label dinâmico
+  "subindo…"/"em patamar…"), etapas futuras mostram alvo e tempo de
+  patamar.
+- **Gráfico ao vivo** (SVG desenhado em runtime, sem lib externa):
+  temperatura real (linha cobre sólida) vs. setpoint (linha
+  tracejada), últimos ~150 pontos de poll (~6 minutos de histórico a
+  2.5s/poll) — reiniciado a cada troca de vasilha ativa.
+- **Banner de crash**: aparece automaticamente quando o status é
+  `paused_after_crash`, com botão "Retomar" direto.
+- **Controles**: Iniciar / Cancelar, habilitados/desabilitados
+  conforme o status atual.
+
+Endpoint novo de apoio à UI: `GET /api/recipe/definition` (separado de
+`/api/recipe/status`) — expõe a definição estática da receita
+(vasilhas, etapas, alvos) carregada uma vez; o polling periódico
+(2.5s) só bate em `/api/recipe/status` e `/api/devices` para o estado
+dinâmico.
+
+### Endpoints de receita
 
 ```
-GET  /api/recipe/status   -> status atual, etapa, receita carregada
-POST /api/recipe/start    -> inicia (ou reinicia do zero) a receita
-POST /api/recipe/abort    -> cancela, aplica failsafe em tudo
-POST /api/recipe/resume   -> retoma de paused_after_crash
+GET  /api/recipe/status      -> status de execução, vasilha/duty atual
+GET  /api/recipe/definition  -> vasilhas e etapas da receita carregada
+POST /api/recipe/start       -> inicia (ou reinicia do zero) a receita
+POST /api/recipe/abort       -> cancela, aplica failsafe em tudo
+POST /api/recipe/resume      -> retoma de paused_after_crash
 ```
 
 ### ⚠️ Limitação conhecida

@@ -38,6 +38,11 @@ class TimeProportioningController:
         """
         self._duty_cycle_percent = max(0.0, min(100.0, duty_cycle_percent))
 
+    @property
+    def duty_cycle_percent(self) -> float:
+        """Última potência (0-100%) recebida via set_duty_cycle() — usado pela UI para o medidor."""
+        return self._duty_cycle_percent
+
     def should_be_on(self, now: float) -> bool:
         """
         Decide se o relé deve estar ligado neste instante, dado o duty

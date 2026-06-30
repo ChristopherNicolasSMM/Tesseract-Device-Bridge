@@ -359,6 +359,210 @@
       .mqtt-status { font-size: 12px; padding: 4px 10px; }
       .clock { font-size: 12px; }
     }
+
+    /* ===== RECEITAS — tokens proprios (accent cobre, numerais de instrumentacao) ===== */
+    :root {
+      --copper-500: #c9763f;
+      --copper-300: #e8a368;
+      --copper-glow: rgba(201, 118, 63, 0.35);
+      --ramp-amber: #e3a23c;
+      --hold-green: #4cae6e;
+      --fault-red: #e0544a;
+      --ink-warm-0: #f5efe7;
+      --ink-warm-400: #a39a8d;
+      --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+    }
+
+    .recipe-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+    .recipe-title-block { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+    .recipe-title {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+      color: var(--ink-warm-0);
+    }
+    .recipe-eyebrow {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--copper-300);
+      font-weight: 600;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 14px 5px 10px;
+      border-radius: 30px;
+      font-size: 12.5px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-primary);
+      text-transform: uppercase;
+    }
+    .status-pill .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .status-pill.idle .dot { background: var(--text-secondary); }
+    .status-pill.ramping .dot { background: var(--ramp-amber); box-shadow: 0 0 8px var(--ramp-amber); animation: pulse 1.4s infinite; }
+    .status-pill.ramping { border-color: rgba(227,162,60,0.35); color: var(--ramp-amber); }
+    .status-pill.holding .dot { background: var(--hold-green); box-shadow: 0 0 8px var(--hold-green); }
+    .status-pill.holding { border-color: rgba(76,174,110,0.35); color: var(--hold-green); }
+    .status-pill.finished .dot { background: var(--hold-green); }
+    .status-pill.finished { border-color: rgba(76,174,110,0.35); color: var(--hold-green); }
+    .status-pill.aborted .dot { background: var(--text-secondary); }
+    .status-pill.paused_after_crash .dot { background: var(--fault-red); box-shadow: 0 0 8px var(--fault-red); animation: pulse 1s infinite; }
+    .status-pill.paused_after_crash { border-color: rgba(224,84,74,0.4); color: var(--fault-red); }
+
+    .crash-banner {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      background: linear-gradient(90deg, rgba(224,84,74,0.14), rgba(224,84,74,0.04));
+      border: 1px solid rgba(224,84,74,0.35);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      margin-bottom: 22px;
+      font-size: 13.5px;
+    }
+    .crash-banner.show { display: flex; }
+    .crash-banner strong { color: var(--fault-red); }
+    .crash-banner button {
+      margin-left: auto;
+      background: var(--fault-red);
+      color: #fff;
+      border: none;
+      padding: 9px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .crash-banner button:hover { filter: brightness(1.1); }
+
+    .vessel-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 18px;
+      margin-bottom: 26px;
+    }
+    .vessel-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius);
+      padding: 22px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.3s;
+    }
+    .vessel-card.active { border-color: rgba(201,118,63,0.45); }
+    .vessel-card.active::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(circle at 0% 0%, var(--copper-glow), transparent 60%);
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .gauge-wrap { position: relative; width: 104px; height: 104px; flex-shrink: 0; }
+    .gauge-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+    .gauge-track { fill: none; stroke: var(--border-subtle); stroke-width: 8; }
+    .gauge-fill { fill: none; stroke: var(--copper-500); stroke-width: 8; stroke-linecap: round; transition: stroke-dasharray 0.6s ease; }
+    .gauge-center {
+      position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }
+    .gauge-temp { font-family: var(--mono); font-size: 19px; font-weight: 700; color: var(--ink-warm-0); line-height: 1; }
+    .gauge-duty { font-family: var(--mono); font-size: 10px; color: var(--copper-300); margin-top: 3px; }
+    .vessel-info { flex: 1; min-width: 0; }
+    .vessel-name { font-size: 14.5px; font-weight: 700; color: var(--ink-warm-0); margin-bottom: 6px; }
+    .vessel-target {
+      font-family: var(--mono); font-size: 12.5px; color: var(--ink-warm-400);
+      display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
+    }
+    .vessel-target .arrow { color: var(--copper-300); }
+    .vessel-pumps { display: flex; flex-wrap: wrap; gap: 6px; }
+    .pump-chip {
+      font-size: 11px; padding: 3px 9px; border-radius: 20px;
+      background: var(--bg-primary); border: 1px solid var(--border-subtle); color: var(--text-secondary);
+    }
+    .pump-chip.on { color: var(--hold-green); border-color: rgba(76,174,110,0.4); }
+
+    .timeline-wrap {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius);
+      padding: 22px 24px;
+      margin-bottom: 22px;
+      overflow-x: auto;
+    }
+    .timeline-track { display: flex; align-items: flex-start; min-width: max-content; gap: 0; }
+    .timeline-step { display: flex; flex-direction: column; align-items: center; width: 150px; position: relative; }
+    .timeline-line { position: absolute; top: 9px; left: -75px; width: 150px; height: 2px; background: var(--border-subtle); z-index: 0; }
+    .timeline-step:first-child .timeline-line { display: none; }
+    .timeline-step.done .timeline-line { background: var(--copper-500); }
+    .timeline-node {
+      width: 20px; height: 20px; border-radius: 50%;
+      background: var(--bg-primary); border: 2px solid var(--border-subtle);
+      z-index: 1; display: flex; align-items: center; justify-content: center;
+      font-size: 10px; color: var(--text-secondary); font-weight: 700;
+    }
+    .timeline-step.done .timeline-node { background: var(--copper-500); border-color: var(--copper-500); color: #1a1208; }
+    .timeline-step.current .timeline-node { border-color: var(--ramp-amber); box-shadow: 0 0 0 4px rgba(227,162,60,0.18); color: var(--ramp-amber); }
+    .timeline-step.current.holding .timeline-node { border-color: var(--hold-green); box-shadow: 0 0 0 4px rgba(76,174,110,0.18); color: var(--hold-green); }
+    .timeline-label { font-size: 12px; font-weight: 600; color: var(--ink-warm-0); margin-top: 10px; text-align: center; }
+    .timeline-meta { font-family: var(--mono); font-size: 11px; color: var(--ink-warm-400); margin-top: 3px; text-align: center; }
+    .timeline-step.current .timeline-meta { color: var(--ramp-amber); }
+    .timeline-step.current.holding .timeline-meta { color: var(--hold-green); }
+
+    .chart-wrap {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius);
+      padding: 22px 24px;
+      margin-bottom: 22px;
+    }
+    .chart-legend { display: flex; gap: 18px; margin-bottom: 14px; font-size: 12px; color: var(--ink-warm-400); }
+    .chart-legend span { display: flex; align-items: center; gap: 6px; }
+    .legend-swatch { width: 16px; height: 2px; display: inline-block; }
+    .legend-swatch.actual { background: var(--copper-500); }
+    .legend-swatch.setpoint { background: repeating-linear-gradient(90deg, var(--ink-warm-400) 0 4px, transparent 4px 8px); }
+    #recipeChart { width: 100%; height: 180px; display: block; }
+
+    .recipe-controls { display: flex; gap: 12px; flex-wrap: wrap; }
+    .btn-recipe {
+      padding: 11px 22px;
+      border-radius: 9px;
+      font-size: 13.5px;
+      font-weight: 600;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: filter 0.15s, transform 0.1s;
+    }
+    .btn-recipe:active { transform: scale(0.97); }
+    .btn-recipe.primary { background: var(--copper-500); color: #1a1208; }
+    .btn-recipe.primary:hover { filter: brightness(1.12); }
+    .btn-recipe.ghost { background: transparent; border-color: var(--border-subtle); color: var(--text-secondary); }
+    .btn-recipe.ghost:hover { border-color: var(--fault-red); color: var(--fault-red); }
+    .btn-recipe:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .recipe-empty {
+      text-align: center;
+      padding: 70px 20px;
+      color: var(--ink-warm-400);
+    }
+    .recipe-empty .icon { font-size: 36px; margin-bottom: 14px; opacity: 0.6; }
+    .recipe-empty p { font-size: 13.5px; max-width: 420px; margin: 0 auto; line-height: 1.6; }
+
   </style>
 </head>
 <body>
@@ -381,6 +585,7 @@
   <nav class="nav-tabs">
     <button class="nav-tab active" data-tab="dashboard">📊 Painel</button>
     <button class="nav-tab" data-tab="management">⚙️ Gerenciamento</button>
+    <button class="nav-tab" data-tab="recipes">🍺 Receitas</button>
   </nav>
 
   <!-- ===== CONTEÚDO ===== -->
@@ -423,6 +628,49 @@
       <p style="margin-top: 16px; font-size: 13px; color: var(--text-secondary);">
         ℹ️ Esta tabela reflete os dados em tempo real do bridge. Configurações avançadas (como mapeamento de GPIO) devem ser ajustadas no arquivo <code>devices.yml</code> ou via variáveis de ambiente.
       </p>
+    </section>
+
+    <!-- RECEITAS -->
+    <section id="recipes" class="tab-pane">
+      <div id="recipeEmpty" class="recipe-empty" style="display:none;">
+        <div class="icon">🧪</div>
+        <p>Nenhuma receita carregada neste bridge. Copie <code>recipe.yml.example</code> para <code>recipe.yml</code> na raiz do projeto e reinicie o bridge para habilitar o motor de execução autonomo.</p>
+      </div>
+
+      <div id="recipeContent" style="display:none;">
+        <div id="crashBanner" class="crash-banner">
+          <span>⚠️ <strong>Execução interrompida</strong> — o processo encerrou durante <span id="crashFromStatus"></span>. Failsafe já aplicado em todos os atuadores de risco. Retome de onde parou quando estiver pronto.</span>
+          <button onclick="resumeRecipe()">Retomar</button>
+        </div>
+
+        <div class="recipe-header">
+          <div class="recipe-title-block">
+            <div>
+              <div class="recipe-eyebrow">Receita ativa</div>
+              <div class="recipe-title" id="recipeName">—</div>
+            </div>
+            <span class="status-pill idle" id="recipeStatusPill"><span class="dot"></span><span id="recipeStatusText">Idle</span></span>
+          </div>
+          <div class="recipe-controls">
+            <button class="btn-recipe ghost" id="btnAbort" onclick="abortRecipe()" disabled>Cancelar</button>
+            <button class="btn-recipe primary" id="btnStart" onclick="startRecipe()">Iniciar Receita</button>
+          </div>
+        </div>
+
+        <div class="vessel-row" id="vesselRow"></div>
+
+        <div class="timeline-wrap">
+          <div class="timeline-track" id="timelineTrack"></div>
+        </div>
+
+        <div class="chart-wrap">
+          <div class="chart-legend">
+            <span><span class="legend-swatch actual"></span> Temperatura real</span>
+            <span><span class="legend-swatch setpoint"></span> Setpoint</span>
+          </div>
+          <svg id="recipeChart" viewBox="0 0 800 180" preserveAspectRatio="none"></svg>
+        </div>
+      </div>
     </section>
   </main>
 
@@ -624,17 +872,243 @@
         const res = await fetch('/api/devices');
         if (!res.ok) throw new Error('Falha ao buscar dispositivos');
         const devices = await res.json();
+        window.lastDevices = devices;
         renderDevices(devices);
       } catch (e) {
         toast(`❌ Erro ao atualizar: ${e.message}`, 'error');
       }
     }
+
+    // ===== RECEITAS =====
+    let recipeDefinition = null;
+    let recipeLoaded = false;
+    const chartHistory = {};
+    const MAX_CHART_POINTS = 150;
+
+    function deviceValue(id) {
+      const list = window.lastDevices || [];
+      const d = list.find(x => x.id === id);
+      return d ? d.value : null;
+    }
+
+    async function loadRecipeDefinition() {
+      try {
+        const res = await fetch('/api/recipe/definition');
+        if (!res.ok) {
+          recipeLoaded = false;
+          $('recipeEmpty').style.display = 'block';
+          $('recipeContent').style.display = 'none';
+          return;
+        }
+        recipeDefinition = await res.json();
+        recipeLoaded = true;
+        $('recipeEmpty').style.display = 'none';
+        $('recipeContent').style.display = 'block';
+        $('recipeName').textContent = recipeDefinition.name;
+        renderVesselSkeleton();
+        renderTimeline(null);
+      } catch (e) {
+        recipeLoaded = false;
+      }
+    }
+
+    function vesselPumpIds(vesselName) {
+      const ids = new Set();
+      recipeDefinition.steps.forEach(s => { if (s.vessel === vesselName) s.pumps.forEach(p => ids.add(p)); });
+      return Array.from(ids);
+    }
+
+    function renderVesselSkeleton() {
+      const row = $('vesselRow');
+      row.innerHTML = Object.keys(recipeDefinition.vessels).map(name => `
+        <div class="vessel-card" id="vcard-${name}">
+          <div class="gauge-wrap">
+            <svg viewBox="0 0 104 104">
+              <circle class="gauge-track" cx="52" cy="52" r="44"></circle>
+              <circle class="gauge-fill" id="gfill-${name}" cx="52" cy="52" r="44"
+                      stroke-dasharray="0 276.5"></circle>
+            </svg>
+            <div class="gauge-center">
+              <div class="gauge-temp" id="gtemp-${name}">\u2014</div>
+              <div class="gauge-duty" id="gduty-${name}">0% pot.</div>
+            </div>
+          </div>
+          <div class="vessel-info">
+            <div class="vessel-name">${name}</div>
+            <div class="vessel-target" id="vtarget-${name}"><span class="arrow">\u2192</span> aguardando</div>
+            <div class="vessel-pumps" id="vpumps-${name}"></div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderTimeline(status) {
+      const track = $('timelineTrack');
+      track.innerHTML = recipeDefinition.steps.map((s, i) => {
+        let cls = 'timeline-step';
+        let meta = `${s.target_temp}\u00b0C \u00b7 ${s.hold_minutes}min`;
+        if (status) {
+          if (i < status.step_index) cls += ' done';
+          else if (i === status.step_index && (status.status === 'ramping' || status.status === 'holding')) {
+            cls += ' current';
+            if (status.status === 'holding') cls += ' holding';
+            meta = status.status === 'ramping' ? 'subindo\u2026' : 'em patamar\u2026';
+          } else if (i === status.step_index && status.status === 'finished') {
+            cls += ' done';
+          }
+        }
+        const label = s.label || `${s.vessel} \u2014 ${s.target_temp}\u00b0C`;
+        return `
+          <div class="${cls}">
+            <div class="timeline-line"></div>
+            <div class="timeline-node">${i + 1}</div>
+            <div class="timeline-label">${label}</div>
+            <div class="timeline-meta">${meta}</div>
+          </div>`;
+      }).join('');
+    }
+
+    let currentStepIndexCache = 0;
+
+    function updateGauge(vesselName, currentTemp, targetTemp, dutyPercent, active) {
+      const card = $('vcard-' + vesselName);
+      if (!card) return;
+      card.classList.toggle('active', !!active);
+
+      const C = 2 * Math.PI * 44;
+      const frac = Math.max(0, Math.min(1, (dutyPercent || 0) / 100));
+      $('gfill-' + vesselName).setAttribute('stroke-dasharray', `${(frac * C).toFixed(1)} ${C.toFixed(1)}`);
+      $('gtemp-' + vesselName).textContent = (currentTemp !== null && currentTemp !== undefined) ? `${currentTemp.toFixed(1)}\u00b0` : '\u2014';
+      $('gduty-' + vesselName).textContent = active ? `${Math.round(dutyPercent)}% pot.` : 'inativo';
+
+      const targetEl = $('vtarget-' + vesselName);
+      targetEl.innerHTML = active
+        ? `<span class="arrow">\u2192</span> alvo ${targetTemp}\u00b0C`
+        : `<span class="arrow">\u2192</span> aguardando`;
+
+      const pumpsEl = $('vpumps-' + vesselName);
+      const pumpIds = vesselPumpIds(vesselName);
+      const activePumps = active ? new Set(recipeDefinition.steps[currentStepIndexCache]?.pumps || []) : new Set();
+      pumpsEl.innerHTML = pumpIds.map(pid => {
+        const isOn = activePumps.has(pid) && deviceValue(pid) === true;
+        return `<span class="pump-chip ${isOn ? 'on' : ''}">${pid}</span>`;
+      }).join('');
+    }
+
+    function pushChartPoint(vesselName, actual, setpoint) {
+      if (!chartHistory[vesselName]) chartHistory[vesselName] = [];
+      const arr = chartHistory[vesselName];
+      arr.push({ t: Date.now(), actual, setpoint });
+      if (arr.length > MAX_CHART_POINTS) arr.shift();
+    }
+
+    function drawChart(vesselName) {
+      const svg = $('recipeChart');
+      const arr = chartHistory[vesselName] || [];
+      if (arr.length < 2) { svg.innerHTML = ''; return; }
+
+      const W = 800, H = 180, PAD = 10;
+      const temps = arr.flatMap(p => [p.actual, p.setpoint]).filter(v => v !== null && v !== undefined);
+      const yMin = Math.min(...temps) - 2;
+      const yMax = Math.max(...temps) + 2;
+      const xStep = (W - PAD * 2) / (MAX_CHART_POINTS - 1);
+      const xOffset = W - PAD - (arr.length - 1) * xStep;
+
+      const toY = v => H - PAD - ((v - yMin) / (yMax - yMin || 1)) * (H - PAD * 2);
+      const toX = i => xOffset + i * xStep;
+
+      const actualPath = arr.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(i).toFixed(1)} ${toY(p.actual).toFixed(1)}`).join(' ');
+      const setpointPath = arr.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(i).toFixed(1)} ${toY(p.setpoint).toFixed(1)}`).join(' ');
+
+      svg.innerHTML = `
+        <path d="${setpointPath}" fill="none" stroke="var(--ink-warm-400)" stroke-width="1.5" stroke-dasharray="5 5" />
+        <path d="${actualPath}" fill="none" stroke="var(--copper-500)" stroke-width="2.5" />
+      `;
+    }
+
+    async function pollRecipeStatus() {
+      if (!recipeLoaded) return;
+      try {
+        const res = await fetch('/api/recipe/status');
+        if (!res.ok) return;
+        const status = await res.json();
+        currentStepIndexCache = status.step_index;
+
+        const pill = $('recipeStatusPill');
+        pill.className = 'status-pill ' + status.status;
+        const labels = {
+          idle: 'Parada', ramping: 'Subindo', holding: 'Em patamar',
+          finished: 'Concluida', aborted: 'Cancelada', paused_after_crash: 'Pausada (queda)',
+        };
+        $('recipeStatusText').textContent = labels[status.status] || status.status;
+
+        $('btnStart').disabled = (status.status === 'ramping' || status.status === 'holding');
+        $('btnAbort').disabled = !(status.status === 'ramping' || status.status === 'holding');
+
+        const banner = $('crashBanner');
+        if (status.status === 'paused_after_crash') {
+          banner.classList.add('show');
+          $('crashFromStatus').textContent = status.paused_from_status === 'holding' ? 'o patamar' : 'a rampa';
+        } else {
+          banner.classList.remove('show');
+        }
+
+        renderTimeline(status);
+
+        const active = (status.status === 'ramping' || status.status === 'holding');
+        const currentVessel = status.current_vessel;
+        const currentStep = active ? recipeDefinition.steps[status.step_index] : null;
+
+        Object.keys(recipeDefinition.vessels).forEach(name => {
+          const isActive = active && name === currentVessel;
+          const sensorId = recipeDefinition.vessels[name].sensor_device_id;
+          const temp = deviceValue(sensorId);
+          updateGauge(name, temp, currentStep ? currentStep.target_temp : null, status.current_duty_percent, isActive);
+        });
+
+        if (active && currentVessel) {
+          const sensorId = recipeDefinition.vessels[currentVessel].sensor_device_id;
+          const temp = deviceValue(sensorId);
+          if (temp !== null) {
+            pushChartPoint(currentVessel, temp, currentStep.target_temp);
+            drawChart(currentVessel);
+          }
+        }
+      } catch (e) { /* silencioso */ }
+    }
+
+    async function startRecipe() {
+      try {
+        await fetch('/api/recipe/start', { method: 'POST' });
+        toast('Receita iniciada', 'success');
+        pollRecipeStatus();
+      } catch (e) { toast('Erro ao iniciar receita', 'error'); }
+    }
+
+    async function abortRecipe() {
+      try {
+        await fetch('/api/recipe/abort', { method: 'POST' });
+        toast('Receita cancelada, failsafe aplicado', 'info');
+        pollRecipeStatus();
+      } catch (e) { toast('Erro ao cancelar receita', 'error'); }
+    }
+
+    async function resumeRecipe() {
+      try {
+        const res = await fetch('/api/recipe/resume', { method: 'POST' });
+        if (!res.ok) throw new Error();
+        toast('Receita retomada de onde parou', 'success');
+        pollRecipeStatus();
+      } catch (e) { toast('Erro ao retomar receita', 'error'); }
+    }
 
     // ===== INIT =====
     fetchStatus();
     refresh();
+    loadRecipeDefinition().then(() => { pollRecipeStatus(); });
     setInterval(fetchStatus, 4000);
     setInterval(refresh, 3000);
+    setInterval(pollRecipeStatus, 2500);
   </script>
 </body>
 </html>

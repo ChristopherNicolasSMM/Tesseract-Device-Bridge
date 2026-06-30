@@ -108,6 +108,11 @@ def simulate_device(device_id: str):
 
 def _recipe_status_payload(engine: RecipeEngine) -> dict:
     state = engine.state
+    current_vessel = None
+    current_duty = 0.0
+    if state.status in ("ramping", "holding") and state.step_index < engine.recipe.step_count():
+        current_vessel = engine.recipe.steps[state.step_index].vessel
+        current_duty = engine.current_duty(current_vessel)
     return {
         "loaded_recipe_name": engine.recipe_name,
         "recipe_name": state.recipe_name,
@@ -117,6 +122,8 @@ def _recipe_status_payload(engine: RecipeEngine) -> dict:
         "hold_started_at": state.hold_started_at,
         "hold_elapsed_seconds_at_pause": state.hold_elapsed_seconds_at_pause,
         "paused_from_status": state.paused_from_status,
+        "current_vessel": current_vessel,
+        "current_duty_percent": current_duty,
     }
 
 
@@ -126,6 +133,42 @@ def recipe_status():
     if engine is None:
         return jsonify({"error": "Nenhuma receita carregada neste bridge."}), 404
     return jsonify(_recipe_status_payload(engine))
+
+
+@bp.get("/recipe/definition")
+def recipe_definition():
+    """
+    Expõe a definição estática da receita carregada (vasilhas + etapas)
+    — separado de /recipe/status (que é o estado de execução) porque a
+    definição não muda em runtime; a UI carrega isso uma vez e só faz
+    polling de /recipe/status + /devices para o estado dinâmico.
+    """
+    engine = _recipe_engine()
+    if engine is None:
+        return jsonify({"error": "Nenhuma receita carregada neste bridge."}), 404
+
+    recipe = engine.recipe
+    return jsonify({
+        "name": recipe.name,
+        "vessels": {
+            name: {
+                "heater_device_id": v.heater_device_id,
+                "sensor_device_id": v.sensor_device_id,
+                "window_seconds": v.window_seconds,
+            }
+            for name, v in recipe.vessels.items()
+        },
+        "steps": [
+            {
+                "vessel": s.vessel,
+                "target_temp": s.target_temp,
+                "hold_minutes": s.hold_minutes,
+                "pumps": s.pumps,
+                "label": s.label,
+            }
+            for s in recipe.steps
+        ],
+    })
 
 
 @bp.post("/recipe/start")

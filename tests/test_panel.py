@@ -214,6 +214,18 @@ def test_recipe_start_transitions_to_ramping(client_with_recipe):
     assert res.get_json()["status"] == "ramping"
 
 
+def test_recipe_status_includes_current_vessel_and_duty(client_with_recipe):
+    client, engine = client_with_recipe
+    client.post("/api/recipe/start")
+    engine.tick(now=1000.0)
+    engine.tick(now=1001.0)
+
+    res = client.get("/api/recipe/status")
+    data = res.get_json()
+    assert data["current_vessel"] == "mash"
+    assert data["current_duty_percent"] > 0
+
+
 def test_recipe_abort_sets_aborted(client_with_recipe):
     client, engine = client_with_recipe
     client.post("/api/recipe/start")
@@ -226,3 +238,20 @@ def test_recipe_resume_without_crash_returns_400(client_with_recipe):
     client, engine = client_with_recipe
     res = client.post("/api/recipe/resume")
     assert res.status_code == 400
+
+
+def test_recipe_definition_returns_vessels_and_steps(client_with_recipe):
+    client, engine = client_with_recipe
+    res = client.get("/api/recipe/definition")
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["name"] == "Receita Teste Painel"
+    assert "mash" in data["vessels"]
+    assert data["vessels"]["mash"]["heater_device_id"] == "mash_heater"
+    assert len(data["steps"]) == 1
+    assert data["steps"][0]["target_temp"] == 35.0
+
+
+def test_recipe_definition_returns_404_when_no_recipe_engine(client):
+    res = client.get("/api/recipe/definition")
+    assert res.status_code == 404
