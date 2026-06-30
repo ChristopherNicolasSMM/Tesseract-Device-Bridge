@@ -1,0 +1,832 @@
+From 1085943ee2aed7bbd32e38f7a678f53f59dc1b27 Mon Sep 17 00:00:00 2001
+From: Claude <claude@local>
+Date: Tue, 30 Jun 2026 18:32:38 +0000
+Subject: [PATCH] Refatora README: documentacao de referencia, foco em
+ adaptabilidade
+
+---
+ README.md | 768 ++++++++++++++++++++++--------------------------------
+ 1 file changed, 309 insertions(+), 459 deletions(-)
+
+diff --git a/README.md b/README.md
+index b12c2fe..aa5603e 100644
+--- a/README.md
++++ b/README.md
+@@ -1,505 +1,355 @@
+ # tesseract-device-bridge
+ 
+-Componente independente (não faz parte do repositório Tesseract, não segue
+-as skills 00–04 do Tesseract) que roda no Raspberry Pi (ou qualquer máquina
+-com GPIO/sensores) fazendo a ponte entre hardware físico e o broker MQTT.
+-
+-Especificação completa de origem:
+-`docs/skills/05-proposta-addon-device-manager-e-mqtt.md` (lado Tesseract) +
+-spec deste componente (lado bridge).
+-
+-## Decisões registradas desta fase
+-
+-- **Repositório**: novo e separado do Tesseract. Compatibilidade com o
+-  `addon_device_manager` é só por convenção de nomes de chave no
+-  `devices.yml` — sem link automático ou submódulo.
+-- **`failsafe_timeout_seconds`**: promovido de "fora de escopo" para
+-  entregável da v1. Para cada atuador com `is_risk: true` e esse campo
+-  definido, o bridge aplica `failsafe_value` localmente se ficar sem
+-  conexão MQTT por mais tempo que o limite — complementa (não substitui)
+-  o LWT registrado pelo lado Tesseract.
+-- **Segurança do painel web**: decisão consciente de não ter autenticação
+-  na v1. O painel aciona atuadores reais diretamente, sem RBAC. Assume-se
+-  rede local confiável. **Se for exposto fora da rede local, é
+-  responsabilidade de quem fizer o deploy colocar atrás de VPN ou
+-  reverse-proxy com autenticação** — isso não é tratado pelo código deste
+-  repositório.
+-
+-## Estrutura
++> Ponte entre hardware físico (GPIO de um Raspberry Pi) e automação de
++> processo — com ou sem rede.
++
++## O que é este projeto
++
++Este repositório é a **metade física** do [Tesseract](https://github.com/ChristopherNicolasSMM/Tesseract):
++roda dentro do Raspberry Pi (ou qualquer máquina Linux com GPIO),
++falando diretamente com sensores e atuadores, e se conecta ao
++Tesseract via MQTT quando disponível. Ele nasceu com um objetivo
++concreto — **controlar uma mostura de cervejaria caseira** (PID de
++temperatura por vasilha, bombas, timers de lupulagem) — mas a
++arquitetura **não tem nada de cervejeiro embutido no núcleo**. Tudo
++que é específico de brassagem vive em dois lugares isolados:
++
++- **`devices.yml`** — descreve *o que está fisicamente ligado em quais
++  pinos* (sensores, relés, bombas). Trocar o domínio é trocar este
++  arquivo.
++- **`recipe.yml`** — descreve *o processo a automatizar* (vasilhas,
++  etapas, alvos, alarmes). Também é só configuração.
++
++O núcleo (`gpio/`, `device_runtime.py`, `bridge.py`,
++`recipe_engine/`) não sabe o que é "mostura" ou "lúpulo" — ele sabe
++ler sensores, acionar atuadores, rodar PID + time-proportioning por
++"vasilha" (qualquer coisa controlada por um sensor + um aquecedor/atuador
+++ um alvo), e disparar alarmes por etapa. **Isso significa que dá pra
++reaproveitar o projeto inteiro pra controlar qualquer sistema que siga
++o mesmo padrão "sensor → controlador → atuador, em etapas com um
++alvo"** — irrigação por zona (umidade do solo → válvula), estufa
++(temperatura/umidade → ventilação/aquecimento), tanque de processo
++industrial, etc. — sem tocar no núcleo, só escrevendo um `devices.yml`
++e um `recipe.yml` novos (e, se o domínio precisar de um tipo de sensor
++diferente do DS18B20, implementando um driver novo em `gpio/`, seguindo
++o padrão já estabelecido por `ds18b20_driver.py`).
++
++Essa generalidade é o que torna o projeto uma base razoável pra
++integrar com plataformas de automação agrícola maiores (ex.: Conecta
++Agro e similares) — o bridge já resolve a parte difícil e repetitiva
++(leitura confiável de sensores 1-Wire, controle PID com proteção
++contra falha, recuperação de queda de energia, alarmes programáveis,
++painel web pronto) e deixa só a modelagem do processo (`recipe.yml`)
++e o mapeamento de hardware (`devices.yml`) como trabalho específico de
++cada novo domínio.
++
++## Por que existe separado do Tesseract
++
++Não é um Addon do Tesseract nem segue as skills 00–04 dele — é um
++processo Python independente, com seu próprio repositório, pensado
++pra rodar isolado no hardware (inclusive **sem internet/MQTT
++nenhum**, em modo só-painel-local). A compatibilidade com o
++`addon_device_manager` do Tesseract é por convenção de protocolo
++(tópicos MQTT, formato de payload), nunca por dependência de código.
++
++---
++
++## Visão geral rápida
+ 
+ ```
+-tesseract-device-bridge/
+-├── gpio/
+-│   ├── base.py             # interface abstrata GPIOBackend (read/write/setup/teardown), ganhou `address` opcional
+-│   ├── simulated_backend.py # ✅ Fase 1 + suporte a `address` (barramento compartilhado)
+-│   ├── real_backend.py     # ✅ Fase 5 — gpiozero + suporte a `address` (não substitui Pi real)
+-│   ├── ds18b20_driver.py   # ✅ novo — driver real via filesystem 1-Wire, testado com fs fake
+-│   └── ds18b20_scan.py     # ✅ novo — CLI: lista sensores DS18B20 conectados e endereços
+-├── config.py               # ✅ Fase 2 + regra de barramento compartilhado (ds18b20 + address único)
+-├── device_runtime.py       # ✅ Fase 3 — ponte config <-> backend, agora repassa `address`
+-├── recipe_engine/          # ✅ novo (fundação) — máquina de estado de receita ainda pendente
+-│   ├── pid.py                # PidController (Kp/Ki/Kd, anti-windup, saída clampada)
+-│   └── time_proportioning.py # TimeProportioningController (duty cycle -> liga/desliga por janela)
+-├── failsafe_coercion.py    # ✅ Fase 4 — string do Tesseract -> tipo certo (float/bool) por subtype
+-├── status_handler.py       # ✅ Fase 4 — processa status agregado (LWT corrigido), matching por command_topic
+-├── failsafe_watchdog.py    # ✅ Fase 4 — timeout local (bridge perdeu broker, Tesseract pode estar vivo)
+-├── mqtt_client.py          # ✅ Fase 4 — wrapper paho-mqtt (conexão, assinatura, despacho por tópico)
+-├── bridge.py               # ✅ Fase 4 — orquestração (DeviceRuntime + status + watchdog + mqtt)
+-├── panel/                  # ✅ Fase 3 — painel/Gerenciamento (commit "melhora no html")
+-│   ├── app.py
+-│   ├── api.py
+-│   └── templates/index.html
+-├── run_panel.py            # ✅ entrada standalone — só painel, sem MQTT
+-├── run_bridge.py           # ✅ Fase 4 — entrada completa (MQTT + painel em paralelo)
+-├── tests/                   # ✅ 159 testes (ver detalhamento abaixo)
+-├── devices.yml.example     # ✅ atualizado para o hardware Mazza CraftBeerPi (duplo-vessel)
+-├── requirements.txt        # ✅
+-└── README.md
++devices.yml   -> o que está ligado em qual pino (hardware real)
++recipe.yml    -> o processo a automatizar (opcional — sem ele, o bridge
++                 ainda funciona como painel manual + ponte MQTT pura)
++
++run_panel.py  -> só o painel web, sem MQTT, sem motor de receita
++                 (bom pra testar hardware isolado na bancada)
++run_bridge.py -> processo completo: painel + MQTT (se habilitado) +
++                 motor de receita (se recipe.yml existir)
+ ```
+ 
+-## Status do roadmap
++| Camada | Arquivo(s) | Especificidade de domínio? |
++|---|---|---|
++| GPIO abstrato | `gpio/base.py`, `simulated_backend.py`, `real_backend.py` | Nenhuma |
++| Drivers de sensor | `gpio/ds18b20_driver.py` (+ scan CLI) | Nenhuma (1-Wire genérico) |
++| Config de hardware | `config.py`, `devices.yml` | Só o que você descrever |
++| Runtime de device | `device_runtime.py` | Nenhuma |
++| Ponte MQTT | `mqtt_client.py`, `status_handler.py`, `failsafe_watchdog.py`, `bridge.py` | Nenhuma |
++| Painel web | `panel/` | Genérico (lista sensores/atuadores quaisquer) + aba "Receitas" |
++| Motor de processo | `recipe_engine/` | Nenhuma — "vasilha" é só um nome, pode ser zona de irrigação, estufa, tanque |
++| Modelagem do processo | `recipe.yml` | **Aqui mora toda a especificidade de domínio** |
++
++---
++
++## Instalação e primeiro uso
++
++```bash
++git clone <este-repositorio>
++cd tesseract-device-bridge
++pip install -r requirements.txt
++
++# Só painel, pra testar hardware (cria devices.yml a partir do exemplo automaticamente):
++python run_panel.py
++# abrir http://localhost:8088
+ 
+-| Fase | Item | Status |
++# Processo completo (painel + MQTT se habilitado + receita se existir):
++cp devices.yml.example devices.yml      # ajuste pinos/sensores reais
++cp recipe.yml.example recipe.yml        # opcional — defina o processo
++python run_bridge.py
++```
++
++`devices.yml`/`recipe.yml` nunca são sobrescritos se já existirem —
++`run_panel.py`/`run_bridge.py` só criam a partir do `.example`
++correspondente na primeira vez que rodam num diretório novo.
++
++### Diferença entre `run_panel.py` e `run_bridge.py`
++
++| | `run_panel.py` | `run_bridge.py` |
+ |---|---|---|
+-| 1 | `gpio/base.py` + `gpio/simulated_backend.py` + testes | ✅ Concluído |
+-| 2 | `config.py` (carregar/validar `devices.yml`) | ✅ Concluído |
+-| 3 | `device_runtime.py` + `panel/` (Flask) | ✅ Concluído |
+-| 4 | `mqtt_client.py` + `bridge.py` + failsafe (agregado + timeout local) | ✅ Concluído |
+-| 5 | `gpio/real_backend.py` (gpiozero) | ✅ Concluído — wiring validado via `gpiozero.pins.mock`, **não substitui teste em Pi real** |
+-| 6 | Hardware Mazza CraftBeerPi: barramento DS18B20 compartilhado, driver real, scan CLI | ✅ Concluído |
+-| 7 | `recipe_engine/`: PID + time-proportioning (fundação) | ✅ Concluído (159/159 testes no total) |
+-| 8 | `recipe_engine/`: máquina de estado de receita (ramp/hold), persistência, crash-safe pause | ✅ Concluído (201/201 testes no total) |
+-| 9 | Painel: aba visual "Receitas" (medidor por vasilha, timeline, gráfico setpoint vs. real) | ✅ Concluído (206/206 testes no total) |
+-
+-## ⚠️ Sobre a validação da Fase 5
+-
+-Os testes de `gpio/real_backend.py` usam `gpiozero.pins.mock` (MockFactory +
+-MockPWMPin) — confirmam que o mode certo instancia a classe gpiozero certa
+-e que valores são escritos/lidos na escala esperada (PWM em 0–100, não
+-0.0–1.0 do gpiozero). **Isso não é prova de que o hardware físico funciona.**
+-Primeiro teste real em Pi: rodar com `backend: real` no `devices.yml` e
+-confirmar visualmente que o pino correspondente liga/desliga / varia PWM.
+-
+-`input_analog` (ex.: `driver: ds18b20` do `devices.yml.example`) não tem
+-implementação real ainda — só o mecanismo de registro
+-(`register_analog_driver()`). Implementar o driver real do ds18b20 (via
+-`w1thermsensor` ou leitura direta do filesystem 1-Wire) é trabalho futuro,
+-só quando houver o sensor físico disponível para validar.
+-
+-## ⚠️ Acoplamento implícito com o repositório Tesseract (Core)
+-
+-A correção de protocolo MQTT (1 LWT por conexão, não por atuador) já
+-está incorporada aqui. Pontos que dependem de convenção compartilhada
+-com o lado Tesseract, sem nenhuma validação automática entre os dois
+-repositórios:
+-
+-- **Tópico de status**: `system/tesseract/status` (relativo, resolvido
+-  com `topic_prefix`) — constante hardcoded em `mqtt_client.py`
+-  (`STATUS_TOPIC_RELATIVE`). Se o lado Tesseract mudar essa string, a
+-  mensagem simplesmente nunca chega aqui — sem erro visível.
+-- **Matching de atuador é por `command_topic` completo**, nunca por
+-  `external_id` (que é um UUID interno do `DeviceActor`, sem vínculo
+-  com o `id` do `devices.yml`).
+-- **`failsafe_value` chega como string** do lado Tesseract — coercido
+-  aqui conforme o `subtype` do device local (`pwm`/`analog`/`temperature`
+-  → float, `digital`/desconhecido → bool).
+-- **Mensagem de status é retained (qos=1)**, mas estática até o próximo
+-  reconnect do lado Tesseract — tratada aqui como snapshot, nunca como
+-  garantia de estar atualizada.
+-- **Ao voltar para `status: "online"`, nenhuma ação automática** —
+-  atuador em failsafe só sai desse estado ao receber um comando normal
+-  (decisão registrada nesta sessão).
+-- **Formato do payload de comando normal (`command_topic` individual)
+-  não fez parte do contrato confirmado** — `bridge.py` assume JSON
+-  `{"value": ...}` ou valor cru como fallback; se o formato real do
+-  Tesseract divergir, ajustar `Bridge._handle_command_message`.
+-
+-## Hardware alvo — Interface CraftBeerPi (MAZZA Handmade)
+-
+-Esta entrega passa a mapear o hardware real do projeto: a [Interface
++| Painel web | ✅ | ✅ |
++| MQTT (Tesseract) | ❌ nunca | ✅ se `mqtt.enabled: true` |
++| Motor de receita | ❌ nunca | ✅ se `recipe.yml` existir |
++| Failsafe por timeout de conexão | ❌ | ✅ |
++| Uso típico | bancada, debug de hardware isolado | operação real |
++
++---
++
++## Hardware suportado
++
++A configuração de exemplo (`devices.yml.example`) mapeia a [Interface
+ CLP CraftBeerPi da MAZZA Handmade](https://www.mazzahandmade.com.br/produtos/interface-clp-para-raspberrypi-automacao-cervejeira-craftbeerpi-brewpi1/)
+-para Raspberry Pi 4B+ (13 saídas NPN 12V 500mA digital liga/desliga, 2
+-bornes para sensores DS18B20 em barramento 1-Wire compartilhado em
+-GPIO4). `devices.yml.example` já reflete o sistema duplo-vessel
+-(mostura + fervura) descrito: `mash_heater`/`boil_heater` (GPIO17/27),
+-`pump_b1`/`pump_b2` (GPIO22/26), e os 3 sensores
+-`mash_tun_temp`/`boil_temp`/`chiller_out_temp` compartilhando GPIO4
+-distinguidos por `hardware.address` (endereço ROM do sensor). O
+-mapeamento de GPIO é só convenção do arquivo — pode ser alterado
+-livremente conforme a fiação real.
+-
+-### Schema novo: sensores em barramento compartilhado (DS18B20)
+-
+-`config.py` agora aceita múltiplos devices `sensor` no mesmo
+-`hardware.pin`, desde que todos usem `driver: ds18b20` e tenham
+-`hardware.address` único entre si (o ROM ID gravado de fábrica em cada
+-sensor) — esse é o único caso em que duplicar `pin` não é erro de
+-configuração. Qualquer outra combinação de pino duplicado continua
+-sendo rejeitada (`ConfigError`).
+-
+-Para descobrir os endereços dos sensores conectados fisicamente:
++para Raspberry Pi 4B+ — 13 saídas NPN 12V 500mA digital liga/desliga
++(não é PWM de hardware: potência variável é feita por software via
++time-proportioning, ver seção do motor de receita) e sensores DS18B20
++em barramento 1-Wire compartilhado (GPIO4 por padrão, vários sensores
++no mesmo pino, cada um identificado pelo `hardware.address` — endereço
++ROM gravado de fábrica). Mas **nada no código depende dessa placa
++específica** — qualquer Raspberry Pi com GPIO comum e sensores 1-Wire
++funciona, só ajustando os pinos no `devices.yml`.
++
++Pra descobrir os endereços dos sensores DS18B20 conectados:
+ 
+ ```bash
+ python -m gpio.ds18b20_scan
+ ```
+ 
+ Pré-requisito no Raspberry Pi OS (uma vez, depois reiniciar):
+-`dtoverlay=w1-gpio` em `/boot/firmware/config.txt` (ou `/boot/config.txt`
+-em versões antigas).
+-
+-### Schema novo: GPIOBackend com `address`
+-
+-`GPIOBackend.read/write/teardown` ganharam um parâmetro `address`
+-opcional (default `None`, retrocompatível com tudo que já existia) —
+-desambigua múltiplos devices no mesmo `pin`. `setup()` já aceitava
+-`**kwargs` livremente, então `address` chega por ali sem mudança de
+-assinatura.
+-
+-### `gpio/ds18b20_driver.py` — driver real via filesystem 1-Wire
+-
+-Lê `/sys/bus/w1/devices/<address>/w1_slave` (formato padrão do kernel
+-Linux), valida CRC, converte miligraus Celsius para float. Caminho
+-base injetável (`base_path`) — testado sem hardware real via
+-filesystem fake em `tmp_path`.
+-
+-### `recipe_engine/` — fundação do motor de receitas (nova pasta)
+-
+-Ainda **não inclui** a máquina de estado de receita nem a aba do
+-painel (próxima entrega) — só as duas peças de controle de potência,
+-testáveis isoladamente:
+-
+-- **`pid.py`**: `PidController` clássico (Kp/Ki/Kd), anti-windup por
+-  clamping, saída limitada a um range configurável (default 0-100%).
+-  `dt` sempre explícito por chamada — nunca lê relógio internamente.
+-- **`time_proportioning.py`**: `TimeProportioningController` traduz a
+-  saída do PID (0-100%) em liga/desliga dentro de uma janela de tempo
+-  fixa — necessário porque as saídas da interface MAZZA são NPN
+-  digital simples, **não PWM analógico de hardware**. Os SSRs externos
+-  ("RELÉ ESTADO SÓLIDO" no diagrama da placa) seguem o sinal liga/desliga
+-  recebido; o controle proporcional de potência é feito por software,
+-  ciclando o relé dentro de cada janela.
+-
+-Os devices de aquecimento (`mash_heater`, `boil_heater`) no
+-`devices.yml.example` por isso são `subtype: digital` (não `pwm`) — o
+-`DeviceRuntime`/`GPIOBackend` continuam vendo um relé liga/desliga
+-comum; é o `recipe_engine` (próxima entrega) que decide quando ligar e
+-desligar, usando PID + time-proportioning por cima.
+-
+-## Motor de receita — `recipe_engine/` (Fase 8)
+-
+-### ⚠️ Schema de `vessels` mudou: dict → lista com `id`/`name`/`order`
+-
+-Decisão tomada em sessão de revisão: `vessels` no `recipe.yml` passou a
+-espelhar exatamente a convenção já usada em `devices.yml` — **lista**
+-de itens com `id` (referência estável, usada por `steps.vessel`) e
+-`name` (texto livre de exibição, ex.: `"Mostura Mash"`), em vez de
+-usar a chave de um dict como id implícito (o que exigia um campo
+-`label` separado só pra texto livre — removido). `order` (int,
+-opcional) controla a ordem de exibição na UI; sem ele, cai na ordem de
+-declaração na lista.
++`dtoverlay=w1-gpio` em `/boot/firmware/config.txt` (ou
++`/boot/config.txt` em versões antigas).
++
++### Schema de dispositivo compartilhando pino (sensores 1-Wire)
++
++`config.py` aceita múltiplos devices `sensor` no mesmo `hardware.pin`
++desde que todos usem `driver: ds18b20` e tenham `hardware.address`
++único entre si — único caso em que duplicar `pin` não é erro de
++configuração.
++
++---
++
++## Motor de receita (`recipe_engine/`)
++
++Máquina de estado **100% autônoma** — funciona com `mqtt.enabled: false`
++e sem o Tesseract de pé, dirigida só pelo loop principal de
++`bridge.py`. Cada `vessel` (vasilha — ou zona, tanque, o que o seu
++domínio precisar) tem seu próprio `PidController` +
++`TimeProportioningController`; cada `step` da receita declara qual
++vasilha controla, o alvo (`target_temp`), quanto tempo segurar
++(`hold_minutes`), quais atuadores extras ligar (`pumps`), e
++opcionalmente alarmes de etapa (`hop_alarms`).
++
++### Schema do `recipe.yml`
+ 
+ ```yaml
++name: "Pilsen Clássica"
++
+ vessels:
+-  - id: mash
+-    name: "Mostura"
+-    order: 0
++  - id: mash               # referência estável, usada em steps.vessel
++    name: "Mostura"         # texto livre de exibição
++    order: 0                 # ordem de exibição na UI (opcional)
+     heater_device_id: mash_heater
+     sensor_device_id: mash_tun_temp
+     pid: { kp: 5.0, ki: 0.1, kd: 0.0 }
+-    window_seconds: 10
++    window_seconds: 10       # janela de time-proportioning
++
+   - id: boil
+     name: "Fervura"
+     order: 1
+     heater_device_id: boil_heater
+     sensor_device_id: boil_temp
+     pid: { kp: 4.0, ki: 0.05, kd: 0.0 }
++
++steps:
++  - vessel: mash
++    label: "Mostura - Sacarificação"
++    target_temp: 67
++    hold_minutes: 60
++    pumps: [pump_b1]
++
++  - vessel: boil
++    label: "Fervura"
++    target_temp: 100
++    hold_minutes: 60
++    pumps: [pump_b2]
++    hop_alarms:                          # opcional — só faz sentido pra brassagem,
++      - minutes_remaining: 60             # mas é só dado, não código especial
++        label: "Lúpulo Amargor - 30g Magnum"
++      - minutes_remaining: 0
++        label: "Whirlpool - fim da fervura"
+ ```
+ 
+-`Recipe.vessels` (Python) também virou `List[VesselConfig]` em vez de
+-`Dict[str, VesselConfig]` — use `recipe.get_vessel(vessel_id)` pra
+-buscar por id (levanta `RecipeError` se não existir) e
+-`recipe.ordered_vessel_names()` pra obter a lista de ids já ordenada
+-por `order`.
+-
+-**API HTTP não muda** (`GET /api/recipe/definition` continua
+-retornando `vessels` como dict por id, com a chave JSON `"label"` —
+-agora preenchida a partir de `VesselConfig.name`) — isso preserva o
+-JS do painel sem precisar editar `index.html` de novo.
+-
+-Se você já tinha um `recipe.yml` no formato antigo (dict de vessels),
+-ele vai falhar a validação com `RecipeError` claro — converta pro
+-formato de lista acima.
+-
+-Máquina de estado 100% autônoma — roda mesmo com `mqtt.enabled: false`,
+-não depende do Tesseract nem do painel pra funcionar, só do loop
+-principal do `bridge.py` (`run_forever`, chamado a cada
+-`poll_interval_seconds`, default 2s).
+-
+-### Modelo de receita (`recipe.yml`, separado do `devices.yml`)
+-
+-Uma receita declara `vessels` (cada uma com `heater_device_id`,
+-`sensor_device_id`, ganhos de PID `kp`/`ki`/`kd`, e `window_seconds`
+-do time-proportioning) e `steps` (cada um com `vessel`, `target_temp`,
+-`hold_minutes`, e `pumps` — lista de device_id de bombas ligadas
+-durante aquela etapa). Toda referência a device_id é validada contra
+-o `devices.yml` carregado no boot — falha cedo com mensagem clara se
+-referenciar algo que não existe. Ver `recipe.yml.example`.
+-
+-### Comportamento
+-
+-- **Rampa (`ramping`)**: PID calcula a saída (0-100%) a cada tick,
+-  `TimeProportioningController` traduz isso em liga/desliga do heater
+-  dentro da janela configurada. Transição pra `holding` assim que a
+-  leitura do sensor atinge `target_temp`.
+-- **Patamar (`holding`)**: decisão registrada — o tempo de patamar só
+-  começa a contar a partir do instante em que `target_temp` foi
+-  atingido, nunca desde o início da etapa. PID continua ativo durante
+-  o patamar (mantém a temperatura, não só "desliga e espera").
+-- **Bombas**: ligadas/desligadas conforme a lista `pumps` de cada
+-  step — comparação de conjunto a cada tick, sem esperar o próximo
+-  ciclo pra desligar bombas que não pertencem mais à etapa atual.
+-- **Avanço de etapa**: ao completar o patamar, desliga o heater da
+-  vasilha anterior, reseta PID e time-proportioning (evita herdar
+-  integral acumulado de uma etapa não relacionada), aplica as bombas
+-  da nova etapa imediatamente.
+-- **Última etapa concluída**: status `finished`, tudo desligado.
+-
+-### Recuperação de crash (decisão registrada)
+-
+-Se o processo cair (`kill -9`, queda de energia, qualquer encerramento
+-não-gracioso) no meio de `ramping`/`holding`, o **construtor** do
+-`RecipeEngine` detecta isso ao carregar `recipe_state.json` persistido
+-— não depende de nenhum signal handler nem `try/finally` de shutdown
+-(funciona mesmo em `SIGKILL`, que não dá chance de rodar código de
+-limpeza). Ao detectar, aplica `apply_failsafe` em **todos** os
+-atuadores `is_risk: true` do `devices.yml` inteiro (não só os da
+-receita — segurança ampla), marca o estado como `paused_after_crash`,
+-e **nunca retoma sozinho**. Validado neste teste real (não só
+-automatizado): processo morto com `kill -9` no meio de uma rampa,
+-reiniciado, heater confirmado desligado e status confirmado
+-`paused_after_crash` via `curl`.
+-
+-Retomar exige chamada explícita a `POST /api/recipe/resume` — se a
+-pausa ocorreu durante `holding`, o tempo de patamar já decorrido é
+-preservado (não reinicia a contagem do zero).
+-
+-### Aba visual "Receitas" (Fase 9)
+-
+-Nova aba no painel (`panel/templates/index.html`), com identidade
+-visual própria — accent cobre (referência literal ao caldeirão de
+-cobre da brassagem), numerais em fonte monoespaçada para os
+-readouts de temperatura (como instrumentação industrial real), e um
+-**medidor circular por vasilha** como elemento de assinatura: o anel
+-preenche conforme a potência (`current_duty_percent`) que o PID está
+-aplicando naquele instante — é dado real, não decoração.
+-
+-Composição da aba:
+-- **Cards de vasilha** (um por `vessel` da receita): medidor circular
+-  com temperatura atual + % de potência no centro, alvo da etapa
+-  atual, chips de bomba (acende quando a bomba daquela vasilha está
+-  ligada). Vasilha fora da etapa atual fica visualmente neutra
+-  ("aguardando").
+-- **Timeline horizontal**: um nó por step, conectados por linha —
+-  etapas concluídas em cobre sólido, etapa atual destacada (âmbar
+-  durante rampa, verde durante patamar, com label dinâmico
+-  "subindo…"/"em patamar…"), etapas futuras mostram alvo e tempo de
+-  patamar.
+-- **Gráfico ao vivo** (SVG desenhado em runtime, sem lib externa):
+-  temperatura real (linha cobre sólida) vs. setpoint (linha
+-  tracejada), últimos ~150 pontos de poll (~6 minutos de histórico a
+-  2.5s/poll) — reiniciado a cada troca de vasilha ativa.
+-- **Banner de crash**: aparece automaticamente quando o status é
+-  `paused_after_crash`, com botão "Retomar" direto.
+-- **Controles**: Iniciar / Cancelar, habilitados/desabilitados
+-  conforme o status atual.
+-
+-Endpoint novo de apoio à UI: `GET /api/recipe/definition` (separado de
+-`/api/recipe/status`) — expõe a definição estática da receita
+-(vasilhas, etapas, alvos) carregada uma vez; o polling periódico
+-(2.5s) só bate em `/api/recipe/status` e `/api/devices` para o estado
+-dinâmico.
+-
+-### Endpoints de receita
++`vessels` é uma **lista** (não dict), espelhando a convenção já usada
++em `devices.yml`: `id` é a referência estável usada por `steps.vessel`,
++`name` é texto livre de exibição. Toda referência a `device_id`
++(`heater_device_id`, `sensor_device_id`, `pumps`) é validada contra o
++`devices.yml` carregado no boot — falha cedo, com mensagem clara, se
++referenciar algo que não existe.
++
++### Comportamento de execução
++
++- **Rampa (`ramping`)**: PID calcula a saída (0-100%) a cada tick;
++  `TimeProportioningController` traduz isso em liga/desliga do
++  atuador dentro da janela configurada (necessário porque a maioria
++  dos relés de automação industrial/agrícola é liga/desliga simples,
++  não PWM analógico). Transição pra `holding` assim que o sensor
++  atinge `target_temp`.
++- **Patamar (`holding`)**: o tempo só começa a contar a partir do
++  instante em que o alvo foi atingido — nunca desde o início da
++  etapa. O PID continua ativo durante o patamar, mantendo o alvo.
++- **Atuadores extras (`pumps`)**: ligados/desligados conforme a lista
++  de cada etapa, reavaliado a cada tick.
++- **Avanço de etapa**: desliga o atuador principal da vasilha
++  anterior, reseta PID/time-proportioning (evita herdar acúmulo de
++  uma etapa não relacionada), aplica os atuadores extras da nova
++  etapa imediatamente.
++
++### Controles manuais (API + painel)
+ 
+ ```
+ GET  /api/recipe/status        -> status de execução, vasilha/duty, tempo total/decorrido
+ GET  /api/recipe/definition    -> vasilhas e etapas da receita carregada
+ POST /api/recipe/start         -> inicia (ou reinicia do zero) a receita
+ POST /api/recipe/abort         -> cancela, aplica failsafe em tudo
++POST /api/recipe/pause         -> pausa deliberada — aplica failsafe, espera resume
+ POST /api/recipe/resume        -> retoma de paused_after_crash OU paused_manual
+-POST /api/recipe/pause         -> pausa deliberada (Sessão A) -- aplica failsafe, espera resume
+ POST /api/recipe/skip_next     -> força avanço pra próxima etapa (ignora tempo/temperatura)
+ POST /api/recipe/skip_previous -> volta pra etapa anterior (reinicia ela do zero)
+ POST /api/recipe/reset_step    -> reinicia a etapa atual sem mudar de etapa
++POST /api/recipe/alarms/<id>/ack -> confirma (dispensa) um alarme pendente
+ ```
+ 
+-### Sessão A — controles manuais de execução
+-
+-Inspirado na referência de UI enviada (CraftBeerPi-style: botões
+-anterior / reset / play-pause / próxima + cronômetro grande da etapa
+-atual). Implementado nesta entrega: backend (`RecipeEngine` +
+-endpoints) **e** a barra de transporte visual (4 botões + cronômetro
+-grande + tempo total/decorrido), inserida acima dos medidores de
+-vasilha — não substitui a timeline horizontal nem os cards já
+-existentes, é aditiva.
+-
+-- **`pause()`**: só válido durante `ramping`/`holding`. Aplica
+-  failsafe em todos os atuadores de risco (mesma segurança do crash
+-  recovery) e marca `paused_manual` — estado novo, irmão de
+-  `paused_after_crash`. `resume()` foi generalizado pra sair de
+-  qualquer um dos dois, preservando o tempo de patamar já decorrido
+-  do mesmo jeito.
+-- **`skip_next()`**: força a conclusão da etapa atual e avança,
+-  ignorando se a temperatura/tempo de patamar foram atingidos —
+-  mesmo caminho interno de quando a etapa termina naturalmente
+-  (desliga o heater da vasilha que está saindo, aplica as bombas da
+-  próxima etapa).
+-- **`skip_previous()`**: volta uma etapa, **reiniciando ela do zero**
+-  (não há como saber o estado térmico de um instante passado, então
+-  rampa de novo) — na primeira etapa, reinicia a própria etapa atual.
+-- **`reset_current_step()`**: reinicia a etapa atual sem mudar de
+-  posição na receita.
+-- **Tempo total**: `total_estimated_minutes()` soma `hold_minutes` de
+-  todas as etapas (não inclui tempo de rampa, que não é previsível).
+-  `total_elapsed_seconds(now)` é o tempo real decorrido desde
+-  `start()` — congela automaticamente quando a receita termina ou é
+-  cancelada (não continua contando depois disso).
+-
+-### Timers de alarme (Sessão B — backend)
+-
+-Dois mecanismos de alarme, ambos gerenciados pelo `RecipeEngine` e
+-expostos via `pending_alarms` no payload de `/api/recipe/status`:
++No painel (aba "Receitas"): barra de transporte com 4 botões
++(anterior `⏮` / reiniciar etapa `↺` / play-pause `⏯` / próxima `⏭`),
++cronômetro grande mostrando tempo restante do patamar (ou decorrido
++da rampa), medidor circular por vasilha (anel preenche conforme a
++potência real aplicada pelo PID), timeline horizontal de etapas, e
++gráfico ao vivo de temperatura real vs. setpoint.
++
++### Recuperação de crash
++
++Se o processo cair (`kill -9`, queda de energia, qualquer
++encerramento não-gracioso) no meio de `ramping`/`holding`, o
++**construtor** do `RecipeEngine` detecta isso ao carregar
++`recipe_state.json` persistido — não depende de signal handler nem
++`try/finally` (funciona mesmo em `SIGKILL`). Aplica failsafe em
++**todos** os atuadores `is_risk: true` do `devices.yml` (segurança
++ampla, não só os da receita), marca `paused_after_crash`, e **nunca
++retoma sozinho** — exige `POST /api/recipe/resume` explícito, que
++preserva o tempo de patamar já decorrido se a pausa ocorreu durante
++`holding`. Validado com teste real (não só automatizado): processo
++morto com `kill -9` no meio de uma rampa, reiniciado, atuador
++confirmado desligado e status confirmado via `curl`.
++
++### Timers de alarme
++
++Dois mecanismos, ambos expostos via `pending_alarms` em
++`/api/recipe/status`:
+ 
+ - **Eventos automáticos de vasilha** (`vessel_start`/`vessel_end`):
+-  derivados da própria estrutura da receita, sem precisar de nenhuma
+-  configuração — disparam toda vez que a vasilha muda entre uma etapa
+-  e a seguinte (ou no início/fim absoluto da execução). Generaliza
+-  "Início Mostura"/"Final Mostura"/"Início Fervura"/"Final Fervura"
+-  pra qualquer vasilha que a receita declarar, automaticamente. Etapas
+-  consecutivas da mesma vasilha (ex.: as 3 etapas de mostura da receita
+-  real do usuário) não disparam nada entre si — só nas transições reais.
+-- **Lupulagem** (`hop_addition`): lista opcional `hop_alarms` por
+-  etapa no `recipe.yml`, cada item com `minutes_remaining` (contagem
+-  regressiva pro **fim** do patamar — convenção cervejeira) + `label`
+-  livre. Verificado a cada `tick()` durante `holding`; cada alarme
+-  dispara só uma vez por execução da etapa (rastreado por
+-  `fired_hop_alarm_keys`, resetado se a etapa for reiniciada/repetida).
+-
+-Ações manuais (`skip_next`/`skip_previous`/`reset_current_step`) **não
+-disparam alarmes automáticos**, exceto `skip_next` (que passa pelo
+-mesmo caminho interno de quando uma etapa termina naturalmente, então
+-ainda anuncia a transição de vasilha se houver).
+-
+-```yaml
+-steps:
+-  - vessel: boil
+-    target_temp: 100
+-    hold_minutes: 60
+-    hop_alarms:
+-      - minutes_remaining: 60
+-        label: "Lúpulo Amargor - 30g Magnum"
+-      - minutes_remaining: 0
+-        label: "Whirlpool - fim da fervura"
+-```
+-
+-Endpoint novo: `POST /api/recipe/alarms/<id>/ack` — confirma (remove)
+-um alarme pendente. `GET /api/recipe/status` inclui `pending_alarms`
+-(lista de `{id, type, label, fired_at}`) — persistido em
+-`recipe_state.json`, sobrevive a restart do processo.
+-
+-### UI de alarmes (Sessão B — visual)
+-
+-- **Banner em destaque** (borda âmbar pulsante) aparece automaticamente
+-  quando `pending_alarms` muda — detectado por polling (mesma cadência
+-  de 2.5s do resto da aba Receitas), sem precisar de WebSocket/push
+-  (este projeto é Flask síncrono puro). Mostra o alarme mais antigo da
+-  fila + contador "+N alarme(s) na fila" se houver mais de um.
+-- **Som sintetizado via Web Audio API** — 3 opções embutidas (Beep,
+-  Sirene, Campainha dupla), geradas em runtime com osciladores, **sem
+-  nenhum arquivo de áudio binário no repositório**. Mais uma opção:
+-  **som personalizado** — upload de arquivo de áudio próprio, salvo
+-  como base64 em `localStorage` (só neste navegador, não vai pro
+-  servidor).
+-- **Regra de parada**: toca pelo número de repetições configurado
+-  (`alarmRepeatCount`, 1-20, default 3) **ou** para no clique em "OK",
+-  o que vier primeiro — implementado com um token de cancelamento
+-  incrementado a cada novo alarme/ack, invalidando qualquer ciclo de
+-  som ainda agendado.
+-- Configurações (`⚙️ Alarmes` no header da receita) persistidas em
+-  `localStorage` — por navegador/dispositivo, não por receita.
+-- Validado com 12 testes de lógica em Node (fila, repetição exata,
+-  cancelamento no meio da sequência, persistência) simulando
+-  DOM/Audio/localStorage/fetch, já que esta lógica não tem cobertura
+-  no `pytest` (é JS puro do lado do navegador).
+-
+-### Barra de transporte (UI)
+-
+-Botões `⏮` (anterior) / `↺` (reiniciar etapa) / `⏯` (play-pause,
+-alterna entre iniciar/pausar/retomar conforme o status atual) / `⏭`
+-(próxima), habilitados só durante `ramping`/`holding`. Cronômetro
+-grande (fonte monoespaçada): mostra tempo restante do patamar quando
+-`holding`, tempo decorrido de rampa quando `ramping`, e mensagem
+-contextual quando parado/pausado/concluído. Atualizado localmente a
+-cada 1s (interpolação client-side a partir do último poll, sem precisar
+-de uma requisição por segundo) e resincronizado a cada poll de 2.5s
+-pra não acumular deriva. Linha de tempo total (decorrido/previsto) logo
+-abaixo.
+-
+-⚠️ Nota de compatibilidade: o CSS desta barra evita a propriedade
+-`gap` em flexbox (usa `margin` explícita nos itens) — mesma cautela já
+-aplicada ao medidor circular (`inset: 0` evitado antes por motivo
+-parecido). `gap` em flexbox tem suporte amplo em navegadores modernos,
+-mas evitamos depender disso pra não arriscar quebra de layout em
+-ambientes mais conservadores.
+-
+-### ⚠️ Limitação conhecida
+-
+-Se um device for controlado simultaneamente por uma receita ativa E
+-por comando MQTT individual (`command_topic`), não há mecanismo de
+-prioridade/lock entre os dois — podem competir pelo mesmo atuador.
+-Não é um problema no uso atual (receita autônoma, MQTT tipicamente
+-desabilitado ou usado só para devices fora da receita), mas precisa
+-de uma regra de prioridade explícita se os dois forem usados ao mesmo
+-tempo sobre os mesmos devices.
+-
+-### Rodando com receita
+-
+-```bash
+-cp recipe.yml.example recipe.yml   # ajuste vessels/steps pra sua receita real
+-python run_bridge.py devices.yml recipe.yml
+-# ou só: python run_bridge.py   (usa devices.yml e recipe.yml por default)
+-```
+-
+-Se `recipe.yml` não existir, o bridge roda normalmente sem motor de
+-receita — funcionalidade puramente opcional.
+-
+-## Rodando o bridge completo (MQTT + painel)
+-
+-```bash
+-pip install -r requirements.txt
+-cp devices.yml.example devices.yml   # ajuste mqtt.host para o broker real
+-python run_bridge.py
+-```
+-
+-## Rodando o painel isoladamente (sem MQTT)
+-
+-```bash
+-pip install -r requirements.txt
+-cp devices.yml.example devices.yml   # ou aponte para outro arquivo
+-python run_panel.py
+-# abrir http://localhost:8088
+-```
+-
+-## Bugs corrigidos
+-
+-- **`run_panel.py` falhava com `ConfigError` se `devices.yml` não existisse** —
+-  causa raiz: `main()` chamava `BridgeConfig.load(config_path)` direto, sem
+-  nenhum bootstrap; em um clone novo do repositório só existe
+-  `devices.yml.example`, nunca `devices.yml`. Corrigido com
+-  `ensure_config_file()`: se o caminho não existir, copia
+-  `devices.yml.example` para esse caminho antes de carregar. Se o exemplo
+-  também não existir, levanta `ConfigError` explícito em vez de deixar o
+-  erro de cópia subir cru. Nunca sobrescreve um `devices.yml` já existente.
++  sem nenhuma configuração — disparam toda vez que a vasilha muda
++  entre uma etapa e a seguinte (ou no início/fim absoluto da
++  execução). Generaliza "Início Mostura"/"Final Fervura" (ou
++  "Início Irrigação Zona 2", etc.) pra qualquer vasilha que a receita
++  declarar. Etapas consecutivas da mesma vasilha não disparam nada
++  entre si — só nas transições reais.
++- **Alarmes por etapa** (`hop_addition` no código, mas é um nome
++  genérico — serve pra qualquer evento programado dentro de uma
++  etapa): lista opcional `hop_alarms` por `step`, cada item com
++  `minutes_remaining` (contagem regressiva pro **fim** do patamar) +
++  `label` livre.
++
++Ações manuais (`skip_previous`/`reset_current_step`) não disparam
++alarmes automáticos; `skip_next` dispara, porque segue o mesmo caminho
++interno de quando uma etapa termina naturalmente.
++
++**UI**: banner em destaque (borda pulsante) aparece automaticamente
++via polling quando há alarme pendente. Som sintetizado via Web Audio
++API (3 opções embutidas — Beep, Sirene, Campainha — geradas em
++runtime, sem nenhum arquivo de áudio binário no repositório) ou som
++próprio (upload, salvo em `localStorage` do navegador). Regra de
++parada: toca pelo número de repetições configurado **ou** para no
++clique em "OK", o que vier primeiro.
++
++---
++
++## Painel web
++
++Single-page app em `panel/templates/index.html`, três abas:
++
++- **Painel** — lista de sensores/atuadores ao vivo, com controle
++  manual direto (liga/desliga, ajustar valor simulado) — útil pra
++  testar hardware sem depender de receita nem MQTT.
++- **Gerenciamento** — tabela de inventário dos devices configurados.
++- **Receitas** — interface completa do motor de processo (ver seção
++  acima).
++
++⚠️ **Sem autenticação** — decisão consciente de v1, não omissão. O
++painel aciona atuadores reais diretamente, sem RBAC. Assume-se rede
++local confiável. Se for exposto fora da rede local, é responsabilidade
++de quem fizer o deploy colocar atrás de VPN ou reverse-proxy com
++autenticação.
++
++---
++
++## Acoplamento com o Tesseract (Core)
++
++Pontos que dependem de convenção compartilhada com o lado Tesseract,
++sem nenhuma validação automática entre os dois repositórios:
++
++- **Tópico de status agregado**: `system/tesseract/status` (relativo,
++  resolvido com `topic_prefix`) — constante hardcoded em
++  `mqtt_client.py` (`STATUS_TOPIC_RELATIVE`). Se o lado Tesseract
++  mudar essa string, a mensagem nunca chega aqui, sem erro visível.
++- **Matching de atuador é por `command_topic` completo**, nunca por
++  `external_id` (UUID interno do Tesseract, sem vínculo com o `id` do
++  `devices.yml` local).
++- **`failsafe_value` chega como string** do lado Tesseract — coercido
++  aqui conforme o `subtype` do device local.
++- **Mensagem de status MQTT é retained (qos=1)**, mas estática até o
++  próximo reconnect do lado Tesseract — tratada aqui como snapshot,
++  nunca como garantia de estar atualizada em tempo real.
++- **Ao voltar para `status: "online"`, nenhuma ação automática** — um
++  atuador em failsafe só sai desse estado recebendo um comando normal.
++- **Formato do payload de comando individual** (`command_topic`) não
++  foi formalmente contratado — `bridge.py` assume JSON `{"value": ...}`
++  ou valor cru como fallback.
++
++## Limitações conhecidas
++
++- Sem lock de prioridade entre receita ativa e comando MQTT individual
++  sobre o mesmo device — podem competir pelo mesmo atuador se usados
++  simultaneamente sobre os mesmos devices. Não é problema no uso atual
++  (receita autônoma, MQTT tipicamente desabilitado ou usado só pra
++  devices fora da receita).
++- `input_analog` sem driver registrado levanta `NotImplementedError`
++  explícito — só `ds18b20` está implementado; outros tipos de sensor
++  analógico (útil pra outros domínios — umidade do solo, pH, etc.)
++  exigem implementar um driver novo seguindo o padrão de
++  `gpio/ds18b20_driver.py` + `register_analog_driver()`.
++- Testes de `gpio/real_backend.py` usam `gpiozero.pins.mock` — validam
++  wiring (mode certo → classe certa, escala de valor certa), **não são
++  prova de que o hardware físico funciona**. Primeiro teste real é
++  sempre em Pi de verdade.
++
++---
+ 
+ ## Rodando os testes
+ 
+-- 
+2.43.0
+
