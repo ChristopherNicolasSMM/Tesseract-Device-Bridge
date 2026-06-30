@@ -8,7 +8,7 @@ Nenhuma parte do bridge (mqtt_client.py, bridge.py, panel/) deve ler o
 YAML diretamente — sempre passam por `BridgeConfig.load()` e trabalham
 com os objetos já validados daqui.
 """
-
+          
 from __future__ import annotations
 
 from dataclasses import dataclass, field
