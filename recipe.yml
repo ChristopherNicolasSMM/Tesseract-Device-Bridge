@@ -1,15 +1,13 @@
-# Exemplo de receita autônoma — não depende de MQTT/Tesseract para
-# rodar. Copie para recipe.yml na raiz do projeto (mesmo diretório de
-# devices.yml) para o run_bridge.py carregar automaticamente.
-#
-# Referências de device_id (heater_device_id, sensor_device_id, pumps)
-# precisam existir no devices.yml carregado — validado no boot.
+# Receita real do usuário (migrada para o schema id/name/order em
+# 2026-06-30, durante a sessão que introduziu o campo `order` —
+# substitui o prefixo manual "01_"/"02_" usado antes pra ordenação).
 
 name: "Lagers da Casa"
 
 vessels:
-  01_mash:
-    label: Mash
+  - id: mash
+    name: "Mash"
+    order: 0
     heater_device_id: mash_heater
     sensor_device_id: mash_tun_temp
     pid:
@@ -18,8 +16,9 @@ vessels:
       kd: 0.0
     window_seconds: 10   # janela de time-proportioning (liga/desliga) — ver README
 
-  02_boil:
-    label: Boil
+  - id: boil
+    name: "Boil"
+    order: 1
     heater_device_id: boil_heater
     sensor_device_id: boil_temp
     pid:
@@ -29,25 +28,25 @@ vessels:
     window_seconds: 10
 
 steps:
-  - vessel: 01_mash
+  - vessel: mash
     label: "Mostura - Beta-Amilase"
     target_temp: 67
     hold_minutes: 40
     pumps: [pump_b1]   # recirculação durante a mostura
 
-  - vessel: 01_mash
+  - vessel: mash
     label: "Mostura - Alfa-Amilase"
     target_temp: 67
     hold_minutes: 20
-    pumps: [pump_b1]   # recirculação durante a mostura    
+    pumps: [pump_b1]   # recirculação durante a mostura
 
-  - vessel: 01_mash
+  - vessel: mash
     label: "Mostura - Mash Out"
     target_temp: 75
     hold_minutes: 15
     pumps: [pump_b1]   # recirculação durante a mostura
- 
-  - vessel: 02_boil
+
+  - vessel: boil
     label: "Fervura"
     target_temp: 100
     hold_minutes: 60

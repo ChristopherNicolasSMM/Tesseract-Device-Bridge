@@ -923,35 +923,9 @@
       recipeDefinition.steps.forEach(s => { if (s.vessel === vesselName) s.pumps.forEach(p => ids.add(p)); });
       return Array.from(ids);
     }
-/*
     function renderVesselSkeleton() {
       const row = $('vesselRow');
-      row.innerHTML = Object.keys(recipeDefinition.vessels).map(name => `
-        <div class="vessel-card" id="vcard-${name}">
-          <div class="gauge-wrap">
-            <svg viewBox="0 0 104 104">
-              <circle class="gauge-track" cx="52" cy="52" r="44"></circle>
-              <circle class="gauge-fill" id="gfill-${name}" cx="52" cy="52" r="44"
-                      stroke-dasharray="0 276.5"></circle>
-            </svg>
-            <div class="gauge-center">
-              <div class="gauge-temp" id="gtemp-${name}">\u2014</div>
-              <div class="gauge-duty" id="gduty-${name}">0% pot.</div>
-            </div>
-          </div>
-          <div class="vessel-info">
-            <div class="vessel-name">${name}</div>
-            <div class="vessel-target" id="vtarget-${name}"><span class="arrow">\u2192</span> aguardando</div>
-            <div class="vessel-pumps" id="vpumps-${name}"></div>
-          </div>
-        </div>
-      `).join('');
-    }
-*/
-
-    function renderVesselSkeleton() {
-      const row = $('vesselRow');
-      row.innerHTML = Object.keys(recipeDefinition.vessels).map(name => {
+      row.innerHTML = (recipeDefinition.vessel_order || Object.keys(recipeDefinition.vessels)).map(name => {
         // Busca o label. Se não existir, usa o próprio name e coloca a 1ª letra em maiúscula
         const vesselData = recipeDefinition.vessels[name];
         const displayLabel = vesselData.label || (name.charAt(0).toUpperCase() + name.slice(1));
@@ -1128,7 +1102,7 @@
         const currentVessel = status.current_vessel;
         const currentStep = active ? recipeDefinition.steps[status.step_index] : null;
 
-        Object.keys(recipeDefinition.vessels).forEach(name => {
+        (recipeDefinition.vessel_order || Object.keys(recipeDefinition.vessels)).forEach(name => {
           const isActive = active && name === currentVessel;
           const sensorId = recipeDefinition.vessels[name].sensor_device_id;
           const temp = deviceValue(sensorId);

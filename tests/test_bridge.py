@@ -201,7 +201,8 @@ def test_tick_recipe_delegates_to_engine_when_present(tmp_path):
     recipe_yaml = """
     name: "Teste"
     vessels:
-      mash:
+      - id: mash
+        name: "Mash"
         heater_device_id: mash_heater
         sensor_device_id: mash_tun_temp
         pid: { kp: 50.0, ki: 0.0, kd: 0.0 }

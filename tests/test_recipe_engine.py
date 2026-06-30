@@ -68,12 +68,14 @@ devices:
 RECIPE_YAML = """
 name: "Receita Teste"
 vessels:
-  mash:
+  - id: mash
+    name: "Mash"
     heater_device_id: mash_heater
     sensor_device_id: mash_tun_temp
     pid: { kp: 50.0, ki: 0.0, kd: 0.0 }
     window_seconds: 10
-  boil:
+  - id: boil
+    name: "Boil"
     heater_device_id: boil_heater
     sensor_device_id: boil_temp
     pid: { kp: 50.0, ki: 0.0, kd: 0.0 }

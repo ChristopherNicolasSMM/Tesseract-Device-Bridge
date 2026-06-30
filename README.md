@@ -187,6 +187,49 @@ desligar, usando PID + time-proportioning por cima.
 
 ## Motor de receita — `recipe_engine/` (Fase 8)
 
+### ⚠️ Schema de `vessels` mudou: dict → lista com `id`/`name`/`order`
+
+Decisão tomada em sessão de revisão: `vessels` no `recipe.yml` passou a
+espelhar exatamente a convenção já usada em `devices.yml` — **lista**
+de itens com `id` (referência estável, usada por `steps.vessel`) e
+`name` (texto livre de exibição, ex.: `"Mostura Mash"`), em vez de
+usar a chave de um dict como id implícito (o que exigia um campo
+`label` separado só pra texto livre — removido). `order` (int,
+opcional) controla a ordem de exibição na UI; sem ele, cai na ordem de
+declaração na lista.
+
+```yaml
+vessels:
+  - id: mash
+    name: "Mostura"
+    order: 0
+    heater_device_id: mash_heater
+    sensor_device_id: mash_tun_temp
+    pid: { kp: 5.0, ki: 0.1, kd: 0.0 }
+    window_seconds: 10
+  - id: boil
+    name: "Fervura"
+    order: 1
+    heater_device_id: boil_heater
+    sensor_device_id: boil_temp
+    pid: { kp: 4.0, ki: 0.05, kd: 0.0 }
+```
+
+`Recipe.vessels` (Python) também virou `List[VesselConfig]` em vez de
+`Dict[str, VesselConfig]` — use `recipe.get_vessel(vessel_id)` pra
+buscar por id (levanta `RecipeError` se não existir) e
+`recipe.ordered_vessel_names()` pra obter a lista de ids já ordenada
+por `order`.
+
+**API HTTP não muda** (`GET /api/recipe/definition` continua
+retornando `vessels` como dict por id, com a chave JSON `"label"` —
+agora preenchida a partir de `VesselConfig.name`) — isso preserva o
+JS do painel sem precisar editar `index.html` de novo.
+
+Se você já tinha um `recipe.yml` no formato antigo (dict de vessels),
+ele vai falhar a validação com `RecipeError` claro — converta pro
+formato de lista acima.
+
 Máquina de estado 100% autônoma — roda mesmo com `mqtt.enabled: false`,
 não depende do Tesseract nem do painel pra funcionar, só do loop
 principal do `bridge.py` (`run_forever`, chamado a cada

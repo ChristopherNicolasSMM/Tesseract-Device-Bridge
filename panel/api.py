@@ -150,14 +150,16 @@ def recipe_definition():
     recipe = engine.recipe
     return jsonify({
         "name": recipe.name,
+        "vessel_order": recipe.ordered_vessel_names(),
         "vessels": {
-            name: {
-                "label": v.label,
+            v.id: {
+                "label": v.name,  # chave JSON mantida como "label" por retrocompatibilidade com o painel; valor vem de VesselConfig.name
                 "heater_device_id": v.heater_device_id,
                 "sensor_device_id": v.sensor_device_id,
                 "window_seconds": v.window_seconds,
+                "order": v.order,
             }
-            for name, v in recipe.vessels.items()
+            for v in recipe.vessels
         },
         "steps": [
             {

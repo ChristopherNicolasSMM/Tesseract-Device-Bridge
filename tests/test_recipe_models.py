@@ -62,12 +62,14 @@ devices:
 VALID_RECIPE_YAML = """
 name: "Pilsen Clássica"
 vessels:
-  mash:
+  - id: mash
+    name: "Mash"
     heater_device_id: mash_heater
     sensor_device_id: mash_tun_temp
     pid: { kp: 5.0, ki: 0.1, kd: 0.0 }
     window_seconds: 10
-  boil:
+  - id: boil
+    name: "Boil"
     heater_device_id: boil_heater
     sensor_device_id: boil_temp
     pid: { kp: 4.0, ki: 0.05, kd: 0.0 }
@@ -100,8 +102,8 @@ def test_load_valid_recipe(tmp_path, bridge_config):
     recipe = Recipe.load(path, bridge_config)
     assert recipe.name == "Pilsen Clássica"
     assert recipe.step_count() == 2
-    assert recipe.vessels["mash"].window_seconds == 10.0
-    assert recipe.vessels["boil"].window_seconds == 10.0  # default
+    assert recipe.get_vessel("mash").window_seconds == 10.0
+    assert recipe.get_vessel("boil").window_seconds == 10.0  # default
 
 
 def test_missing_file_raises_recipe_error(tmp_path, bridge_config):
@@ -110,14 +112,14 @@ def test_missing_file_raises_recipe_error(tmp_path, bridge_config):
 
 
 def test_recipe_without_name_raises(tmp_path, bridge_config):
-    content = "vessels: {}\nsteps: []\n"
+    content = "vessels: []\nsteps: []\n"
     path = write_recipe(tmp_path, content)
     with pytest.raises(RecipeError, match="name"):
         Recipe.load(path, bridge_config)
 
 
 def test_recipe_without_vessels_raises(tmp_path, bridge_config):
-    content = 'name: "X"\nvessels: {}\nsteps: [{"vessel": "mash", "target_temp": 1, "hold_minutes": 1}]\n'
+    content = 'name: "X"\nvessels: []\nsteps: [{"vessel": "mash", "target_temp": 1, "hold_minutes": 1}]\n'
     path = write_recipe(tmp_path, content)
     with pytest.raises(RecipeError, match="ao menos uma vessel"):
         Recipe.load(path, bridge_config)
@@ -127,7 +129,8 @@ def test_recipe_without_steps_raises(tmp_path, bridge_config):
     content = """
     name: "X"
     vessels:
-      mash:
+      - id: mash
+        name: "Mash"
         heater_device_id: mash_heater
         sensor_device_id: mash_tun_temp
         pid: { kp: 1, ki: 0, kd: 0 }
@@ -142,7 +145,8 @@ def test_vessel_referencing_unknown_heater_raises(tmp_path, bridge_config):
     content = """
     name: "X"
     vessels:
-      mash:
+      - id: mash
+        name: "Mash"
         heater_device_id: does_not_exist
         sensor_device_id: mash_tun_temp
         pid: { kp: 1, ki: 0, kd: 0 }
@@ -160,7 +164,8 @@ def test_step_referencing_unknown_vessel_raises(tmp_path, bridge_config):
     content = """
     name: "X"
     vessels:
-      mash:
+      - id: mash
+        name: "Mash"
         heater_device_id: mash_heater
         sensor_device_id: mash_tun_temp
         pid: { kp: 1, ki: 0, kd: 0 }
@@ -178,7 +183,8 @@ def test_step_referencing_unknown_pump_raises(tmp_path, bridge_config):
     content = """
     name: "X"
     vessels:
-      mash:
+      - id: mash
+        name: "Mash"
         heater_device_id: mash_heater
         sensor_device_id: mash_tun_temp
         pid: { kp: 1, ki: 0, kd: 0 }
@@ -197,7 +203,8 @@ def test_negative_hold_minutes_raises(tmp_path, bridge_config):
     content = """
     name: "X"
     vessels:
-      mash:
+      - id: mash
+        name: "Mash"
         heater_device_id: mash_heater
         sensor_device_id: mash_tun_temp
         pid: { kp: 1, ki: 0, kd: 0 }
@@ -215,7 +222,8 @@ def test_pid_missing_field_raises(tmp_path, bridge_config):
     content = """
     name: "X"
     vessels:
-      mash:
+      - id: mash
+        name: "Mash"
         heater_device_id: mash_heater
         sensor_device_id: mash_tun_temp
         pid: { kp: 1, ki: 0 }
@@ -227,3 +235,127 @@ def test_pid_missing_field_raises(tmp_path, bridge_config):
     path = write_recipe(tmp_path, content)
     with pytest.raises(RecipeError, match="pid sem campo"):
         Recipe.load(path, bridge_config)
+
+
+def test_vessel_without_name_raises_clean_recipe_error(tmp_path, bridge_config):
+    """
+    Regressão: campo obrigatório ausente (agora `name`, antes era
+    `label`) deve estourar RecipeError explicando o que falta, nunca
+    KeyError cru.
+    """
+    content = """
+    name: "X"
+    vessels:
+      - id: mash
+        heater_device_id: mash_heater
+        sensor_device_id: mash_tun_temp
+        pid: { kp: 1, ki: 0, kd: 0 }
+    steps:
+      - vessel: mash
+        target_temp: 67
+        hold_minutes: 10
+    """
+    path = write_recipe(tmp_path, content)
+    with pytest.raises(RecipeError, match=r"campo\(s\) obrigatório\(s\) ausente\(s\) \['name'\]"):
+        Recipe.load(path, bridge_config)
+
+
+def test_vessel_without_id_raises_clean_recipe_error(tmp_path, bridge_config):
+    content = """
+    name: "X"
+    vessels:
+      - name: "Mash"
+        heater_device_id: mash_heater
+        sensor_device_id: mash_tun_temp
+        pid: { kp: 1, ki: 0, kd: 0 }
+    steps:
+      - vessel: mash
+        target_temp: 67
+        hold_minutes: 10
+    """
+    path = write_recipe(tmp_path, content)
+    with pytest.raises(RecipeError, match=r"campo\(s\) obrigatório\(s\) ausente\(s\) \['id'\]"):
+        Recipe.load(path, bridge_config)
+
+
+def test_duplicate_vessel_id_raises(tmp_path, bridge_config):
+    content = """
+    name: "X"
+    vessels:
+      - id: mash
+        name: "Mash 1"
+        heater_device_id: mash_heater
+        sensor_device_id: mash_tun_temp
+        pid: { kp: 1, ki: 0, kd: 0 }
+      - id: mash
+        name: "Mash 2"
+        heater_device_id: boil_heater
+        sensor_device_id: boil_temp
+        pid: { kp: 1, ki: 0, kd: 0 }
+    steps:
+      - vessel: mash
+        target_temp: 67
+        hold_minutes: 10
+    """
+    path = write_recipe(tmp_path, content)
+    with pytest.raises(RecipeError, match="id de vessel duplicado: 'mash'"):
+        Recipe.load(path, bridge_config)
+
+
+def test_vessel_order_explicit_is_respected(tmp_path, bridge_config):
+    content = """
+    name: "X"
+    vessels:
+      - id: boil
+        name: "Fervura"
+        heater_device_id: boil_heater
+        sensor_device_id: boil_temp
+        pid: { kp: 1, ki: 0, kd: 0 }
+        order: 1
+      - id: mash
+        name: "Mostura"
+        heater_device_id: mash_heater
+        sensor_device_id: mash_tun_temp
+        pid: { kp: 1, ki: 0, kd: 0 }
+        order: 0
+    steps:
+      - vessel: mash
+        target_temp: 67
+        hold_minutes: 10
+    """
+    path = write_recipe(tmp_path, content)
+    recipe = Recipe.load(path, bridge_config)
+    # Apesar de "boil" vir primeiro no YAML, order explícito o coloca depois.
+    assert recipe.ordered_vessel_names() == ["mash", "boil"]
+
+
+def test_vessel_order_defaults_to_declaration_order(tmp_path, bridge_config):
+    content = """
+    name: "X"
+    vessels:
+      - id: boil
+        name: "Fervura"
+        heater_device_id: boil_heater
+        sensor_device_id: boil_temp
+        pid: { kp: 1, ki: 0, kd: 0 }
+      - id: mash
+        name: "Mostura"
+        heater_device_id: mash_heater
+        sensor_device_id: mash_tun_temp
+        pid: { kp: 1, ki: 0, kd: 0 }
+    steps:
+      - vessel: mash
+        target_temp: 67
+        hold_minutes: 10
+    """
+    path = write_recipe(tmp_path, content)
+    recipe = Recipe.load(path, bridge_config)
+    # Sem order explícito, mantém a ordem de declaração no YAML (boil primeiro).
+    assert recipe.ordered_vessel_names() == ["boil", "mash"]
+
+
+def test_get_vessel_unknown_id_raises(tmp_path, bridge_config):
+    path = write_recipe(tmp_path, VALID_RECIPE_YAML)
+    recipe = Recipe.load(path, bridge_config)
+    with pytest.raises(RecipeError, match="não existe nesta receita"):
+        recipe.get_vessel("does_not_exist")

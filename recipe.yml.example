@@ -2,13 +2,20 @@
 # rodar. Copie para recipe.yml na raiz do projeto (mesmo diretório de
 # devices.yml) para o run_bridge.py carregar automaticamente.
 #
+# Schema de `vessels` espelha devices.yml: lista de itens com `id`
+# (referência estável, usada por steps.vessel) + `name` (texto livre
+# de exibição) + `order` (opcional — sem ele, usa a ordem de
+# declaração na lista).
+#
 # Referências de device_id (heater_device_id, sensor_device_id, pumps)
 # precisam existir no devices.yml carregado — validado no boot.
 
 name: "Pilsen Clássica"
 
 vessels:
-  mash:
+  - id: mash
+    name: "Mostura"
+    order: 0
     heater_device_id: mash_heater
     sensor_device_id: mash_tun_temp
     pid:
@@ -17,7 +24,9 @@ vessels:
       kd: 0.0
     window_seconds: 10   # janela de time-proportioning (liga/desliga) — ver README
 
-  boil:
+  - id: boil
+    name: "Fervura"
+    order: 1
     heater_device_id: boil_heater
     sensor_device_id: boil_temp
     pid:

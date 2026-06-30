@@ -46,10 +46,10 @@ class RecipeEngine:
         self._state = RecipeState.load(self._state_path)
 
         self._pid: Dict[str, PidController] = {
-            name: PidController(v.pid) for name, v in recipe.vessels.items()
+            v.id: PidController(v.pid) for v in recipe.vessels
         }
         self._tpc: Dict[str, TimeProportioningController] = {
-            name: TimeProportioningController(v.window_seconds) for name, v in recipe.vessels.items()
+            v.id: TimeProportioningController(v.window_seconds) for v in recipe.vessels
         }
         self._active_pumps: Set[str] = set()
         self._last_tick_time: Optional[float] = None
@@ -152,7 +152,7 @@ class RecipeEngine:
             return  # relógio não avançou (ou andou pra trás) — ignora este tick
 
         step = self._recipe.steps[self._state.step_index]
-        vessel = self._recipe.vessels[step.vessel]
+        vessel = self._recipe.get_vessel(step.vessel)
 
         self._apply_pumps(step.pumps)
         self._apply_heater(step, vessel, now, dt)
@@ -190,7 +190,7 @@ class RecipeEngine:
 
     def _advance_step(self, now: float) -> None:
         current_step = self._recipe.steps[self._state.step_index]
-        current_vessel = self._recipe.vessels[current_step.vessel]
+        current_vessel = self._recipe.get_vessel(current_step.vessel)
         self._runtime.set_actuator(current_vessel.heater_device_id, False)
 
         next_index = self._state.step_index + 1
