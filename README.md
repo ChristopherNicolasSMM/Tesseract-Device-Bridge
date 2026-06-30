@@ -407,10 +407,30 @@ um alarme pendente. `GET /api/recipe/status` inclui `pending_alarms`
 (lista de `{id, type, label, fired_at}`) — persistido em
 `recipe_state.json`, sobrevive a restart do processo.
 
-⚠️ **Pendente** (próxima entrega): a UI — popup + som no painel ao
-detectar um alarme novo via polling, com repetição configurável
-(toca N vezes OU até clicar OK, o que vier primeiro) e escolha de som
-(embutido ou upload de arquivo próprio, guardado no navegador).
+### UI de alarmes (Sessão B — visual)
+
+- **Banner em destaque** (borda âmbar pulsante) aparece automaticamente
+  quando `pending_alarms` muda — detectado por polling (mesma cadência
+  de 2.5s do resto da aba Receitas), sem precisar de WebSocket/push
+  (este projeto é Flask síncrono puro). Mostra o alarme mais antigo da
+  fila + contador "+N alarme(s) na fila" se houver mais de um.
+- **Som sintetizado via Web Audio API** — 3 opções embutidas (Beep,
+  Sirene, Campainha dupla), geradas em runtime com osciladores, **sem
+  nenhum arquivo de áudio binário no repositório**. Mais uma opção:
+  **som personalizado** — upload de arquivo de áudio próprio, salvo
+  como base64 em `localStorage` (só neste navegador, não vai pro
+  servidor).
+- **Regra de parada**: toca pelo número de repetições configurado
+  (`alarmRepeatCount`, 1-20, default 3) **ou** para no clique em "OK",
+  o que vier primeiro — implementado com um token de cancelamento
+  incrementado a cada novo alarme/ack, invalidando qualquer ciclo de
+  som ainda agendado.
+- Configurações (`⚙️ Alarmes` no header da receita) persistidas em
+  `localStorage` — por navegador/dispositivo, não por receita.
+- Validado com 12 testes de lógica em Node (fila, repetição exata,
+  cancelamento no meio da sequência, persistência) simulando
+  DOM/Audio/localStorage/fetch, já que esta lógica não tem cobertura
+  no `pytest` (é JS puro do lado do navegador).
 
 ### Barra de transporte (UI)
 

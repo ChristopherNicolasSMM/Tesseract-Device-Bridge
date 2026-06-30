@@ -1,0 +1,372 @@
+From 245c866f7868d95f3009a1fde343a9c6a96b9432 Mon Sep 17 00:00:00 2001
+From: Claude <claude@local>
+Date: Tue, 30 Jun 2026 18:17:48 +0000
+Subject: [PATCH] Sessao B visual: banner de alarme com som sintetizado e
+ configuracoes
+
+---
+ README.md                  |  28 +++-
+ panel/templates/index.html | 277 ++++++++++++++++++++++++++++++++++++-
+ 2 files changed, 299 insertions(+), 6 deletions(-)
+
+diff --git a/README.md b/README.md
+index b31c4c7..b12c2fe 100644
+--- a/README.md
++++ b/README.md
+@@ -407,10 +407,30 @@ um alarme pendente. `GET /api/recipe/status` inclui `pending_alarms`
+ (lista de `{id, type, label, fired_at}`) — persistido em
+ `recipe_state.json`, sobrevive a restart do processo.
+ 
+-⚠️ **Pendente** (próxima entrega): a UI — popup + som no painel ao
+-detectar um alarme novo via polling, com repetição configurável
+-(toca N vezes OU até clicar OK, o que vier primeiro) e escolha de som
+-(embutido ou upload de arquivo próprio, guardado no navegador).
++### UI de alarmes (Sessão B — visual)
++
++- **Banner em destaque** (borda âmbar pulsante) aparece automaticamente
++  quando `pending_alarms` muda — detectado por polling (mesma cadência
++  de 2.5s do resto da aba Receitas), sem precisar de WebSocket/push
++  (este projeto é Flask síncrono puro). Mostra o alarme mais antigo da
++  fila + contador "+N alarme(s) na fila" se houver mais de um.
++- **Som sintetizado via Web Audio API** — 3 opções embutidas (Beep,
++  Sirene, Campainha dupla), geradas em runtime com osciladores, **sem
++  nenhum arquivo de áudio binário no repositório**. Mais uma opção:
++  **som personalizado** — upload de arquivo de áudio próprio, salvo
++  como base64 em `localStorage` (só neste navegador, não vai pro
++  servidor).
++- **Regra de parada**: toca pelo número de repetições configurado
++  (`alarmRepeatCount`, 1-20, default 3) **ou** para no clique em "OK",
++  o que vier primeiro — implementado com um token de cancelamento
++  incrementado a cada novo alarme/ack, invalidando qualquer ciclo de
++  som ainda agendado.
++- Configurações (`⚙️ Alarmes` no header da receita) persistidas em
++  `localStorage` — por navegador/dispositivo, não por receita.
++- Validado com 12 testes de lógica em Node (fila, repetição exata,
++  cancelamento no meio da sequência, persistência) simulando
++  DOM/Audio/localStorage/fetch, já que esta lógica não tem cobertura
++  no `pytest` (é JS puro do lado do navegador).
+ 
+ ### Barra de transporte (UI)
+ 
+diff --git a/panel/templates/index.html b/panel/templates/index.html
+index 4bec3b7..da4641b 100644
+--- a/panel/templates/index.html
++++ b/panel/templates/index.html
+@@ -638,6 +638,67 @@
+     .total-time-row span:last-child { margin-right: 0; }
+     .total-time-row strong { color: var(--copper-300); font-weight: 600; }
+ 
++    /* ===== ALARMES (Sessao B: banner + configuracao de som) ===== */
++    .alarm-banner {
++      display: none;
++      align-items: center;
++      gap: 16px;
++      background: linear-gradient(90deg, rgba(227,162,60,0.18), rgba(227,162,60,0.05));
++      border: 1px solid rgba(227,162,60,0.45);
++      border-radius: var(--radius);
++      padding: 16px 20px;
++      margin-bottom: 22px;
++      animation: alarmPulseBorder 1.4s infinite;
++    }
++    .alarm-banner.show { display: flex; }
++    @keyframes alarmPulseBorder {
++      0%, 100% { border-color: rgba(227,162,60,0.45); }
++      50% { border-color: rgba(227,162,60,0.9); }
++    }
++    .alarm-banner-icon { font-size: 28px; flex-shrink: 0; }
++    .alarm-banner-body { flex: 1; min-width: 0; }
++    .alarm-banner-label { font-size: 16px; font-weight: 700; color: var(--ramp-amber); }
++    .alarm-banner-extra { font-size: 12px; color: var(--ink-warm-400); margin-top: 2px; }
++    .alarm-banner-btn {
++      background: var(--ramp-amber);
++      color: #1a1208;
++      border: none;
++      padding: 10px 26px;
++      border-radius: 8px;
++      font-size: 14px;
++      font-weight: 700;
++      cursor: pointer;
++      flex-shrink: 0;
++    }
++    .alarm-banner-btn:hover { filter: brightness(1.1); }
++
++    .alarm-settings-popover {
++      position: absolute;
++      top: 100%;
++      right: 0;
++      margin-top: 8px;
++      width: 280px;
++      background: var(--bg-card);
++      border: 1px solid var(--border-subtle);
++      border-radius: var(--radius);
++      padding: 16px;
++      z-index: 50;
++      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
++    }
++    .recipe-controls { position: relative; }
++    .alarm-settings-title { font-size: 13px; font-weight: 700; color: var(--ink-warm-0); margin-bottom: 12px; }
++    .alarm-settings-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--ink-warm-400); margin-bottom: 6px; }
++    .alarm-settings-select, .alarm-settings-input {
++      width: 100%;
++      background: var(--bg-primary);
++      border: 1px solid var(--border-subtle);
++      color: var(--text-primary);
++      border-radius: 6px;
++      padding: 8px 10px;
++      font-size: 13px;
++    }
++    .alarm-settings-hint { font-size: 11px; color: var(--ink-warm-400); margin-top: 6px; line-height: 1.4; }
++
+   </style>
+ </head>
+ <body>
+@@ -712,7 +773,16 @@
+         <p>Nenhuma receita carregada neste bridge. Copie <code>recipe.yml.example</code> para <code>recipe.yml</code> na raiz do projeto e reinicie o bridge para habilitar o motor de execução autonomo.</p>
+       </div>
+ 
+-      <div id="recipeContent" style="display:none;">
++<div id="recipeContent" style="display:none;">
++        <div id="alarmBanner" class="alarm-banner">
++          <div class="alarm-banner-icon">🔔</div>
++          <div class="alarm-banner-body">
++            <div class="alarm-banner-label" id="alarmBannerLabel">--</div>
++            <div class="alarm-banner-extra" id="alarmBannerExtra"></div>
++          </div>
++          <button class="alarm-banner-btn" onclick="acknowledgeCurrentAlarm()">OK</button>
++        </div>
++
+         <div id="crashBanner" class="crash-banner">
+           <span>⚠️ <strong>Execução interrompida</strong> — o processo encerrou durante <span id="crashFromStatus"></span>. Failsafe já aplicado em todos os atuadores de risco. Retome de onde parou quando estiver pronto.</span>
+           <button onclick="resumeRecipe()">Retomar</button>
+@@ -726,10 +796,35 @@
+             </div>
+             <span class="status-pill idle" id="recipeStatusPill"><span class="dot"></span><span id="recipeStatusText">Idle</span></span>
+           </div>
+-          <div class="recipe-controls">
++<div class="recipe-controls">
++            <button class="btn-recipe ghost" id="btnAlarmSettings" onclick="toggleAlarmSettings()" title="Configurar alarmes">⚙️ Alarmes</button>
+             <button class="btn-recipe ghost" id="btnAbort" onclick="abortRecipe()" disabled>Cancelar</button>
+             <button class="btn-recipe primary" id="btnStart" onclick="startRecipe()">Iniciar Receita</button>
+           </div>
++
++          <div id="alarmSettingsPopover" class="alarm-settings-popover" style="display:none;">
++            <div class="alarm-settings-title">Configuração de alarme</div>
++
++            <label class="alarm-settings-label">Som</label>
++            <select id="alarmSoundType" class="alarm-settings-select" onchange="onAlarmSoundTypeChange()">
++              <option value="beep">Beep simples</option>
++              <option value="siren">Sirene</option>
++              <option value="bell">Campainha dupla</option>
++              <option value="custom">Som personalizado (upload)</option>
++            </select>
++
++            <div id="alarmCustomSoundRow" style="display:none; margin-top:10px;">
++              <input type="file" id="alarmCustomSoundFile" accept="audio/*" onchange="onCustomSoundUpload(event)">
++              <div class="alarm-settings-hint" id="alarmCustomSoundStatus">Nenhum arquivo selecionado.</div>
++            </div>
++
++            <label class="alarm-settings-label" style="margin-top:14px;">Repetições do som</label>
++            <input type="number" id="alarmRepeatCount" class="alarm-settings-input" min="1" max="20" value="3"
++                   onchange="onAlarmRepeatChange()">
++            <div class="alarm-settings-hint">O som para sozinho após essa quantidade de repetições, ou no clique em "OK", o que vier primeiro.</div>
++
++            <button class="btn-recipe ghost" style="margin-top:14px; width:100%;" onclick="testAlarmSound()">Testar som</button>
++          </div>
+         </div>
+ 
+ <div class="transport-bar">
+@@ -1187,6 +1282,7 @@
+         updateTransportBar(status);
+         updateCountdownAnchor(status);
+         updateTotalTimeDisplay(status);
++        updateAlarmUI(status);
+ 
+         renderTimeline(status);
+ 
+@@ -1349,6 +1445,183 @@
+       } catch (e) { toast('Erro ao reiniciar etapa', 'error'); }
+     }
+ 
++    // ===== ALARMES (Sessao B: som + popup) =====
++    const ALARM_SETTINGS_KEY = 'tesseract_alarm_settings';
++    let alarmBannerCurrentId = null;
++    let alarmPlaybackToken = 0;
++
++    function getAlarmSettings() {
++      try {
++        const raw = localStorage.getItem(ALARM_SETTINGS_KEY);
++        if (raw) return JSON.parse(raw);
++      } catch (e) { /* ignora settings corrompidas */ }
++      return { soundType: 'beep', repeatCount: 3, customSoundBase64: null };
++    }
++
++    function saveAlarmSettings(settings) {
++      localStorage.setItem(ALARM_SETTINGS_KEY, JSON.stringify(settings));
++    }
++
++    function loadAlarmSettingsIntoUI() {
++      const settings = getAlarmSettings();
++      $('alarmSoundType').value = settings.soundType;
++      $('alarmRepeatCount').value = settings.repeatCount;
++      $('alarmCustomSoundRow').style.display = settings.soundType === 'custom' ? 'block' : 'none';
++      $('alarmCustomSoundStatus').textContent = settings.customSoundBase64
++        ? 'Arquivo carregado e salvo neste navegador.'
++        : 'Nenhum arquivo selecionado.';
++    }
++
++    function toggleAlarmSettings() {
++      const popover = $('alarmSettingsPopover');
++      const isOpen = popover.style.display !== 'none';
++      if (isOpen) {
++        popover.style.display = 'none';
++      } else {
++        loadAlarmSettingsIntoUI();
++        popover.style.display = 'block';
++      }
++    }
++
++    function onAlarmSoundTypeChange() {
++      const settings = getAlarmSettings();
++      settings.soundType = $('alarmSoundType').value;
++      saveAlarmSettings(settings);
++      $('alarmCustomSoundRow').style.display = settings.soundType === 'custom' ? 'block' : 'none';
++    }
++
++    function onAlarmRepeatChange() {
++      const settings = getAlarmSettings();
++      const value = parseInt($('alarmRepeatCount').value, 10);
++      settings.repeatCount = (value >= 1 && value <= 20) ? value : 3;
++      saveAlarmSettings(settings);
++    }
++
++    function onCustomSoundUpload(event) {
++      const file = event.target.files[0];
++      if (!file) return;
++      const reader = new FileReader();
++      reader.onload = () => {
++        const settings = getAlarmSettings();
++        settings.customSoundBase64 = reader.result;  // data:audio/...;base64,....
++        saveAlarmSettings(settings);
++        $('alarmCustomSoundStatus').textContent = `Carregado: ${file.name}`;
++        toast('Som personalizado salvo neste navegador', 'success');
++      };
++      reader.onerror = () => toast('Erro ao ler o arquivo de audio', 'error');
++      reader.readAsDataURL(file);
++    }
++
++    // ---- sintese de som via Web Audio (sem precisar de arquivo de audio) ----
++    let _alarmAudioCtx = null;
++    function getAudioCtx() {
++      if (!_alarmAudioCtx) {
++        _alarmAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
++      }
++      return _alarmAudioCtx;
++    }
++
++    function playTone(freq, durationMs, startDelayMs, type) {
++      const ctx = getAudioCtx();
++      const osc = ctx.createOscillator();
++      const gain = ctx.createGain();
++      osc.type = type || 'sine';
++      osc.frequency.value = freq;
++      gain.gain.value = 0.25;
++      osc.connect(gain);
++      gain.connect(ctx.destination);
++      const startTime = ctx.currentTime + (startDelayMs / 1000);
++      osc.start(startTime);
++      osc.stop(startTime + (durationMs / 1000));
++    }
++
++    function synthOneCycle(soundType) {
++      if (soundType === 'beep') {
++        playTone(880, 180, 0, 'sine');
++      } else if (soundType === 'siren') {
++        playTone(600, 220, 0, 'sawtooth');
++        playTone(900, 220, 220, 'sawtooth');
++      } else if (soundType === 'bell') {
++        playTone(1046, 140, 0, 'triangle');
++        playTone(1318, 220, 160, 'triangle');
++      }
++    }
++
++    function playOneAlarmCycle(settings, onCycleDone) {
++      if (settings.soundType === 'custom' && settings.customSoundBase64) {
++        const audio = new Audio(settings.customSoundBase64);
++        audio.onended = onCycleDone;
++        audio.onerror = onCycleDone;
++        audio.play().catch(() => onCycleDone());
++      } else {
++        synthOneCycle(settings.soundType);
++        setTimeout(onCycleDone, 600);  // duracao aproximada de um ciclo sintetizado
++      }
++    }
++
++    function startAlarmPlayback() {
++      const settings = getAlarmSettings();
++      const myToken = ++alarmPlaybackToken;
++      let cyclesPlayed = 0;
++
++      function playNext() {
++        if (myToken !== alarmPlaybackToken) return;  // cancelado (ack ou novo alarme)
++        if (cyclesPlayed >= settings.repeatCount) return;  // atingiu o limite -- para sozinho
++        cyclesPlayed += 1;
++        playOneAlarmCycle(settings, playNext);
++      }
++      playNext();
++    }
++
++    function stopAlarmPlayback() {
++      alarmPlaybackToken += 1;  // invalida qualquer ciclo agendado
++    }
++
++    function testAlarmSound() {
++      startAlarmPlayback();
++    }
++
++    function showAlarmBanner(alarm, totalPending) {
++      $('alarmBannerLabel').textContent = alarm.label;
++      $('alarmBannerExtra').textContent = totalPending > 1 ? `+ ${totalPending - 1} alarme(s) na fila` : '';
++      $('alarmBanner').classList.add('show');
++    }
++
++    function hideAlarmBanner() {
++      $('alarmBanner').classList.remove('show');
++    }
++
++    function updateAlarmUI(status) {
++      const alarms = status.pending_alarms || [];
++      if (alarms.length === 0) {
++        if (alarmBannerCurrentId !== null) {
++          stopAlarmPlayback();
++          hideAlarmBanner();
++          alarmBannerCurrentId = null;
++        }
++        return;
++      }
++      const first = alarms[0];
++      if (first.id !== alarmBannerCurrentId) {
++        alarmBannerCurrentId = first.id;
++        showAlarmBanner(first, alarms.length);
++        startAlarmPlayback();
++      } else {
++        $('alarmBannerExtra').textContent = alarms.length > 1 ? `+ ${alarms.length - 1} alarme(s) na fila` : '';
++      }
++    }
++
++    async function acknowledgeCurrentAlarm() {
++      if (alarmBannerCurrentId === null) return;
++      stopAlarmPlayback();
++      try {
++        await fetch(`/api/recipe/alarms/${alarmBannerCurrentId}/ack`, { method: 'POST' });
++      } catch (e) { /* segue mesmo se a chamada falhar -- proximo poll resincroniza */ }
++      alarmBannerCurrentId = null;
++      hideAlarmBanner();
++      pollRecipeStatus();
++    }
++
+     async function startRecipe() {
+       try {
+         await fetch('/api/recipe/start', { method: 'POST' });
+-- 
+2.43.0
+
