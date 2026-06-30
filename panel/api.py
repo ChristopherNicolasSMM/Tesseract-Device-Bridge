@@ -152,6 +152,7 @@ def recipe_definition():
         "name": recipe.name,
         "vessels": {
             name: {
+                "label": v.label,
                 "heater_device_id": v.heater_device_id,
                 "sensor_device_id": v.sensor_device_id,
                 "window_seconds": v.window_seconds,

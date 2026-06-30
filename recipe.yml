@@ -5,10 +5,11 @@
 # Referências de device_id (heater_device_id, sensor_device_id, pumps)
 # precisam existir no devices.yml carregado — validado no boot.
 
-name: "Pilsen Clássica"
+name: "Lagers da Casa"
 
 vessels:
-  mash:
+  01_mash:
+    label: Mash
     heater_device_id: mash_heater
     sensor_device_id: mash_tun_temp
     pid:
@@ -17,7 +18,8 @@ vessels:
       kd: 0.0
     window_seconds: 10   # janela de time-proportioning (liga/desliga) — ver README
 
-  boil:
+  02_boil:
+    label: Boil
     heater_device_id: boil_heater
     sensor_device_id: boil_temp
     pid:
@@ -27,25 +29,25 @@ vessels:
     window_seconds: 10
 
 steps:
-  - vessel: mash
+  - vessel: 01_mash
     label: "Mostura - Beta-Amilase"
     target_temp: 67
     hold_minutes: 40
     pumps: [pump_b1]   # recirculação durante a mostura
 
-  - vessel: mash
+  - vessel: 01_mash
     label: "Mostura - Alfa-Amilase"
     target_temp: 67
     hold_minutes: 20
     pumps: [pump_b1]   # recirculação durante a mostura    
 
-  - vessel: mash
+  - vessel: 01_mash
     label: "Mostura - Mash Out"
     target_temp: 75
     hold_minutes: 15
     pumps: [pump_b1]   # recirculação durante a mostura
  
-  - vessel: boil
+  - vessel: 02_boil
     label: "Fervura"
     target_temp: 100
     hold_minutes: 60

@@ -31,6 +31,7 @@ class RecipeError(ValueError):
 @dataclass
 class VesselConfig:
     name: str
+    label: str
     heater_device_id: str
     sensor_device_id: str
     pid: PidGains
@@ -49,6 +50,7 @@ class VesselConfig:
 
         return cls(
             name=name,
+            label=raw['label'],
             heater_device_id=raw["heater_device_id"],
             sensor_device_id=raw["sensor_device_id"],
             pid=PidGains(kp=float(pid_raw["kp"]), ki=float(pid_raw["ki"]), kd=float(pid_raw["kd"])),
