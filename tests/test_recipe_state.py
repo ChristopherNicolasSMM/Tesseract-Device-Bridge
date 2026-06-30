@@ -17,7 +17,7 @@ def test_fresh_state_starts_ramping_at_step_zero():
 
 
 def test_invalid_status_raises_value_error():
-    with pytest.raises(ValueError, match="status inválido"):
+    with pytest.raises(ValueError, match="status inv.lido"):
         RecipeState(status="not_a_real_status")
 
 

@@ -108,6 +108,7 @@ def simulate_device(device_id: str):
 
 def _recipe_status_payload(engine: RecipeEngine) -> dict:
     state = engine.state
+    now = time.time()
     current_vessel = None
     current_duty = 0.0
     if state.status in ("ramping", "holding") and state.step_index < engine.recipe.step_count():
@@ -124,6 +125,8 @@ def _recipe_status_payload(engine: RecipeEngine) -> dict:
         "paused_from_status": state.paused_from_status,
         "current_vessel": current_vessel,
         "current_duty_percent": current_duty,
+        "total_estimated_minutes": engine.total_estimated_minutes(),
+        "total_elapsed_seconds": engine.total_elapsed_seconds(now),
     }
 
 
@@ -199,6 +202,58 @@ def recipe_resume():
         return jsonify({"error": "Nenhuma receita carregada neste bridge."}), 404
     try:
         engine.resume(now=time.time())
+    except RecipeEngineError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(_recipe_status_payload(engine))
+
+
+@bp.post("/recipe/pause")
+def recipe_pause():
+    """Pausa deliberada pelo usuário — desliga os atuadores (failsafe) e espera POST /recipe/resume."""
+    engine = _recipe_engine()
+    if engine is None:
+        return jsonify({"error": "Nenhuma receita carregada neste bridge."}), 404
+    try:
+        engine.pause(now=time.time())
+    except RecipeEngineError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(_recipe_status_payload(engine))
+
+
+@bp.post("/recipe/skip_next")
+def recipe_skip_next():
+    """Força avanço pra próxima etapa, ignorando temperatura/tempo de patamar."""
+    engine = _recipe_engine()
+    if engine is None:
+        return jsonify({"error": "Nenhuma receita carregada neste bridge."}), 404
+    try:
+        engine.skip_next(now=time.time())
+    except RecipeEngineError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(_recipe_status_payload(engine))
+
+
+@bp.post("/recipe/skip_previous")
+def recipe_skip_previous():
+    """Volta pra etapa anterior (reiniciando ela do zero); na primeira etapa, reinicia a atual."""
+    engine = _recipe_engine()
+    if engine is None:
+        return jsonify({"error": "Nenhuma receita carregada neste bridge."}), 404
+    try:
+        engine.skip_previous(now=time.time())
+    except RecipeEngineError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(_recipe_status_payload(engine))
+
+
+@bp.post("/recipe/reset_step")
+def recipe_reset_step():
+    """Reinicia a etapa atual do zero, sem mudar de etapa."""
+    engine = _recipe_engine()
+    if engine is None:
+        return jsonify({"error": "Nenhuma receita carregada neste bridge."}), 404
+    try:
+        engine.reset_current_step(now=time.time())
     except RecipeEngineError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify(_recipe_status_payload(engine))

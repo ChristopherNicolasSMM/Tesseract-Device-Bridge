@@ -256,3 +256,64 @@ def test_recipe_definition_returns_vessels_and_steps(client_with_recipe):
 def test_recipe_definition_returns_404_when_no_recipe_engine(client):
     res = client.get("/api/recipe/definition")
     assert res.status_code == 404
+
+
+def test_recipe_pause_sets_paused_manual(client_with_recipe):
+    client, engine = client_with_recipe
+    client.post("/api/recipe/start")
+    res = client.post("/api/recipe/pause")
+    assert res.status_code == 200
+    assert res.get_json()["status"] == "paused_manual"
+
+
+def test_recipe_pause_outside_active_returns_400(client_with_recipe):
+    client, engine = client_with_recipe
+    res = client.post("/api/recipe/pause")  # ainda idle
+    assert res.status_code == 400
+
+
+def test_recipe_pause_returns_404_when_no_recipe_engine(client):
+    res = client.post("/api/recipe/pause")
+    assert res.status_code == 404
+
+
+def test_recipe_skip_next_advances_step(client_with_recipe):
+    client, engine = client_with_recipe
+    client.post("/api/recipe/start")
+    res = client.post("/api/recipe/skip_next")
+    assert res.status_code == 200
+    # única vessel/step na fixture -> skip_next termina a receita
+    assert res.get_json()["status"] == "finished"
+
+
+def test_recipe_skip_next_outside_active_returns_400(client_with_recipe):
+    client, engine = client_with_recipe
+    res = client.post("/api/recipe/skip_next")
+    assert res.status_code == 400
+
+
+def test_recipe_skip_previous_restarts_step(client_with_recipe):
+    client, engine = client_with_recipe
+    client.post("/api/recipe/start")
+    res = client.post("/api/recipe/skip_previous")
+    assert res.status_code == 200
+    assert res.get_json()["status"] == "ramping"
+    assert res.get_json()["step_index"] == 0
+
+
+def test_recipe_reset_step_restarts_current_step(client_with_recipe):
+    client, engine = client_with_recipe
+    client.post("/api/recipe/start")
+    res = client.post("/api/recipe/reset_step")
+    assert res.status_code == 200
+    assert res.get_json()["status"] == "ramping"
+
+
+def test_recipe_status_includes_total_time_fields(client_with_recipe):
+    client, engine = client_with_recipe
+    client.post("/api/recipe/start")
+    res = client.get("/api/recipe/status")
+    data = res.get_json()
+    assert "total_estimated_minutes" in data
+    assert "total_elapsed_seconds" in data
+    assert data["total_estimated_minutes"] == 1.0  # fixture: hold_minutes=1

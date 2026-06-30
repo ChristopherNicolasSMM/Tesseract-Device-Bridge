@@ -1,0 +1,821 @@
+From 986626630acd6c8edfaf1abb6305c205dbab0c55 Mon Sep 17 00:00:00 2001
+From: Claude <claude@local>
+Date: Tue, 30 Jun 2026 17:35:00 +0000
+Subject: [PATCH] Sessao A: pause resume manual, skip next previous, reset
+ step, tempo total
+
+---
+ README.md                   |  45 +++++++-
+ panel/api.py                |  55 ++++++++++
+ recipe_engine/engine.py     | 178 ++++++++++++++++++++++++-------
+ recipe_engine/state.py      |  46 +++++---
+ tests/test_panel.py         |  61 +++++++++++
+ tests/test_recipe_engine.py | 205 ++++++++++++++++++++++++++++++++++++
+ tests/test_recipe_state.py  |   2 +-
+ 7 files changed, 535 insertions(+), 57 deletions(-)
+
+diff --git a/README.md b/README.md
+index 54fab56..0e122d4 100644
+--- a/README.md
++++ b/README.md
+@@ -322,13 +322,48 @@ dinâmico.
+ ### Endpoints de receita
+ 
+ ```
+-GET  /api/recipe/status      -> status de execução, vasilha/duty atual
+-GET  /api/recipe/definition  -> vasilhas e etapas da receita carregada
+-POST /api/recipe/start       -> inicia (ou reinicia do zero) a receita
+-POST /api/recipe/abort       -> cancela, aplica failsafe em tudo
+-POST /api/recipe/resume      -> retoma de paused_after_crash
++GET  /api/recipe/status        -> status de execução, vasilha/duty, tempo total/decorrido
++GET  /api/recipe/definition    -> vasilhas e etapas da receita carregada
++POST /api/recipe/start         -> inicia (ou reinicia do zero) a receita
++POST /api/recipe/abort         -> cancela, aplica failsafe em tudo
++POST /api/recipe/resume        -> retoma de paused_after_crash OU paused_manual
++POST /api/recipe/pause         -> pausa deliberada (Sessão A) -- aplica failsafe, espera resume
++POST /api/recipe/skip_next     -> força avanço pra próxima etapa (ignora tempo/temperatura)
++POST /api/recipe/skip_previous -> volta pra etapa anterior (reinicia ela do zero)
++POST /api/recipe/reset_step    -> reinicia a etapa atual sem mudar de etapa
+ ```
+ 
++### Sessão A — controles manuais de execução
++
++Inspirado na referência de UI enviada (CraftBeerPi-style: botões
++anterior / reset / play-pause / próxima + cronômetro grande da etapa
++atual). Implementado nesta entrega: **só o backend** (`RecipeEngine` +
++endpoints) — a integração visual na timeline (botões + cronômetro)
++fica pra um patch seguinte, focado, pra não conflitar com edições que
++você já está fazendo direto em `index.html`.
++
++- **`pause()`**: só válido durante `ramping`/`holding`. Aplica
++  failsafe em todos os atuadores de risco (mesma segurança do crash
++  recovery) e marca `paused_manual` — estado novo, irmão de
++  `paused_after_crash`. `resume()` foi generalizado pra sair de
++  qualquer um dos dois, preservando o tempo de patamar já decorrido
++  do mesmo jeito.
++- **`skip_next()`**: força a conclusão da etapa atual e avança,
++  ignorando se a temperatura/tempo de patamar foram atingidos —
++  mesmo caminho interno de quando a etapa termina naturalmente
++  (desliga o heater da vasilha que está saindo, aplica as bombas da
++  próxima etapa).
++- **`skip_previous()`**: volta uma etapa, **reiniciando ela do zero**
++  (não há como saber o estado térmico de um instante passado, então
++  rampa de novo) — na primeira etapa, reinicia a própria etapa atual.
++- **`reset_current_step()`**: reinicia a etapa atual sem mudar de
++  posição na receita.
++- **Tempo total**: `total_estimated_minutes()` soma `hold_minutes` de
++  todas as etapas (não inclui tempo de rampa, que não é previsível).
++  `total_elapsed_seconds(now)` é o tempo real decorrido desde
++  `start()` — congela automaticamente quando a receita termina ou é
++  cancelada (não continua contando depois disso).
++
+ ### ⚠️ Limitação conhecida
+ 
+ Se um device for controlado simultaneamente por uma receita ativa E
+diff --git a/panel/api.py b/panel/api.py
+index de88c1d..4c3e313 100644
+--- a/panel/api.py
++++ b/panel/api.py
+@@ -108,6 +108,7 @@ def simulate_device(device_id: str):
+ 
+ def _recipe_status_payload(engine: RecipeEngine) -> dict:
+     state = engine.state
++    now = time.time()
+     current_vessel = None
+     current_duty = 0.0
+     if state.status in ("ramping", "holding") and state.step_index < engine.recipe.step_count():
+@@ -124,6 +125,8 @@ def _recipe_status_payload(engine: RecipeEngine) -> dict:
+         "paused_from_status": state.paused_from_status,
+         "current_vessel": current_vessel,
+         "current_duty_percent": current_duty,
++        "total_estimated_minutes": engine.total_estimated_minutes(),
++        "total_elapsed_seconds": engine.total_elapsed_seconds(now),
+     }
+ 
+ 
+@@ -202,3 +205,55 @@ def recipe_resume():
+     except RecipeEngineError as exc:
+         return jsonify({"error": str(exc)}), 400
+     return jsonify(_recipe_status_payload(engine))
++
++
++@bp.post("/recipe/pause")
++def recipe_pause():
++    """Pausa deliberada pelo usuário — desliga os atuadores (failsafe) e espera POST /recipe/resume."""
++    engine = _recipe_engine()
++    if engine is None:
++        return jsonify({"error": "Nenhuma receita carregada neste bridge."}), 404
++    try:
++        engine.pause(now=time.time())
++    except RecipeEngineError as exc:
++        return jsonify({"error": str(exc)}), 400
++    return jsonify(_recipe_status_payload(engine))
++
++
++@bp.post("/recipe/skip_next")
++def recipe_skip_next():
++    """Força avanço pra próxima etapa, ignorando temperatura/tempo de patamar."""
++    engine = _recipe_engine()
++    if engine is None:
++        return jsonify({"error": "Nenhuma receita carregada neste bridge."}), 404
++    try:
++        engine.skip_next(now=time.time())
++    except RecipeEngineError as exc:
++        return jsonify({"error": str(exc)}), 400
++    return jsonify(_recipe_status_payload(engine))
++
++
++@bp.post("/recipe/skip_previous")
++def recipe_skip_previous():
++    """Volta pra etapa anterior (reiniciando ela do zero); na primeira etapa, reinicia a atual."""
++    engine = _recipe_engine()
++    if engine is None:
++        return jsonify({"error": "Nenhuma receita carregada neste bridge."}), 404
++    try:
++        engine.skip_previous(now=time.time())
++    except RecipeEngineError as exc:
++        return jsonify({"error": str(exc)}), 400
++    return jsonify(_recipe_status_payload(engine))
++
++
++@bp.post("/recipe/reset_step")
++def recipe_reset_step():
++    """Reinicia a etapa atual do zero, sem mudar de etapa."""
++    engine = _recipe_engine()
++    if engine is None:
++        return jsonify({"error": "Nenhuma receita carregada neste bridge."}), 404
++    try:
++        engine.reset_current_step(now=time.time())
++    except RecipeEngineError as exc:
++        return jsonify({"error": str(exc)}), 400
++    return jsonify(_recipe_status_payload(engine))
+diff --git a/recipe_engine/engine.py b/recipe_engine/engine.py
+index d91becd..d34917d 100644
+--- a/recipe_engine/engine.py
++++ b/recipe_engine/engine.py
+@@ -1,19 +1,26 @@
+ """
+-RecipeEngine — motor de execução de receita, 100% autônomo (não
++RecipeEngine - motor de execucao de receita, 100% autonomo (nao
+ depende de MQTT/Tesseract), com PID + time-proportioning por vasilha.
+ 
+-Convenção de tempo: `now` é sempre recebido por parâmetro em todo
+-método público — nunca lido internamente via time.time(). Isso torna
+-o motor inteiro determinístico e testável sem sleep real (mesma
+-convenção de failsafe_watchdog.py e time_proportioning.py).
++Convencao de tempo: `now` e sempre recebido por parametro em todo
++metodo publico - nunca lido internamente via time.time(). Isso torna
++o motor inteiro deterministico e testavel sem sleep real (mesma
++convencao de failsafe_watchdog.py e time_proportioning.py).
+ 
+-Recuperação de crash (decisão registrada): se o processo cair (ou for
+-encerrado) no meio de uma execução (status "ramping"/"holding"), o
++Recuperacao de crash (decisao registrada): se o processo cair (ou for
++encerrado) no meio de uma execucao (status "ramping"/"holding"), o
+ construtor detecta isso ao carregar o estado persistido, aplica
+ failsafe em todos os atuadores de risco do devices.yml inteiro
+-(segurança ampla, não só os da receita atual) e marca o estado como
+-"paused_after_crash" — nunca retoma sozinho, só por chamada explícita
++(seguranca ampla, nao so os da receita atual) e marca o estado como
++"paused_after_crash" - nunca retoma sozinho, so por chamada explicita
+ a resume().
++
++Controles manuais (Sessao A): pause()/resume() (pausa deliberada pelo
++usuario, mesma mecanica de aplicar failsafe + esperar confirmacao que
++o crash recovery usa, mas via "paused_manual"), skip_next()/
++skip_previous() (avanca/retrocede etapa manualmente, ignorando
++temperatura/tempo), reset_current_step() (reinicia a etapa atual do
++zero sem mudar de etapa).
+ """
+ 
+ from __future__ import annotations
+@@ -24,12 +31,12 @@ from typing import Dict, Optional, Set
+ from device_runtime import DeviceRuntime
+ from recipe_engine.models import Recipe
+ from recipe_engine.pid import PidController
+-from recipe_engine.state import RecipeState
++from recipe_engine.state import ACTIVE_STATUSES, PAUSED_STATUSES, RecipeState
+ from recipe_engine.time_proportioning import TimeProportioningController
+ 
+ 
+ class RecipeEngineError(RuntimeError):
+-    """Erro de uso do RecipeEngine — ex.: ação incompatível com o status atual."""
++    """Erro de uso do RecipeEngine - ex.: acao incompativel com o status atual."""
+ 
+ 
+ class RecipeEngine:
+@@ -54,7 +61,7 @@ class RecipeEngine:
+         self._active_pumps: Set[str] = set()
+         self._last_tick_time: Optional[float] = None
+ 
+-        if self._state.status in ("ramping", "holding"):
++        if self._state.status in ACTIVE_STATUSES:
+             self._recover_from_crash(now)
+ 
+     @property
+@@ -63,30 +70,48 @@ class RecipeEngine:
+ 
+     @property
+     def recipe_name(self) -> str:
+-        """Nome da receita carregada nesta engine, independente do status de execução."""
++        """Nome da receita carregada nesta engine, independente do status de execucao."""
+         return self._recipe.name
+ 
+     @property
+     def recipe(self):
+-        """Definição completa da receita carregada (somente leitura)."""
++        """Definicao completa da receita carregada (somente leitura)."""
+         return self._recipe
+ 
+     def current_duty(self, vessel_name: str) -> float:
+-        """Potência atual (0-100%) calculada pelo PID para a vasilha — usado pela UI (medidor)."""
++        """Potencia atual (0-100%) calculada pelo PID para a vasilha - usado pela UI (medidor)."""
+         if vessel_name not in self._tpc:
+             return 0.0
+         return self._tpc[vessel_name].duty_cycle_percent
+ 
+-    # ---- ações de usuário -------------------------------------------------
++    def total_estimated_minutes(self) -> float:
++        """Soma de hold_minutes de todas as etapas - tempo previsto total da receita (sem contar rampa, que nao tem duracao previsivel)."""
++        return sum(s.hold_minutes for s in self._recipe.steps)
++
++    def total_elapsed_seconds(self, now: float) -> float:
++        """
++        Tempo total decorrido desde o inicio da execucao (start()), em
++        segundos. Congelado (nao avanca mais) apos finished/aborted -
++        usa o snapshot tirado no momento da transicao. Zero se a
++        receita nunca foi iniciada (idle).
++        """
++        if self._state.status in ("finished", "aborted"):
++            return self._state.total_elapsed_seconds_frozen or 0.0
++        if self._state.recipe_started_at is None:
++            return 0.0
++        return max(0.0, now - self._state.recipe_started_at)
++
++    # ---- acoes de usuario -------------------------------------------------
+ 
+     def start(self, now: float) -> None:
+         """
+-        Inicia (ou reinicia do zero) a execução da receita carregada,
+-        independente do status atual — ação explícita do usuário, sempre
++        Inicia (ou reinicia do zero) a execucao da receita carregada,
++        independente do status atual - acao explicita do usuario, sempre
+         permitida.
+         """
+         self._state = RecipeState.fresh(self._recipe.name)
+         self._state.step_started_at = now
++        self._state.recipe_started_at = now
+         self._reset_controllers_for_current_step()
+         self._active_pumps = set()
+         self._last_tick_time = None
+@@ -94,24 +119,48 @@ class RecipeEngine:
+ 
+     def abort(self, now: float) -> None:
+         """
+-        Cancela a execução manualmente: aplica failsafe em tudo, status
+-        vira "aborted". Permitido em qualquer status — inclusive já
++        Cancela a execucao manualmente: aplica failsafe em tudo, status
++        vira "aborted". Permitido em qualquer status - inclusive ja
+         idle/finished (vira no-op seguro nesse caso, sem erro).
+         """
++        self._state.total_elapsed_seconds_frozen = self.total_elapsed_seconds(now)
+         self._apply_failsafe_all()
+         self._active_pumps = set()
+         self._state.status = "aborted"
+         self._save()
+ 
++    def pause(self, now: float) -> None:
++        """
++        Pausa deliberada pelo usuario (botao no painel) - aplica
++        failsafe em tudo (mesma seguranca do crash recovery) e marca
++        "paused_manual". So valido durante ramping/holding.
++        """
++        if self._state.status not in ACTIVE_STATUSES:
++            raise RecipeEngineError(
++                f"pause() so e valido durante execucao ativa (ramping/holding), atual e '{self._state.status}'."
++            )
++
++        elapsed_hold = 0.0
++        if self._state.status == "holding" and self._state.hold_started_at is not None:
++            elapsed_hold = max(0.0, now - self._state.hold_started_at)
++
++        self._state.paused_from_status = self._state.status
++        self._state.hold_elapsed_seconds_at_pause = elapsed_hold
++        self._state.status = "paused_manual"
++        self._apply_failsafe_all()
++        self._active_pumps = set()
++        self._save()
++
+     def resume(self, now: float) -> None:
+         """
+-        Retoma uma execução pausada por crash, de onde parou — preserva
+-        o tempo de patamar já decorrido se a pausa ocorreu durante
+-        "holding". Único jeito de sair de "paused_after_crash".
++        Retoma uma execucao pausada (por crash OU pausa manual), de
++        onde parou - preserva o tempo de patamar ja decorrido se a
++        pausa ocorreu durante "holding". Unico jeito de sair de
++        "paused_after_crash"/"paused_manual".
+         """
+-        if self._state.status != "paused_after_crash":
++        if self._state.status not in PAUSED_STATUSES:
+             raise RecipeEngineError(
+-                f"resume() só é válido em status 'paused_after_crash', atual é '{self._state.status}'."
++                f"resume() so e valido em status pausado ({sorted(PAUSED_STATUSES)}), atual e '{self._state.status}'."
+             )
+ 
+         self._reset_controllers_for_current_step()
+@@ -129,27 +178,73 @@ class RecipeEngine:
+         self._state.paused_from_status = None
+         self._save()
+ 
++    def skip_next(self, now: float) -> None:
++        """
++        Forca avanco pra proxima etapa, ignorando temperatura/tempo de
++        patamar - mesmo efeito de completar a etapa atual naturalmente.
++        So valido durante ramping/holding.
++        """
++        if self._state.status not in ACTIVE_STATUSES:
++            raise RecipeEngineError(
++                f"skip_next() so e valido durante execucao ativa, atual e '{self._state.status}'."
++            )
++        self._advance_step(now)
++
++    def skip_previous(self, now: float) -> None:
++        """
++        Volta pra etapa anterior (reiniciando ela do zero - rampa de
++        novo, ja que nao ha como saber o estado termico de um momento
++        passado). Se ja estiver na primeira etapa, reinicia a etapa
++        atual (equivalente a reset_current_step()). So valido durante
++        ramping/holding.
++        """
++        if self._state.status not in ACTIVE_STATUSES:
++            raise RecipeEngineError(
++                f"skip_previous() so e valido durante execucao ativa, atual e '{self._state.status}'."
++            )
++
++        current_step = self._recipe.steps[self._state.step_index]
++        current_vessel = self._recipe.get_vessel(current_step.vessel)
++        self._runtime.set_actuator(current_vessel.heater_device_id, False)
++
++        if self._state.step_index > 0:
++            self._state.step_index -= 1
++
++        self._restart_current_step(now)
++
++    def reset_current_step(self, now: float) -> None:
++        """
++        Reinicia a etapa atual do zero (volta pra ramping, zera tempo
++        de patamar), sem mudar de etapa - util pra "tentar de novo"
++        sem perder o lugar na receita. So valido durante ramping/holding.
++        """
++        if self._state.status not in ACTIVE_STATUSES:
++            raise RecipeEngineError(
++                f"reset_current_step() so e valido durante execucao ativa, atual e '{self._state.status}'."
++            )
++        self._restart_current_step(now)
++
+     # ---- loop principal -----------------------------------------------------
+ 
+     def tick(self, now: float) -> None:
+         """
+-        Avança o motor um passo — chamado periodicamente pelo loop do
++        Avanca o motor um passo - chamado periodicamente pelo loop do
+         bridge (mesmo poll_interval usado por publish_sensor_states/
+-        check_watchdog). No-op se status não for "ramping"/"holding".
++        check_watchdog). No-op se status nao for "ramping"/"holding".
+         """
+-        if self._state.status not in ("ramping", "holding"):
++        if self._state.status not in ACTIVE_STATUSES:
+             return
+ 
+         if self._last_tick_time is None:
+-            # Primeira chamada após start/resume: só estabelece o
+-            # relógio, sem calcular PID com dt inválido.
++            # Primeira chamada apos start/resume/skip: so estabelece o
++            # relogio, sem calcular PID com dt invalido.
+             self._last_tick_time = now
+             return
+ 
+         dt = now - self._last_tick_time
+         self._last_tick_time = now
+         if dt <= 0:
+-            return  # relógio não avançou (ou andou pra trás) — ignora este tick
++            return  # relogio nao avancou (ou andou pra tras) - ignora este tick
+ 
+         step = self._recipe.steps[self._state.step_index]
+         vessel = self._recipe.get_vessel(step.vessel)
+@@ -188,6 +283,17 @@ class RecipeEngine:
+             self._runtime.set_actuator(pump_id, False)
+         self._active_pumps = desired
+ 
++    def _restart_current_step(self, now: float) -> None:
++        self._state.status = "ramping"
++        self._state.step_started_at = now
++        self._state.hold_started_at = None
++        self._last_tick_time = None
++        step = self._recipe.steps[self._state.step_index]
++        self._pid[step.vessel].reset()
++        self._tpc[step.vessel].reset()
++        self._apply_pumps(step.pumps)
++        self._save()
++
+     def _advance_step(self, now: float) -> None:
+         current_step = self._recipe.steps[self._state.step_index]
+         current_vessel = self._recipe.get_vessel(current_step.vessel)
+@@ -196,20 +302,14 @@ class RecipeEngine:
+         next_index = self._state.step_index + 1
+         if next_index >= self._recipe.step_count():
+             self._apply_pumps([])
++            self._state.total_elapsed_seconds_frozen = self.total_elapsed_seconds(now)
+             self._state.status = "finished"
+             self._state.hold_started_at = None
+             self._save()
+             return
+ 
+         self._state.step_index = next_index
+-        self._state.status = "ramping"
+-        self._state.step_started_at = now
+-        self._state.hold_started_at = None
+-        next_step = self._recipe.steps[next_index]
+-        self._pid[next_step.vessel].reset()
+-        self._tpc[next_step.vessel].reset()
+-        self._apply_pumps(next_step.pumps)
+-        self._save()
++        self._restart_current_step(now)
+ 
+     def _reset_controllers_for_current_step(self) -> None:
+         if self._state.step_index < self._recipe.step_count():
+diff --git a/recipe_engine/state.py b/recipe_engine/state.py
+index 0a53636..c55cfd4 100644
+--- a/recipe_engine/state.py
++++ b/recipe_engine/state.py
+@@ -1,10 +1,10 @@
+ """
+-Estado de execução de uma receita — persistido em JSON a cada mudança,
+-pra sobreviver a um restart do processo (decisão registrada: ao cair,
+-aplica failsafe em tudo e fica parado esperando confirmação manual,
++Estado de execucao de uma receita - persistido em JSON a cada mudanca,
++pra sobreviver a um restart do processo (decisao registrada: ao cair,
++aplica failsafe em tudo e fica parado esperando confirmacao manual,
+ nunca retoma sozinho).
+ 
+-Esta classe é só dados + serialização — toda a lógica de transição vive
++Esta classe e so dados + serializacao - toda a logica de transicao vive
+ em recipe_engine/engine.py.
+ """
+ 
+@@ -15,15 +15,28 @@ from dataclasses import asdict, dataclass
+ from pathlib import Path
+ from typing import Optional
+ 
+-# Status possíveis:
++# Status possiveis:
+ # - idle: nenhuma receita rodando.
+-# - ramping: subindo até target_temp da etapa atual.
+-# - holding: patamar — tempo só conta depois que target_temp foi atingido.
++# - ramping: subindo ate target_temp da etapa atual.
++# - holding: patamar - tempo so conta depois que target_temp foi atingido.
+ # - paused_after_crash: processo caiu/reiniciou no meio de ramping/holding;
+-#   failsafe já foi aplicado; aguardando confirmação manual pra retomar.
+-# - finished: todas as etapas concluídas.
+-# - aborted: usuário cancelou manualmente.
+-_VALID_STATUSES = {"idle", "ramping", "holding", "paused_after_crash", "finished", "aborted"}
++#   failsafe ja foi aplicado; aguardando confirmacao manual pra retomar.
++# - paused_manual: usuario pausou deliberadamente pelo painel (mesmo
++#   efeito de paused_after_crash - failsafe aplicado, espera resume() -
++#   mas nao foi um crash, e uma acao explicita).
++# - finished: todas as etapas concluidas.
++# - aborted: usuario cancelou manualmente.
++_VALID_STATUSES = {
++    "idle", "ramping", "holding",
++    "paused_after_crash", "paused_manual",
++    "finished", "aborted",
++}
++
++# Status em que resume() é válido (saem de uma pausa, voltam a rodar).
++PAUSED_STATUSES = {"paused_after_crash", "paused_manual"}
++
++# Status em que o motor está ativamente avançando (tick() faz algo).
++ACTIVE_STATUSES = {"ramping", "holding"}
+ 
+ 
+ @dataclass
+@@ -35,10 +48,19 @@ class RecipeState:
+     hold_started_at: Optional[float] = None
+     hold_elapsed_seconds_at_pause: float = 0.0
+     paused_from_status: Optional[str] = None
++    # Marca o inicio da execucao da receita inteira (setado uma vez em
++    # fresh(), preservado por pause/resume/skip) - usado para calcular
++    # tempo total decorrido. None enquanto idle.
++    recipe_started_at: Optional[float] = None
++    # Snapshot do tempo total decorrido, congelado no instante em que a
++    # receita termina ou e cancelada (depois disso recipe_started_at
++    # nao serve mais pra calcular "decorrido ate agora", porque "agora"
++    # ja nao tem relacao com a execucao que parou).
++    total_elapsed_seconds_frozen: Optional[float] = None
+ 
+     def __post_init__(self) -> None:
+         if self.status not in _VALID_STATUSES:
+-            raise ValueError(f"status inválido '{self.status}', esperado um de {sorted(_VALID_STATUSES)}.")
++            raise ValueError(f"status invalido '{self.status}', esperado um de {sorted(_VALID_STATUSES)}.")
+ 
+     def save(self, path: str | Path) -> None:
+         file_path = Path(path)
+diff --git a/tests/test_panel.py b/tests/test_panel.py
+index 826154a..9e16e24 100644
+--- a/tests/test_panel.py
++++ b/tests/test_panel.py
+@@ -256,3 +256,64 @@ def test_recipe_definition_returns_vessels_and_steps(client_with_recipe):
+ def test_recipe_definition_returns_404_when_no_recipe_engine(client):
+     res = client.get("/api/recipe/definition")
+     assert res.status_code == 404
++
++
++def test_recipe_pause_sets_paused_manual(client_with_recipe):
++    client, engine = client_with_recipe
++    client.post("/api/recipe/start")
++    res = client.post("/api/recipe/pause")
++    assert res.status_code == 200
++    assert res.get_json()["status"] == "paused_manual"
++
++
++def test_recipe_pause_outside_active_returns_400(client_with_recipe):
++    client, engine = client_with_recipe
++    res = client.post("/api/recipe/pause")  # ainda idle
++    assert res.status_code == 400
++
++
++def test_recipe_pause_returns_404_when_no_recipe_engine(client):
++    res = client.post("/api/recipe/pause")
++    assert res.status_code == 404
++
++
++def test_recipe_skip_next_advances_step(client_with_recipe):
++    client, engine = client_with_recipe
++    client.post("/api/recipe/start")
++    res = client.post("/api/recipe/skip_next")
++    assert res.status_code == 200
++    # única vessel/step na fixture -> skip_next termina a receita
++    assert res.get_json()["status"] == "finished"
++
++
++def test_recipe_skip_next_outside_active_returns_400(client_with_recipe):
++    client, engine = client_with_recipe
++    res = client.post("/api/recipe/skip_next")
++    assert res.status_code == 400
++
++
++def test_recipe_skip_previous_restarts_step(client_with_recipe):
++    client, engine = client_with_recipe
++    client.post("/api/recipe/start")
++    res = client.post("/api/recipe/skip_previous")
++    assert res.status_code == 200
++    assert res.get_json()["status"] == "ramping"
++    assert res.get_json()["step_index"] == 0
++
++
++def test_recipe_reset_step_restarts_current_step(client_with_recipe):
++    client, engine = client_with_recipe
++    client.post("/api/recipe/start")
++    res = client.post("/api/recipe/reset_step")
++    assert res.status_code == 200
++    assert res.get_json()["status"] == "ramping"
++
++
++def test_recipe_status_includes_total_time_fields(client_with_recipe):
++    client, engine = client_with_recipe
++    client.post("/api/recipe/start")
++    res = client.get("/api/recipe/status")
++    data = res.get_json()
++    assert "total_estimated_minutes" in data
++    assert "total_elapsed_seconds" in data
++    assert data["total_estimated_minutes"] == 1.0  # fixture: hold_minutes=1
+diff --git a/tests/test_recipe_engine.py b/tests/test_recipe_engine.py
+index 7dbc23a..aa95bbb 100644
+--- a/tests/test_recipe_engine.py
++++ b/tests/test_recipe_engine.py
+@@ -382,3 +382,208 @@ def test_state_persists_across_engine_instances_without_crash_status(setup):
+ 
+     engine2 = RecipeEngine(runtime, recipe, state_path, now=2000.0)
+     assert engine2.state.status == "finished"  # não virou paused_after_crash
++
++
++# ---- Sessão A: pause/resume manual, skip, reset, tempo total ----------
++
++def test_pause_applies_failsafe_and_sets_paused_manual(setup):
++    runtime, recipe, state_path = setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    engine.start(now=1000.0)
++    engine.tick(now=1000.0)
++    engine.tick(now=1001.0)  # heater ligado, bomba ligada
++
++    engine.pause(now=1002.0)
++
++    assert engine.state.status == "paused_manual"
++    assert runtime.get_state("mash_heater").value is False
++    assert runtime.get_state("pump_b1").value is False
++
++
++def test_pause_outside_active_status_raises(setup):
++    runtime, recipe, state_path = setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    with pytest.raises(RecipeEngineError):
++        engine.pause(now=1001.0)  # ainda idle
++
++
++def test_resume_from_manual_pause_during_ramping(setup):
++    runtime, recipe, state_path = setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    engine.start(now=1000.0)
++    engine.tick(now=1000.0)
++    engine.tick(now=1001.0)
++
++    engine.pause(now=1002.0)
++    assert engine.state.status == "paused_manual"
++
++    engine.resume(now=1010.0)
++    assert engine.state.status == "ramping"
++
++    engine.tick(now=1010.0)
++    runtime.inject_sensor("mash_tun_temp", 25.0)
++    engine.tick(now=1011.0)
++    assert engine.state.status == "holding"
++
++
++def test_resume_from_manual_pause_during_holding_preserves_elapsed(setup):
++    runtime, recipe, state_path = setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    engine.start(now=1000.0)
++    engine.tick(now=1000.0)
++    runtime.inject_sensor("mash_tun_temp", 25.0)
++    engine.tick(now=1001.0)  # holding desde t=1001
++    assert engine.state.status == "holding"
++
++    engine.pause(now=1021.0)  # pausado com 20s de patamar decorridos
++    assert engine.state.hold_elapsed_seconds_at_pause == pytest.approx(20.0)
++
++    engine.resume(now=1100.0)
++    assert engine.state.status == "holding"
++    assert engine.state.hold_started_at == pytest.approx(1080.0)  # 1100 - 20
++
++
++def test_skip_next_advances_to_next_step_immediately(setup):
++    runtime, recipe, state_path = setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    engine.start(now=1000.0)
++    engine.tick(now=1000.0)
++    engine.tick(now=1001.0)  # ainda ramping, longe do alvo
++
++    engine.skip_next(now=1002.0)
++
++    assert engine.state.step_index == 1
++    assert engine.state.status == "ramping"
++    assert runtime.get_state("mash_heater").value is False  # heater anterior desligado
++
++
++def test_skip_next_on_last_step_finishes_recipe(setup):
++    runtime, recipe, state_path = setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    engine.start(now=1000.0)
++    engine.tick(now=1000.0)
++    engine.tick(now=1001.0)
++    engine.skip_next(now=1002.0)  # vai pra etapa 1 (boil, última)
++    assert engine.state.step_index == 1
++
++    engine.skip_next(now=1003.0)  # última etapa -> finished
++    assert engine.state.status == "finished"
++
++
++def test_skip_next_outside_active_status_raises(setup):
++    runtime, recipe, state_path = setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    with pytest.raises(RecipeEngineError):
++        engine.skip_next(now=1001.0)
++
++
++def test_skip_previous_goes_back_one_step(setup):
++    runtime, recipe, state_path = setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    engine.start(now=1000.0)
++    engine.tick(now=1000.0)
++    engine.tick(now=1001.0)
++    engine.skip_next(now=1002.0)  # etapa 1 (boil)
++    assert engine.state.step_index == 1
++
++    engine.skip_previous(now=1003.0)
++    assert engine.state.step_index == 0
++    assert engine.state.status == "ramping"
++
++
++def test_skip_previous_at_first_step_restarts_it(setup):
++    runtime, recipe, state_path = setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    engine.start(now=1000.0)
++    engine.tick(now=1000.0)
++    runtime.inject_sensor("mash_tun_temp", 25.0)
++    engine.tick(now=1001.0)  # holding
++
++    engine.skip_previous(now=1002.0)
++    assert engine.state.step_index == 0
++    assert engine.state.status == "ramping"  # reiniciou a própria etapa
++
++
++def test_skip_previous_turns_off_heater_of_step_being_left(setup):
++    runtime, recipe, state_path = setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    engine.start(now=1000.0)
++    engine.tick(now=1000.0)
++    engine.tick(now=1001.0)
++    engine.skip_next(now=1002.0)  # etapa 1 (boil)
++    engine.tick(now=1002.0)
++    engine.tick(now=1003.0)  # boil_heater ligado
++
++    engine.skip_previous(now=1004.0)
++    assert runtime.get_state("boil_heater").value is False
++
++
++def test_reset_current_step_restarts_without_changing_index(setup):
++    runtime, recipe, state_path = setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    engine.start(now=1000.0)
++    engine.tick(now=1000.0)
++    runtime.inject_sensor("mash_tun_temp", 25.0)
++    engine.tick(now=1001.0)  # holding
++    assert engine.state.status == "holding"
++
++    engine.reset_current_step(now=1030.0)
++    assert engine.state.step_index == 0
++    assert engine.state.status == "ramping"
++    assert engine.state.step_started_at == 1030.0
++
++
++def test_reset_current_step_outside_active_status_raises(setup):
++    runtime, recipe, state_path = setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    with pytest.raises(RecipeEngineError):
++        engine.reset_current_step(now=1001.0)
++
++
++def test_total_estimated_minutes_sums_all_steps(setup):
++    runtime, recipe, state_path = setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    # RECIPE_YAML: 2 steps de hold_minutes=1 cada -> 2 minutos totais
++    assert engine.total_estimated_minutes() == pytest.approx(2.0)
++
++
++def test_total_elapsed_seconds_zero_when_idle(setup):
++    runtime, recipe, state_path = setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    assert engine.total_elapsed_seconds(now=1500.0) == 0.0
++
++
++def test_total_elapsed_seconds_live_while_running(setup):
++    runtime, recipe, state_path = setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    engine.start(now=1000.0)
++    assert engine.total_elapsed_seconds(now=1030.0) == pytest.approx(30.0)
++
++
++def test_total_elapsed_seconds_frozen_after_abort(setup):
++    runtime, recipe, state_path = setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    engine.start(now=1000.0)
++    engine.abort(now=1045.0)
++
++    assert engine.total_elapsed_seconds(now=1045.0) == pytest.approx(45.0)
++    # tempo "congela" -- chamar bem depois não muda o valor
++    assert engine.total_elapsed_seconds(now=9999.0) == pytest.approx(45.0)
++
++
++def test_total_elapsed_seconds_frozen_after_finish(setup):
++    runtime, recipe, state_path = setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    engine.start(now=1000.0)
++    engine.tick(now=1000.0)
++    runtime.inject_sensor("mash_tun_temp", 25.0)
++    engine.tick(now=1001.0)
++    engine.tick(now=1062.0)
++    engine.tick(now=1063.0)
++    runtime.inject_sensor("boil_temp", 30.0)
++    engine.tick(now=1064.0)
++    engine.tick(now=1125.0)
++    assert engine.state.status == "finished"
++
++    elapsed_at_finish = engine.total_elapsed_seconds(now=1125.0)
++    assert engine.total_elapsed_seconds(now=9999.0) == elapsed_at_finish
+diff --git a/tests/test_recipe_state.py b/tests/test_recipe_state.py
+index 3f39b45..8cdcaff 100644
+--- a/tests/test_recipe_state.py
++++ b/tests/test_recipe_state.py
+@@ -17,7 +17,7 @@ def test_fresh_state_starts_ramping_at_step_zero():
+ 
+ 
+ def test_invalid_status_raises_value_error():
+-    with pytest.raises(ValueError, match="status inválido"):
++    with pytest.raises(ValueError, match="status inv.lido"):
+         RecipeState(status="not_a_real_status")
+ 
+ 
+-- 
+2.43.0
+

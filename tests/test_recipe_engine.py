@@ -382,3 +382,208 @@ def test_state_persists_across_engine_instances_without_crash_status(setup):
 
     engine2 = RecipeEngine(runtime, recipe, state_path, now=2000.0)
     assert engine2.state.status == "finished"  # não virou paused_after_crash
+
+
+# ---- Sessão A: pause/resume manual, skip, reset, tempo total ----------
+
+def test_pause_applies_failsafe_and_sets_paused_manual(setup):
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.tick(now=1000.0)
+    engine.tick(now=1001.0)  # heater ligado, bomba ligada
+
+    engine.pause(now=1002.0)
+
+    assert engine.state.status == "paused_manual"
+    assert runtime.get_state("mash_heater").value is False
+    assert runtime.get_state("pump_b1").value is False
+
+
+def test_pause_outside_active_status_raises(setup):
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    with pytest.raises(RecipeEngineError):
+        engine.pause(now=1001.0)  # ainda idle
+
+
+def test_resume_from_manual_pause_during_ramping(setup):
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.tick(now=1000.0)
+    engine.tick(now=1001.0)
+
+    engine.pause(now=1002.0)
+    assert engine.state.status == "paused_manual"
+
+    engine.resume(now=1010.0)
+    assert engine.state.status == "ramping"
+
+    engine.tick(now=1010.0)
+    runtime.inject_sensor("mash_tun_temp", 25.0)
+    engine.tick(now=1011.0)
+    assert engine.state.status == "holding"
+
+
+def test_resume_from_manual_pause_during_holding_preserves_elapsed(setup):
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.tick(now=1000.0)
+    runtime.inject_sensor("mash_tun_temp", 25.0)
+    engine.tick(now=1001.0)  # holding desde t=1001
+    assert engine.state.status == "holding"
+
+    engine.pause(now=1021.0)  # pausado com 20s de patamar decorridos
+    assert engine.state.hold_elapsed_seconds_at_pause == pytest.approx(20.0)
+
+    engine.resume(now=1100.0)
+    assert engine.state.status == "holding"
+    assert engine.state.hold_started_at == pytest.approx(1080.0)  # 1100 - 20
+
+
+def test_skip_next_advances_to_next_step_immediately(setup):
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.tick(now=1000.0)
+    engine.tick(now=1001.0)  # ainda ramping, longe do alvo
+
+    engine.skip_next(now=1002.0)
+
+    assert engine.state.step_index == 1
+    assert engine.state.status == "ramping"
+    assert runtime.get_state("mash_heater").value is False  # heater anterior desligado
+
+
+def test_skip_next_on_last_step_finishes_recipe(setup):
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.tick(now=1000.0)
+    engine.tick(now=1001.0)
+    engine.skip_next(now=1002.0)  # vai pra etapa 1 (boil, última)
+    assert engine.state.step_index == 1
+
+    engine.skip_next(now=1003.0)  # última etapa -> finished
+    assert engine.state.status == "finished"
+
+
+def test_skip_next_outside_active_status_raises(setup):
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    with pytest.raises(RecipeEngineError):
+        engine.skip_next(now=1001.0)
+
+
+def test_skip_previous_goes_back_one_step(setup):
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.tick(now=1000.0)
+    engine.tick(now=1001.0)
+    engine.skip_next(now=1002.0)  # etapa 1 (boil)
+    assert engine.state.step_index == 1
+
+    engine.skip_previous(now=1003.0)
+    assert engine.state.step_index == 0
+    assert engine.state.status == "ramping"
+
+
+def test_skip_previous_at_first_step_restarts_it(setup):
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.tick(now=1000.0)
+    runtime.inject_sensor("mash_tun_temp", 25.0)
+    engine.tick(now=1001.0)  # holding
+
+    engine.skip_previous(now=1002.0)
+    assert engine.state.step_index == 0
+    assert engine.state.status == "ramping"  # reiniciou a própria etapa
+
+
+def test_skip_previous_turns_off_heater_of_step_being_left(setup):
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.tick(now=1000.0)
+    engine.tick(now=1001.0)
+    engine.skip_next(now=1002.0)  # etapa 1 (boil)
+    engine.tick(now=1002.0)
+    engine.tick(now=1003.0)  # boil_heater ligado
+
+    engine.skip_previous(now=1004.0)
+    assert runtime.get_state("boil_heater").value is False
+
+
+def test_reset_current_step_restarts_without_changing_index(setup):
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.tick(now=1000.0)
+    runtime.inject_sensor("mash_tun_temp", 25.0)
+    engine.tick(now=1001.0)  # holding
+    assert engine.state.status == "holding"
+
+    engine.reset_current_step(now=1030.0)
+    assert engine.state.step_index == 0
+    assert engine.state.status == "ramping"
+    assert engine.state.step_started_at == 1030.0
+
+
+def test_reset_current_step_outside_active_status_raises(setup):
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    with pytest.raises(RecipeEngineError):
+        engine.reset_current_step(now=1001.0)
+
+
+def test_total_estimated_minutes_sums_all_steps(setup):
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    # RECIPE_YAML: 2 steps de hold_minutes=1 cada -> 2 minutos totais
+    assert engine.total_estimated_minutes() == pytest.approx(2.0)
+
+
+def test_total_elapsed_seconds_zero_when_idle(setup):
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    assert engine.total_elapsed_seconds(now=1500.0) == 0.0
+
+
+def test_total_elapsed_seconds_live_while_running(setup):
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    assert engine.total_elapsed_seconds(now=1030.0) == pytest.approx(30.0)
+
+
+def test_total_elapsed_seconds_frozen_after_abort(setup):
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.abort(now=1045.0)
+
+    assert engine.total_elapsed_seconds(now=1045.0) == pytest.approx(45.0)
+    # tempo "congela" -- chamar bem depois não muda o valor
+    assert engine.total_elapsed_seconds(now=9999.0) == pytest.approx(45.0)
+
+
+def test_total_elapsed_seconds_frozen_after_finish(setup):
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.tick(now=1000.0)
+    runtime.inject_sensor("mash_tun_temp", 25.0)
+    engine.tick(now=1001.0)
+    engine.tick(now=1062.0)
+    engine.tick(now=1063.0)
+    runtime.inject_sensor("boil_temp", 30.0)
+    engine.tick(now=1064.0)
+    engine.tick(now=1125.0)
+    assert engine.state.status == "finished"
+
+    elapsed_at_finish = engine.total_elapsed_seconds(now=1125.0)
+    assert engine.total_elapsed_seconds(now=9999.0) == elapsed_at_finish

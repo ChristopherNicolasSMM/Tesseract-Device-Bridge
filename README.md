@@ -322,12 +322,47 @@ dinâmico.
 ### Endpoints de receita
 
 ```
-GET  /api/recipe/status      -> status de execução, vasilha/duty atual
-GET  /api/recipe/definition  -> vasilhas e etapas da receita carregada
-POST /api/recipe/start       -> inicia (ou reinicia do zero) a receita
-POST /api/recipe/abort       -> cancela, aplica failsafe em tudo
-POST /api/recipe/resume      -> retoma de paused_after_crash
+GET  /api/recipe/status        -> status de execução, vasilha/duty, tempo total/decorrido
+GET  /api/recipe/definition    -> vasilhas e etapas da receita carregada
+POST /api/recipe/start         -> inicia (ou reinicia do zero) a receita
+POST /api/recipe/abort         -> cancela, aplica failsafe em tudo
+POST /api/recipe/resume        -> retoma de paused_after_crash OU paused_manual
+POST /api/recipe/pause         -> pausa deliberada (Sessão A) -- aplica failsafe, espera resume
+POST /api/recipe/skip_next     -> força avanço pra próxima etapa (ignora tempo/temperatura)
+POST /api/recipe/skip_previous -> volta pra etapa anterior (reinicia ela do zero)
+POST /api/recipe/reset_step    -> reinicia a etapa atual sem mudar de etapa
 ```
+
+### Sessão A — controles manuais de execução
+
+Inspirado na referência de UI enviada (CraftBeerPi-style: botões
+anterior / reset / play-pause / próxima + cronômetro grande da etapa
+atual). Implementado nesta entrega: **só o backend** (`RecipeEngine` +
+endpoints) — a integração visual na timeline (botões + cronômetro)
+fica pra um patch seguinte, focado, pra não conflitar com edições que
+você já está fazendo direto em `index.html`.
+
+- **`pause()`**: só válido durante `ramping`/`holding`. Aplica
+  failsafe em todos os atuadores de risco (mesma segurança do crash
+  recovery) e marca `paused_manual` — estado novo, irmão de
+  `paused_after_crash`. `resume()` foi generalizado pra sair de
+  qualquer um dos dois, preservando o tempo de patamar já decorrido
+  do mesmo jeito.
+- **`skip_next()`**: força a conclusão da etapa atual e avança,
+  ignorando se a temperatura/tempo de patamar foram atingidos —
+  mesmo caminho interno de quando a etapa termina naturalmente
+  (desliga o heater da vasilha que está saindo, aplica as bombas da
+  próxima etapa).
+- **`skip_previous()`**: volta uma etapa, **reiniciando ela do zero**
+  (não há como saber o estado térmico de um instante passado, então
+  rampa de novo) — na primeira etapa, reinicia a própria etapa atual.
+- **`reset_current_step()`**: reinicia a etapa atual sem mudar de
+  posição na receita.
+- **Tempo total**: `total_estimated_minutes()` soma `hold_minutes` de
+  todas as etapas (não inclui tempo de rampa, que não é previsível).
+  `total_elapsed_seconds(now)` é o tempo real decorrido desde
+  `start()` — congela automaticamente quando a receita termina ou é
+  cancelada (não continua contando depois disso).
 
 ### ⚠️ Limitação conhecida
 
