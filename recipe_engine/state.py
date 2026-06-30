@@ -11,9 +11,9 @@ em recipe_engine/engine.py.
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 # Status possiveis:
 # - idle: nenhuma receita rodando.
@@ -38,6 +38,19 @@ PAUSED_STATUSES = {"paused_after_crash", "paused_manual"}
 # Status em que o motor está ativamente avançando (tick() faz algo).
 ACTIVE_STATUSES = {"ramping", "holding"}
 
+# Tipos de alarme possíveis.
+ALARM_TYPE_VESSEL_START = "vessel_start"
+ALARM_TYPE_VESSEL_END = "vessel_end"
+ALARM_TYPE_HOP_ADDITION = "hop_addition"
+
+
+@dataclass
+class AlarmEvent:
+    id: int
+    type: str
+    label: str
+    fired_at: float
+
 
 @dataclass
 class RecipeState:
@@ -57,10 +70,28 @@ class RecipeState:
     # nao serve mais pra calcular "decorrido ate agora", porque "agora"
     # ja nao tem relacao com a execucao que parou).
     total_elapsed_seconds_frozen: Optional[float] = None
+    # Alarmes disparados e ainda nao confirmados pelo usuario (som +
+    # popup no painel). Uma vez confirmado (ack), sai desta lista -
+    # nao mantemos historico aqui, so o que esta pendente agora.
+    pending_alarms: List[AlarmEvent] = field(default_factory=list)
+    # Contador monotonico pra gerar id unico de alarme (nunca reusado,
+    # mesmo apos ack - evita qualquer ambiguidade de id no painel).
+    next_alarm_id: int = 1
+    # Chaves "step_index:alarm_index" dos hop_alarms ja disparados na
+    # execucao atual da etapa - zerado sempre que a etapa reinicia
+    # (avanca, volta, ou e resetada), pra permitir disparar de novo se
+    # a mesma etapa for reexecutada.
+    fired_hop_alarm_keys: List[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.status not in _VALID_STATUSES:
             raise ValueError(f"status invalido '{self.status}', esperado um de {sorted(_VALID_STATUSES)}.")
+        # pending_alarms pode chegar como lista de dicts (vindo de JSON
+        # carregado via load()) - normaliza pra AlarmEvent.
+        normalized = []
+        for a in self.pending_alarms:
+            normalized.append(a if isinstance(a, AlarmEvent) else AlarmEvent(**a))
+        self.pending_alarms = normalized
 
     def save(self, path: str | Path) -> None:
         file_path = Path(path)

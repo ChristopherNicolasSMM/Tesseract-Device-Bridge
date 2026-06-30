@@ -365,6 +365,53 @@ existentes, é aditiva.
   `start()` — congela automaticamente quando a receita termina ou é
   cancelada (não continua contando depois disso).
 
+### Timers de alarme (Sessão B — backend)
+
+Dois mecanismos de alarme, ambos gerenciados pelo `RecipeEngine` e
+expostos via `pending_alarms` no payload de `/api/recipe/status`:
+
+- **Eventos automáticos de vasilha** (`vessel_start`/`vessel_end`):
+  derivados da própria estrutura da receita, sem precisar de nenhuma
+  configuração — disparam toda vez que a vasilha muda entre uma etapa
+  e a seguinte (ou no início/fim absoluto da execução). Generaliza
+  "Início Mostura"/"Final Mostura"/"Início Fervura"/"Final Fervura"
+  pra qualquer vasilha que a receita declarar, automaticamente. Etapas
+  consecutivas da mesma vasilha (ex.: as 3 etapas de mostura da receita
+  real do usuário) não disparam nada entre si — só nas transições reais.
+- **Lupulagem** (`hop_addition`): lista opcional `hop_alarms` por
+  etapa no `recipe.yml`, cada item com `minutes_remaining` (contagem
+  regressiva pro **fim** do patamar — convenção cervejeira) + `label`
+  livre. Verificado a cada `tick()` durante `holding`; cada alarme
+  dispara só uma vez por execução da etapa (rastreado por
+  `fired_hop_alarm_keys`, resetado se a etapa for reiniciada/repetida).
+
+Ações manuais (`skip_next`/`skip_previous`/`reset_current_step`) **não
+disparam alarmes automáticos**, exceto `skip_next` (que passa pelo
+mesmo caminho interno de quando uma etapa termina naturalmente, então
+ainda anuncia a transição de vasilha se houver).
+
+```yaml
+steps:
+  - vessel: boil
+    target_temp: 100
+    hold_minutes: 60
+    hop_alarms:
+      - minutes_remaining: 60
+        label: "Lúpulo Amargor - 30g Magnum"
+      - minutes_remaining: 0
+        label: "Whirlpool - fim da fervura"
+```
+
+Endpoint novo: `POST /api/recipe/alarms/<id>/ack` — confirma (remove)
+um alarme pendente. `GET /api/recipe/status` inclui `pending_alarms`
+(lista de `{id, type, label, fired_at}`) — persistido em
+`recipe_state.json`, sobrevive a restart do processo.
+
+⚠️ **Pendente** (próxima entrega): a UI — popup + som no painel ao
+detectar um alarme novo via polling, com repetição configurável
+(toca N vezes OU até clicar OK, o que vier primeiro) e escolha de som
+(embutido ou upload de arquivo próprio, guardado no navegador).
+
 ### Barra de transporte (UI)
 
 Botões `⏮` (anterior) / `↺` (reiniciar etapa) / `⏯` (play-pause,

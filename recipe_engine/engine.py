@@ -31,7 +31,15 @@ from typing import Dict, Optional, Set
 from device_runtime import DeviceRuntime
 from recipe_engine.models import Recipe
 from recipe_engine.pid import PidController
-from recipe_engine.state import ACTIVE_STATUSES, PAUSED_STATUSES, RecipeState
+from recipe_engine.state import (
+    ACTIVE_STATUSES,
+    ALARM_TYPE_HOP_ADDITION,
+    ALARM_TYPE_VESSEL_END,
+    ALARM_TYPE_VESSEL_START,
+    PAUSED_STATUSES,
+    AlarmEvent,
+    RecipeState,
+)
 from recipe_engine.time_proportioning import TimeProportioningController
 
 
@@ -101,6 +109,16 @@ class RecipeEngine:
             return 0.0
         return max(0.0, now - self._state.recipe_started_at)
 
+    @property
+    def pending_alarms(self) -> list:
+        """Alarmes disparados e ainda nao confirmados (popup + som no painel)."""
+        return list(self._state.pending_alarms)
+
+    def acknowledge_alarm(self, alarm_id: int) -> None:
+        """Confirma (dispensa) um alarme pendente pelo id - remove da lista."""
+        self._state.pending_alarms = [a for a in self._state.pending_alarms if a.id != alarm_id]
+        self._save()
+
     # ---- acoes de usuario -------------------------------------------------
 
     def start(self, now: float) -> None:
@@ -115,6 +133,9 @@ class RecipeEngine:
         self._reset_controllers_for_current_step()
         self._active_pumps = set()
         self._last_tick_time = None
+        first_step = self._recipe.steps[0]
+        first_vessel = self._recipe.get_vessel(first_step.vessel)
+        self._fire_alarm(ALARM_TYPE_VESSEL_START, f"Início {first_vessel.name}", now)
         self._save()
 
     def abort(self, now: float) -> None:
@@ -261,6 +282,7 @@ class RecipeEngine:
 
         elif self._state.status == "holding":
             elapsed = now - self._state.hold_started_at
+            self._check_hop_alarms(step, elapsed, now)
             if elapsed >= step.hold_minutes * 60.0:
                 self._advance_step(now)
 
@@ -288,6 +310,7 @@ class RecipeEngine:
         self._state.step_started_at = now
         self._state.hold_started_at = None
         self._last_tick_time = None
+        self._state.fired_hop_alarm_keys = []
         step = self._recipe.steps[self._state.step_index]
         self._pid[step.vessel].reset()
         self._tpc[step.vessel].reset()
@@ -305,8 +328,15 @@ class RecipeEngine:
             self._state.total_elapsed_seconds_frozen = self.total_elapsed_seconds(now)
             self._state.status = "finished"
             self._state.hold_started_at = None
+            self._fire_alarm(ALARM_TYPE_VESSEL_END, f"Final {current_vessel.name}", now)
             self._save()
             return
+
+        next_step = self._recipe.steps[next_index]
+        next_vessel = self._recipe.get_vessel(next_step.vessel)
+        if next_vessel.id != current_vessel.id:
+            self._fire_alarm(ALARM_TYPE_VESSEL_END, f"Final {current_vessel.name}", now)
+            self._fire_alarm(ALARM_TYPE_VESSEL_START, f"Início {next_vessel.name}", now)
 
         self._state.step_index = next_index
         self._restart_current_step(now)
@@ -321,6 +351,23 @@ class RecipeEngine:
         for device in self._runtime.list_device_configs():
             if device.is_risk:
                 self._runtime.apply_failsafe(device.id)
+
+    def _fire_alarm(self, alarm_type: str, label: str, now: float) -> None:
+        event = AlarmEvent(id=self._state.next_alarm_id, type=alarm_type, label=label, fired_at=now)
+        self._state.pending_alarms.append(event)
+        self._state.next_alarm_id += 1
+        self._save()
+
+    def _check_hop_alarms(self, step, hold_elapsed_seconds: float, now: float) -> None:
+        hold_total_seconds = step.hold_minutes * 60.0
+        remaining_seconds = hold_total_seconds - hold_elapsed_seconds
+        for alarm_index, hop_alarm in enumerate(step.hop_alarms):
+            key = f"{self._state.step_index}:{alarm_index}"
+            if key in self._state.fired_hop_alarm_keys:
+                continue
+            if remaining_seconds <= hop_alarm.minutes_remaining * 60.0:
+                self._state.fired_hop_alarm_keys.append(key)
+                self._fire_alarm(ALARM_TYPE_HOP_ADDITION, hop_alarm.label, now)
 
     def _recover_from_crash(self, now: float) -> None:
         elapsed_hold = 0.0

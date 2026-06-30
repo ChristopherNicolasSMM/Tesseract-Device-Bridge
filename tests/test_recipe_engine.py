@@ -587,3 +587,261 @@ def test_total_elapsed_seconds_frozen_after_finish(setup):
 
     elapsed_at_finish = engine.total_elapsed_seconds(now=1125.0)
     assert engine.total_elapsed_seconds(now=9999.0) == elapsed_at_finish
+
+
+# ---- Timers de alarme (vessel_start/end automaticos + hop_alarms) -----
+
+ALARM_RECIPE_YAML = """
+name: "Receita Com Alarmes"
+vessels:
+  - id: mash
+    name: "Mostura"
+    heater_device_id: mash_heater
+    sensor_device_id: mash_tun_temp
+    pid: { kp: 50.0, ki: 0.0, kd: 0.0 }
+    window_seconds: 10
+  - id: boil
+    name: "Fervura"
+    heater_device_id: boil_heater
+    sensor_device_id: boil_temp
+    pid: { kp: 50.0, ki: 0.0, kd: 0.0 }
+    window_seconds: 10
+steps:
+  - vessel: mash
+    target_temp: 25.0
+    hold_minutes: 1
+    pumps: [pump_b1]
+  - vessel: mash
+    target_temp: 25.0
+    hold_minutes: 1
+    pumps: [pump_b1]
+  - vessel: boil
+    target_temp: 30.0
+    hold_minutes: 2
+    hop_alarms:
+      - minutes_remaining: 1.5
+        label: "Lupulo Amargor"
+      - minutes_remaining: 0
+        label: "Whirlpool"
+"""
+
+
+@pytest.fixture
+def alarm_setup(tmp_path):
+    devices_path = tmp_path / "devices.yml"
+    devices_path.write_text(textwrap.dedent(DEVICES_YAML), encoding="utf-8")
+    bridge_config = BridgeConfig.load(devices_path)
+
+    backend = SimulatedGPIOBackend()
+    runtime = DeviceRuntime(bridge_config, backend)
+
+    recipe_path = tmp_path / "recipe.yml"
+    recipe_path.write_text(textwrap.dedent(ALARM_RECIPE_YAML), encoding="utf-8")
+    recipe = Recipe.load(recipe_path, bridge_config)
+
+    state_path = tmp_path / "recipe_state.json"
+    return runtime, recipe, state_path
+
+
+def test_start_fires_vessel_start_for_first_step(alarm_setup):
+    runtime, recipe, state_path = alarm_setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+
+    alarms = engine.pending_alarms
+    assert len(alarms) == 1
+    assert alarms[0].type == "vessel_start"
+    assert alarms[0].label == "Início Mostura"
+
+
+def test_no_vessel_alarm_between_two_steps_of_same_vessel(alarm_setup):
+    runtime, recipe, state_path = alarm_setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.acknowledge_alarm(engine.pending_alarms[0].id)
+
+    engine.tick(now=1000.0)
+    runtime.inject_sensor("mash_tun_temp", 25.0)
+    engine.tick(now=1001.0)  # holding
+    engine.tick(now=1062.0)  # avanca pra step 1 (mash de novo, mesma vessel)
+
+    assert engine.state.step_index == 1
+    assert engine.pending_alarms == []  # sem transicao de vessel, sem alarme
+
+
+def test_vessel_transition_fires_end_and_start(alarm_setup):
+    runtime, recipe, state_path = alarm_setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.acknowledge_alarm(engine.pending_alarms[0].id)
+
+    engine.tick(now=1000.0)
+    runtime.inject_sensor("mash_tun_temp", 25.0)
+    engine.tick(now=1001.0)
+    engine.tick(now=1062.0)  # step 0 -> 1 (mash->mash, sem alarme)
+
+    engine.tick(now=1063.0)  # estabelece relogio na step 1
+    engine.tick(now=1064.0)  # temp ja em 25.0 (igual ao alvo) -> entra em holding aqui
+    engine.tick(now=1125.0)  # 61s de patamar -> step 1 -> 2 (mash->boil, deve disparar end+start)
+
+    alarms = engine.pending_alarms
+    assert len(alarms) == 2
+    assert alarms[0].type == "vessel_end"
+    assert alarms[0].label == "Final Mostura"
+    assert alarms[1].type == "vessel_start"
+    assert alarms[1].label == "Início Fervura"
+
+
+def test_finishing_recipe_fires_vessel_end(alarm_setup):
+    runtime, recipe, state_path = alarm_setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.acknowledge_alarm(engine.pending_alarms[0].id)
+
+    # avanca rapidamente ate o fim usando skip_next (nao dispara automatico por temperatura)
+    engine.skip_next(now=1001.0)  # step0->1
+    for a in list(engine.pending_alarms):
+        engine.acknowledge_alarm(a.id)
+    engine.skip_next(now=1002.0)  # step1->2 (mash->boil: end+start)
+    for a in list(engine.pending_alarms):
+        engine.acknowledge_alarm(a.id)
+    engine.skip_next(now=1003.0)  # step2 (boil, ultima) -> finished
+
+    alarms = engine.pending_alarms
+    assert len(alarms) == 1
+    assert alarms[0].type == "vessel_end"
+    assert alarms[0].label == "Final Fervura"
+    assert engine.state.status == "finished"
+
+
+def test_hop_alarm_fires_when_remaining_time_crosses_threshold(alarm_setup):
+    runtime, recipe, state_path = alarm_setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.acknowledge_alarm(engine.pending_alarms[0].id)
+    engine.skip_next(now=1001.0)
+    for a in list(engine.pending_alarms):
+        engine.acknowledge_alarm(a.id)
+    engine.skip_next(now=1002.0)  # agora na etapa boil (hold_minutes=2 -> 120s)
+    for a in list(engine.pending_alarms):
+        engine.acknowledge_alarm(a.id)
+
+    runtime.inject_sensor("boil_temp", 30.0)
+    engine.tick(now=1002.0)  # estabelece relogio
+    engine.tick(now=1003.0)  # entra em holding (hold_started_at=1003)
+
+    # hop_alarms: minutes_remaining=1.5 (90s) e 0 (0s), hold_total=120s
+    # com 20s decorridos, faltam 100s -> ainda nao deveria disparar o de 90s
+    engine.tick(now=1023.0)
+    assert engine.pending_alarms == []
+
+    # com 35s decorridos, faltam 85s (<=90s) -> dispara o alarme de 90s
+    engine.tick(now=1038.0)
+    alarms = engine.pending_alarms
+    assert len(alarms) == 1
+    assert alarms[0].type == "hop_addition"
+    assert alarms[0].label == "Lupulo Amargor"
+
+
+def test_hop_alarm_does_not_fire_twice_for_same_step_run(alarm_setup):
+    runtime, recipe, state_path = alarm_setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.acknowledge_alarm(engine.pending_alarms[0].id)
+    engine.skip_next(now=1001.0)
+    for a in list(engine.pending_alarms):
+        engine.acknowledge_alarm(a.id)
+    engine.skip_next(now=1002.0)
+    for a in list(engine.pending_alarms):
+        engine.acknowledge_alarm(a.id)
+
+    runtime.inject_sensor("boil_temp", 30.0)
+    engine.tick(now=1002.0)
+    engine.tick(now=1003.0)  # holding
+    engine.tick(now=1038.0)  # dispara alarme de 90s
+    assert len(engine.pending_alarms) == 1
+    engine.acknowledge_alarm(engine.pending_alarms[0].id)
+
+    engine.tick(now=1039.0)  # ainda nao bateu o segundo (0s) -- nao deve re-disparar o primeiro
+    assert engine.pending_alarms == []
+
+
+def test_hop_alarm_with_zero_minutes_remaining_fires_at_end_of_hold(alarm_setup):
+    runtime, recipe, state_path = alarm_setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.acknowledge_alarm(engine.pending_alarms[0].id)
+    engine.skip_next(now=1001.0)
+    for a in list(engine.pending_alarms):
+        engine.acknowledge_alarm(a.id)
+    engine.skip_next(now=1002.0)
+    for a in list(engine.pending_alarms):
+        engine.acknowledge_alarm(a.id)
+
+    runtime.inject_sensor("boil_temp", 30.0)
+    engine.tick(now=1002.0)
+    engine.tick(now=1003.0)  # holding, hold_started_at=1003
+    engine.tick(now=1038.0)  # dispara o de 90s
+    engine.acknowledge_alarm(engine.pending_alarms[0].id)
+
+    engine.tick(now=1122.0)  # 119s decorridos, falta 1s -> ainda nao bateu 0s
+    assert engine.pending_alarms == []
+
+    engine.tick(now=1123.0)  # 120s -> hold completo, step avanca (finished) e dispara vessel_end + hop 0min
+    # ordem: hop alarm checado antes do advance, entao "Whirlpool" dispara primeiro, depois "Final Fervura"
+    alarms = engine.pending_alarms
+    labels = [a.label for a in alarms]
+    assert "Whirlpool" in labels
+    assert "Final Fervura" in labels
+
+
+def test_acknowledge_alarm_removes_from_pending(alarm_setup):
+    runtime, recipe, state_path = alarm_setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    alarm_id = engine.pending_alarms[0].id
+
+    engine.acknowledge_alarm(alarm_id)
+    assert engine.pending_alarms == []
+
+
+def test_acknowledge_unknown_alarm_id_is_noop(alarm_setup):
+    runtime, recipe, state_path = alarm_setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.acknowledge_alarm(99999)  # nao deve lancar
+    assert len(engine.pending_alarms) == 1  # alarme real continua la
+
+
+def test_pending_alarms_persist_across_engine_restart(alarm_setup):
+    runtime, recipe, state_path = alarm_setup
+    engine1 = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine1.start(now=1000.0)
+    assert len(engine1.pending_alarms) == 1
+
+    engine2 = RecipeEngine(runtime, recipe, state_path, now=1001.0)
+    # crash recovery aplica failsafe e muda status, mas o alarme pendente sobrevive
+    assert len(engine2.pending_alarms) == 1
+    assert engine2.pending_alarms[0].label == "Início Mostura"
+
+
+def test_skip_previous_does_not_fire_alarms(alarm_setup):
+    runtime, recipe, state_path = alarm_setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.acknowledge_alarm(engine.pending_alarms[0].id)
+    engine.skip_next(now=1001.0)  # step0->1, mash->mash, sem alarme
+    assert engine.pending_alarms == []
+
+    engine.skip_previous(now=1002.0)  # volta pra step0 -- nao deve disparar alarme (acao manual)
+    assert engine.pending_alarms == []
+
+
+def test_reset_current_step_does_not_fire_alarms(alarm_setup):
+    runtime, recipe, state_path = alarm_setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.acknowledge_alarm(engine.pending_alarms[0].id)
+
+    engine.reset_current_step(now=1005.0)
+    assert engine.pending_alarms == []

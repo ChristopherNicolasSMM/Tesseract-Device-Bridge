@@ -49,3 +49,30 @@ def test_save_overwrites_existing_file(tmp_path):
 
     loaded = RecipeState.load(path)
     assert loaded.recipe_name == "B"
+
+
+def test_pending_alarms_round_trip(tmp_path):
+    from recipe_engine.state import AlarmEvent
+
+    path = tmp_path / "recipe_state.json"
+    original = RecipeState(
+        status="holding",
+        pending_alarms=[
+            AlarmEvent(id=1, type="hop_addition", label="5kg Lupulo", fired_at=1000.0),
+        ],
+        next_alarm_id=2,
+        fired_hop_alarm_keys=["3:0"],
+    )
+    original.save(path)
+
+    loaded = RecipeState.load(path)
+    assert loaded.pending_alarms == [AlarmEvent(id=1, type="hop_addition", label="5kg Lupulo", fired_at=1000.0)]
+    assert loaded.next_alarm_id == 2
+    assert loaded.fired_hop_alarm_keys == ["3:0"]
+
+
+def test_pending_alarms_default_empty():
+    state = RecipeState()
+    assert state.pending_alarms == []
+    assert state.next_alarm_id == 1
+    assert state.fired_hop_alarm_keys == []

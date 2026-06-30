@@ -84,24 +84,62 @@ class VesselConfig:
 
 
 @dataclass
+class HopAlarm:
+    """
+    Alarme de lupulagem — contagem regressiva pro FIM do patamar da
+    etapa (convenção cervejeira: "lupulagem aos 60min" = faltam 60min
+    pro fim da fervura, não 60min desde o início).
+    """
+    minutes_remaining: float
+    label: str
+
+    @classmethod
+    def from_dict(cls, step_index: int, alarm_index: int, raw: Dict[str, Any]) -> "HopAlarm":
+        missing = [k for k in ("minutes_remaining", "label") if k not in raw]
+        if missing:
+            raise RecipeError(
+                f"step #{step_index}, hop_alarms #{alarm_index}: campo(s) obrigatório(s) ausente(s) {missing}."
+            )
+        return cls(
+            minutes_remaining=float(raw["minutes_remaining"]),
+            label=raw["label"],
+        )
+
+    def validate_against(self, hold_minutes: float, step_index: int, alarm_index: int) -> None:
+        if self.minutes_remaining < 0:
+            raise RecipeError(
+                f"step #{step_index}, hop_alarms #{alarm_index}: minutes_remaining não pode ser negativo."
+            )
+        if self.minutes_remaining > hold_minutes:
+            raise RecipeError(
+                f"step #{step_index}, hop_alarms #{alarm_index}: minutes_remaining "
+                f"({self.minutes_remaining}) maior que hold_minutes da etapa ({hold_minutes}) — "
+                f"nunca dispararia."
+            )
+
+
+@dataclass
 class RecipeStep:
     vessel: str
     target_temp: float
     hold_minutes: float
     pumps: List[str] = field(default_factory=list)
     label: str | None = None
+    hop_alarms: List[HopAlarm] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, index: int, raw: Dict[str, Any]) -> "RecipeStep":
         missing = [k for k in ("vessel", "target_temp", "hold_minutes") if k not in raw]
         if missing:
             raise RecipeError(f"step #{index}: campo(s) obrigatório(s) ausente(s) {missing}.")
+        hop_alarms_raw = raw.get("hop_alarms", [])
         return cls(
             vessel=raw["vessel"],
             target_temp=float(raw["target_temp"]),
             hold_minutes=float(raw["hold_minutes"]),
             pumps=list(raw.get("pumps", [])),
             label=raw.get("label"),
+            hop_alarms=[HopAlarm.from_dict(index, i, a) for i, a in enumerate(hop_alarms_raw)],
         )
 
     def validate_against(self, vessel_ids: set, bridge_config: BridgeConfig, index: int) -> None:
@@ -114,6 +152,8 @@ class RecipeStep:
                 bridge_config.get_device(pump_id)
             except KeyError:
                 raise RecipeError(f"step #{index}: pump '{pump_id}' não existe no devices.yml.")
+        for alarm_index, alarm in enumerate(self.hop_alarms):
+            alarm.validate_against(self.hold_minutes, index, alarm_index)
 
 
 @dataclass

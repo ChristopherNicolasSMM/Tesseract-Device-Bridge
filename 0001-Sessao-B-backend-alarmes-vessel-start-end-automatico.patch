@@ -1,0 +1,821 @@
+From 36a054247437da3fab0ad586d578f0876b759e41 Mon Sep 17 00:00:00 2001
+From: Claude <claude@local>
+Date: Tue, 30 Jun 2026 18:12:02 +0000
+Subject: [PATCH] Sessao B backend: alarmes vessel start/end automaticos e
+ lupulagem
+
+---
+ README.md                   |  47 +++++++
+ panel/api.py                |  11 ++
+ recipe.yml.example          |  10 ++
+ recipe_engine/engine.py     |  49 ++++++-
+ recipe_engine/models.py     |  40 ++++++
+ recipe_engine/state.py      |  35 ++++-
+ tests/test_panel.py         |  32 +++++
+ tests/test_recipe_engine.py | 258 ++++++++++++++++++++++++++++++++++++
+ tests/test_recipe_models.py | 101 ++++++++++++++
+ tests/test_recipe_state.py  |  27 ++++
+ 10 files changed, 607 insertions(+), 3 deletions(-)
+
+diff --git a/README.md b/README.md
+index 9cee8ae..b31c4c7 100644
+--- a/README.md
++++ b/README.md
+@@ -365,6 +365,53 @@ existentes, é aditiva.
+   `start()` — congela automaticamente quando a receita termina ou é
+   cancelada (não continua contando depois disso).
+ 
++### Timers de alarme (Sessão B — backend)
++
++Dois mecanismos de alarme, ambos gerenciados pelo `RecipeEngine` e
++expostos via `pending_alarms` no payload de `/api/recipe/status`:
++
++- **Eventos automáticos de vasilha** (`vessel_start`/`vessel_end`):
++  derivados da própria estrutura da receita, sem precisar de nenhuma
++  configuração — disparam toda vez que a vasilha muda entre uma etapa
++  e a seguinte (ou no início/fim absoluto da execução). Generaliza
++  "Início Mostura"/"Final Mostura"/"Início Fervura"/"Final Fervura"
++  pra qualquer vasilha que a receita declarar, automaticamente. Etapas
++  consecutivas da mesma vasilha (ex.: as 3 etapas de mostura da receita
++  real do usuário) não disparam nada entre si — só nas transições reais.
++- **Lupulagem** (`hop_addition`): lista opcional `hop_alarms` por
++  etapa no `recipe.yml`, cada item com `minutes_remaining` (contagem
++  regressiva pro **fim** do patamar — convenção cervejeira) + `label`
++  livre. Verificado a cada `tick()` durante `holding`; cada alarme
++  dispara só uma vez por execução da etapa (rastreado por
++  `fired_hop_alarm_keys`, resetado se a etapa for reiniciada/repetida).
++
++Ações manuais (`skip_next`/`skip_previous`/`reset_current_step`) **não
++disparam alarmes automáticos**, exceto `skip_next` (que passa pelo
++mesmo caminho interno de quando uma etapa termina naturalmente, então
++ainda anuncia a transição de vasilha se houver).
++
++```yaml
++steps:
++  - vessel: boil
++    target_temp: 100
++    hold_minutes: 60
++    hop_alarms:
++      - minutes_remaining: 60
++        label: "Lúpulo Amargor - 30g Magnum"
++      - minutes_remaining: 0
++        label: "Whirlpool - fim da fervura"
++```
++
++Endpoint novo: `POST /api/recipe/alarms/<id>/ack` — confirma (remove)
++um alarme pendente. `GET /api/recipe/status` inclui `pending_alarms`
++(lista de `{id, type, label, fired_at}`) — persistido em
++`recipe_state.json`, sobrevive a restart do processo.
++
++⚠️ **Pendente** (próxima entrega): a UI — popup + som no painel ao
++detectar um alarme novo via polling, com repetição configurável
++(toca N vezes OU até clicar OK, o que vier primeiro) e escolha de som
++(embutido ou upload de arquivo próprio, guardado no navegador).
++
+ ### Barra de transporte (UI)
+ 
+ Botões `⏮` (anterior) / `↺` (reiniciar etapa) / `⏯` (play-pause,
+diff --git a/panel/api.py b/panel/api.py
+index 4c3e313..bcb9272 100644
+--- a/panel/api.py
++++ b/panel/api.py
+@@ -127,6 +127,7 @@ def _recipe_status_payload(engine: RecipeEngine) -> dict:
+         "current_duty_percent": current_duty,
+         "total_estimated_minutes": engine.total_estimated_minutes(),
+         "total_elapsed_seconds": engine.total_elapsed_seconds(now),
++        "pending_alarms": [asdict(a) for a in engine.pending_alarms],
+     }
+ 
+ 
+@@ -257,3 +258,13 @@ def recipe_reset_step():
+     except RecipeEngineError as exc:
+         return jsonify({"error": str(exc)}), 400
+     return jsonify(_recipe_status_payload(engine))
++
++
++@bp.post("/recipe/alarms/<int:alarm_id>/ack")
++def recipe_acknowledge_alarm(alarm_id: int):
++    """Confirma (dispensa) um alarme pendente — para o som no painel."""
++    engine = _recipe_engine()
++    if engine is None:
++        return jsonify({"error": "Nenhuma receita carregada neste bridge."}), 404
++    engine.acknowledge_alarm(alarm_id)
++    return jsonify(_recipe_status_payload(engine))
+diff --git a/recipe.yml.example b/recipe.yml.example
+index f80cfbc..ec0034a 100644
+--- a/recipe.yml.example
++++ b/recipe.yml.example
+@@ -47,3 +47,13 @@ steps:
+     target_temp: 100
+     hold_minutes: 60
+     pumps: [pump_b2]   # whirlpool/chiller na fervura
++    # Alarmes de lupulagem (opcional) -- minutes_remaining conta pra
++    # TRÁS, a partir do fim do patamar (convenção cervejeira: "60min"
++    # = faltam 60min pro fim da fervura, não 60min desde o início).
++    hop_alarms:
++      - minutes_remaining: 60
++        label: "Lúpulo Amargor - 30g Magnum"
++      - minutes_remaining: 15
++        label: "Lúpulo Aroma - 20g Cascade"
++      - minutes_remaining: 0
++        label: "Whirlpool - fim da fervura"
+diff --git a/recipe_engine/engine.py b/recipe_engine/engine.py
+index d34917d..d4b84ee 100644
+--- a/recipe_engine/engine.py
++++ b/recipe_engine/engine.py
+@@ -31,7 +31,15 @@ from typing import Dict, Optional, Set
+ from device_runtime import DeviceRuntime
+ from recipe_engine.models import Recipe
+ from recipe_engine.pid import PidController
+-from recipe_engine.state import ACTIVE_STATUSES, PAUSED_STATUSES, RecipeState
++from recipe_engine.state import (
++    ACTIVE_STATUSES,
++    ALARM_TYPE_HOP_ADDITION,
++    ALARM_TYPE_VESSEL_END,
++    ALARM_TYPE_VESSEL_START,
++    PAUSED_STATUSES,
++    AlarmEvent,
++    RecipeState,
++)
+ from recipe_engine.time_proportioning import TimeProportioningController
+ 
+ 
+@@ -101,6 +109,16 @@ class RecipeEngine:
+             return 0.0
+         return max(0.0, now - self._state.recipe_started_at)
+ 
++    @property
++    def pending_alarms(self) -> list:
++        """Alarmes disparados e ainda nao confirmados (popup + som no painel)."""
++        return list(self._state.pending_alarms)
++
++    def acknowledge_alarm(self, alarm_id: int) -> None:
++        """Confirma (dispensa) um alarme pendente pelo id - remove da lista."""
++        self._state.pending_alarms = [a for a in self._state.pending_alarms if a.id != alarm_id]
++        self._save()
++
+     # ---- acoes de usuario -------------------------------------------------
+ 
+     def start(self, now: float) -> None:
+@@ -115,6 +133,9 @@ class RecipeEngine:
+         self._reset_controllers_for_current_step()
+         self._active_pumps = set()
+         self._last_tick_time = None
++        first_step = self._recipe.steps[0]
++        first_vessel = self._recipe.get_vessel(first_step.vessel)
++        self._fire_alarm(ALARM_TYPE_VESSEL_START, f"Início {first_vessel.name}", now)
+         self._save()
+ 
+     def abort(self, now: float) -> None:
+@@ -261,6 +282,7 @@ class RecipeEngine:
+ 
+         elif self._state.status == "holding":
+             elapsed = now - self._state.hold_started_at
++            self._check_hop_alarms(step, elapsed, now)
+             if elapsed >= step.hold_minutes * 60.0:
+                 self._advance_step(now)
+ 
+@@ -288,6 +310,7 @@ class RecipeEngine:
+         self._state.step_started_at = now
+         self._state.hold_started_at = None
+         self._last_tick_time = None
++        self._state.fired_hop_alarm_keys = []
+         step = self._recipe.steps[self._state.step_index]
+         self._pid[step.vessel].reset()
+         self._tpc[step.vessel].reset()
+@@ -305,9 +328,16 @@ class RecipeEngine:
+             self._state.total_elapsed_seconds_frozen = self.total_elapsed_seconds(now)
+             self._state.status = "finished"
+             self._state.hold_started_at = None
++            self._fire_alarm(ALARM_TYPE_VESSEL_END, f"Final {current_vessel.name}", now)
+             self._save()
+             return
+ 
++        next_step = self._recipe.steps[next_index]
++        next_vessel = self._recipe.get_vessel(next_step.vessel)
++        if next_vessel.id != current_vessel.id:
++            self._fire_alarm(ALARM_TYPE_VESSEL_END, f"Final {current_vessel.name}", now)
++            self._fire_alarm(ALARM_TYPE_VESSEL_START, f"Início {next_vessel.name}", now)
++
+         self._state.step_index = next_index
+         self._restart_current_step(now)
+ 
+@@ -322,6 +352,23 @@ class RecipeEngine:
+             if device.is_risk:
+                 self._runtime.apply_failsafe(device.id)
+ 
++    def _fire_alarm(self, alarm_type: str, label: str, now: float) -> None:
++        event = AlarmEvent(id=self._state.next_alarm_id, type=alarm_type, label=label, fired_at=now)
++        self._state.pending_alarms.append(event)
++        self._state.next_alarm_id += 1
++        self._save()
++
++    def _check_hop_alarms(self, step, hold_elapsed_seconds: float, now: float) -> None:
++        hold_total_seconds = step.hold_minutes * 60.0
++        remaining_seconds = hold_total_seconds - hold_elapsed_seconds
++        for alarm_index, hop_alarm in enumerate(step.hop_alarms):
++            key = f"{self._state.step_index}:{alarm_index}"
++            if key in self._state.fired_hop_alarm_keys:
++                continue
++            if remaining_seconds <= hop_alarm.minutes_remaining * 60.0:
++                self._state.fired_hop_alarm_keys.append(key)
++                self._fire_alarm(ALARM_TYPE_HOP_ADDITION, hop_alarm.label, now)
++
+     def _recover_from_crash(self, now: float) -> None:
+         elapsed_hold = 0.0
+         if self._state.status == "holding" and self._state.hold_started_at is not None:
+diff --git a/recipe_engine/models.py b/recipe_engine/models.py
+index 816db9e..8162e1e 100644
+--- a/recipe_engine/models.py
++++ b/recipe_engine/models.py
+@@ -83,6 +83,41 @@ class VesselConfig:
+             raise RecipeError(f"vessel '{self.id}': window_seconds deve ser > 0.")
+ 
+ 
++@dataclass
++class HopAlarm:
++    """
++    Alarme de lupulagem — contagem regressiva pro FIM do patamar da
++    etapa (convenção cervejeira: "lupulagem aos 60min" = faltam 60min
++    pro fim da fervura, não 60min desde o início).
++    """
++    minutes_remaining: float
++    label: str
++
++    @classmethod
++    def from_dict(cls, step_index: int, alarm_index: int, raw: Dict[str, Any]) -> "HopAlarm":
++        missing = [k for k in ("minutes_remaining", "label") if k not in raw]
++        if missing:
++            raise RecipeError(
++                f"step #{step_index}, hop_alarms #{alarm_index}: campo(s) obrigatório(s) ausente(s) {missing}."
++            )
++        return cls(
++            minutes_remaining=float(raw["minutes_remaining"]),
++            label=raw["label"],
++        )
++
++    def validate_against(self, hold_minutes: float, step_index: int, alarm_index: int) -> None:
++        if self.minutes_remaining < 0:
++            raise RecipeError(
++                f"step #{step_index}, hop_alarms #{alarm_index}: minutes_remaining não pode ser negativo."
++            )
++        if self.minutes_remaining > hold_minutes:
++            raise RecipeError(
++                f"step #{step_index}, hop_alarms #{alarm_index}: minutes_remaining "
++                f"({self.minutes_remaining}) maior que hold_minutes da etapa ({hold_minutes}) — "
++                f"nunca dispararia."
++            )
++
++
+ @dataclass
+ class RecipeStep:
+     vessel: str
+@@ -90,18 +125,21 @@ class RecipeStep:
+     hold_minutes: float
+     pumps: List[str] = field(default_factory=list)
+     label: str | None = None
++    hop_alarms: List[HopAlarm] = field(default_factory=list)
+ 
+     @classmethod
+     def from_dict(cls, index: int, raw: Dict[str, Any]) -> "RecipeStep":
+         missing = [k for k in ("vessel", "target_temp", "hold_minutes") if k not in raw]
+         if missing:
+             raise RecipeError(f"step #{index}: campo(s) obrigatório(s) ausente(s) {missing}.")
++        hop_alarms_raw = raw.get("hop_alarms", [])
+         return cls(
+             vessel=raw["vessel"],
+             target_temp=float(raw["target_temp"]),
+             hold_minutes=float(raw["hold_minutes"]),
+             pumps=list(raw.get("pumps", [])),
+             label=raw.get("label"),
++            hop_alarms=[HopAlarm.from_dict(index, i, a) for i, a in enumerate(hop_alarms_raw)],
+         )
+ 
+     def validate_against(self, vessel_ids: set, bridge_config: BridgeConfig, index: int) -> None:
+@@ -114,6 +152,8 @@ class RecipeStep:
+                 bridge_config.get_device(pump_id)
+             except KeyError:
+                 raise RecipeError(f"step #{index}: pump '{pump_id}' não existe no devices.yml.")
++        for alarm_index, alarm in enumerate(self.hop_alarms):
++            alarm.validate_against(self.hold_minutes, index, alarm_index)
+ 
+ 
+ @dataclass
+diff --git a/recipe_engine/state.py b/recipe_engine/state.py
+index c55cfd4..40597d2 100644
+--- a/recipe_engine/state.py
++++ b/recipe_engine/state.py
+@@ -11,9 +11,9 @@ em recipe_engine/engine.py.
+ from __future__ import annotations
+ 
+ import json
+-from dataclasses import asdict, dataclass
++from dataclasses import asdict, dataclass, field
+ from pathlib import Path
+-from typing import Optional
++from typing import List, Optional
+ 
+ # Status possiveis:
+ # - idle: nenhuma receita rodando.
+@@ -38,6 +38,19 @@ PAUSED_STATUSES = {"paused_after_crash", "paused_manual"}
+ # Status em que o motor está ativamente avançando (tick() faz algo).
+ ACTIVE_STATUSES = {"ramping", "holding"}
+ 
++# Tipos de alarme possíveis.
++ALARM_TYPE_VESSEL_START = "vessel_start"
++ALARM_TYPE_VESSEL_END = "vessel_end"
++ALARM_TYPE_HOP_ADDITION = "hop_addition"
++
++
++@dataclass
++class AlarmEvent:
++    id: int
++    type: str
++    label: str
++    fired_at: float
++
+ 
+ @dataclass
+ class RecipeState:
+@@ -57,10 +70,28 @@ class RecipeState:
+     # nao serve mais pra calcular "decorrido ate agora", porque "agora"
+     # ja nao tem relacao com a execucao que parou).
+     total_elapsed_seconds_frozen: Optional[float] = None
++    # Alarmes disparados e ainda nao confirmados pelo usuario (som +
++    # popup no painel). Uma vez confirmado (ack), sai desta lista -
++    # nao mantemos historico aqui, so o que esta pendente agora.
++    pending_alarms: List[AlarmEvent] = field(default_factory=list)
++    # Contador monotonico pra gerar id unico de alarme (nunca reusado,
++    # mesmo apos ack - evita qualquer ambiguidade de id no painel).
++    next_alarm_id: int = 1
++    # Chaves "step_index:alarm_index" dos hop_alarms ja disparados na
++    # execucao atual da etapa - zerado sempre que a etapa reinicia
++    # (avanca, volta, ou e resetada), pra permitir disparar de novo se
++    # a mesma etapa for reexecutada.
++    fired_hop_alarm_keys: List[str] = field(default_factory=list)
+ 
+     def __post_init__(self) -> None:
+         if self.status not in _VALID_STATUSES:
+             raise ValueError(f"status invalido '{self.status}', esperado um de {sorted(_VALID_STATUSES)}.")
++        # pending_alarms pode chegar como lista de dicts (vindo de JSON
++        # carregado via load()) - normaliza pra AlarmEvent.
++        normalized = []
++        for a in self.pending_alarms:
++            normalized.append(a if isinstance(a, AlarmEvent) else AlarmEvent(**a))
++        self.pending_alarms = normalized
+ 
+     def save(self, path: str | Path) -> None:
+         file_path = Path(path)
+diff --git a/tests/test_panel.py b/tests/test_panel.py
+index 9e16e24..e14e1b3 100644
+--- a/tests/test_panel.py
++++ b/tests/test_panel.py
+@@ -317,3 +317,35 @@ def test_recipe_status_includes_total_time_fields(client_with_recipe):
+     assert "total_estimated_minutes" in data
+     assert "total_elapsed_seconds" in data
+     assert data["total_estimated_minutes"] == 1.0  # fixture: hold_minutes=1
++
++
++def test_recipe_status_includes_pending_alarms_after_start(client_with_recipe):
++    client, engine = client_with_recipe
++    res = client.post("/api/recipe/start")
++    data = res.get_json()
++    assert "pending_alarms" in data
++    assert len(data["pending_alarms"]) == 1
++    assert data["pending_alarms"][0]["type"] == "vessel_start"
++
++
++def test_acknowledge_alarm_removes_it_from_status(client_with_recipe):
++    client, engine = client_with_recipe
++    res = client.post("/api/recipe/start")
++    alarm_id = res.get_json()["pending_alarms"][0]["id"]
++
++    res2 = client.post(f"/api/recipe/alarms/{alarm_id}/ack")
++    assert res2.status_code == 200
++    assert res2.get_json()["pending_alarms"] == []
++
++
++def test_acknowledge_alarm_returns_404_when_no_recipe_engine(client):
++    res = client.post("/api/recipe/alarms/1/ack")
++    assert res.status_code == 404
++
++
++def test_acknowledge_unknown_alarm_id_returns_200_noop(client_with_recipe):
++    client, engine = client_with_recipe
++    client.post("/api/recipe/start")
++    res = client.post("/api/recipe/alarms/99999/ack")
++    assert res.status_code == 200
++    assert len(res.get_json()["pending_alarms"]) == 1  # alarme real continua pendente
+diff --git a/tests/test_recipe_engine.py b/tests/test_recipe_engine.py
+index aa95bbb..f82ce03 100644
+--- a/tests/test_recipe_engine.py
++++ b/tests/test_recipe_engine.py
+@@ -587,3 +587,261 @@ def test_total_elapsed_seconds_frozen_after_finish(setup):
+ 
+     elapsed_at_finish = engine.total_elapsed_seconds(now=1125.0)
+     assert engine.total_elapsed_seconds(now=9999.0) == elapsed_at_finish
++
++
++# ---- Timers de alarme (vessel_start/end automaticos + hop_alarms) -----
++
++ALARM_RECIPE_YAML = """
++name: "Receita Com Alarmes"
++vessels:
++  - id: mash
++    name: "Mostura"
++    heater_device_id: mash_heater
++    sensor_device_id: mash_tun_temp
++    pid: { kp: 50.0, ki: 0.0, kd: 0.0 }
++    window_seconds: 10
++  - id: boil
++    name: "Fervura"
++    heater_device_id: boil_heater
++    sensor_device_id: boil_temp
++    pid: { kp: 50.0, ki: 0.0, kd: 0.0 }
++    window_seconds: 10
++steps:
++  - vessel: mash
++    target_temp: 25.0
++    hold_minutes: 1
++    pumps: [pump_b1]
++  - vessel: mash
++    target_temp: 25.0
++    hold_minutes: 1
++    pumps: [pump_b1]
++  - vessel: boil
++    target_temp: 30.0
++    hold_minutes: 2
++    hop_alarms:
++      - minutes_remaining: 1.5
++        label: "Lupulo Amargor"
++      - minutes_remaining: 0
++        label: "Whirlpool"
++"""
++
++
++@pytest.fixture
++def alarm_setup(tmp_path):
++    devices_path = tmp_path / "devices.yml"
++    devices_path.write_text(textwrap.dedent(DEVICES_YAML), encoding="utf-8")
++    bridge_config = BridgeConfig.load(devices_path)
++
++    backend = SimulatedGPIOBackend()
++    runtime = DeviceRuntime(bridge_config, backend)
++
++    recipe_path = tmp_path / "recipe.yml"
++    recipe_path.write_text(textwrap.dedent(ALARM_RECIPE_YAML), encoding="utf-8")
++    recipe = Recipe.load(recipe_path, bridge_config)
++
++    state_path = tmp_path / "recipe_state.json"
++    return runtime, recipe, state_path
++
++
++def test_start_fires_vessel_start_for_first_step(alarm_setup):
++    runtime, recipe, state_path = alarm_setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    engine.start(now=1000.0)
++
++    alarms = engine.pending_alarms
++    assert len(alarms) == 1
++    assert alarms[0].type == "vessel_start"
++    assert alarms[0].label == "Início Mostura"
++
++
++def test_no_vessel_alarm_between_two_steps_of_same_vessel(alarm_setup):
++    runtime, recipe, state_path = alarm_setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    engine.start(now=1000.0)
++    engine.acknowledge_alarm(engine.pending_alarms[0].id)
++
++    engine.tick(now=1000.0)
++    runtime.inject_sensor("mash_tun_temp", 25.0)
++    engine.tick(now=1001.0)  # holding
++    engine.tick(now=1062.0)  # avanca pra step 1 (mash de novo, mesma vessel)
++
++    assert engine.state.step_index == 1
++    assert engine.pending_alarms == []  # sem transicao de vessel, sem alarme
++
++
++def test_vessel_transition_fires_end_and_start(alarm_setup):
++    runtime, recipe, state_path = alarm_setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    engine.start(now=1000.0)
++    engine.acknowledge_alarm(engine.pending_alarms[0].id)
++
++    engine.tick(now=1000.0)
++    runtime.inject_sensor("mash_tun_temp", 25.0)
++    engine.tick(now=1001.0)
++    engine.tick(now=1062.0)  # step 0 -> 1 (mash->mash, sem alarme)
++
++    engine.tick(now=1063.0)  # estabelece relogio na step 1
++    engine.tick(now=1064.0)  # temp ja em 25.0 (igual ao alvo) -> entra em holding aqui
++    engine.tick(now=1125.0)  # 61s de patamar -> step 1 -> 2 (mash->boil, deve disparar end+start)
++
++    alarms = engine.pending_alarms
++    assert len(alarms) == 2
++    assert alarms[0].type == "vessel_end"
++    assert alarms[0].label == "Final Mostura"
++    assert alarms[1].type == "vessel_start"
++    assert alarms[1].label == "Início Fervura"
++
++
++def test_finishing_recipe_fires_vessel_end(alarm_setup):
++    runtime, recipe, state_path = alarm_setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    engine.start(now=1000.0)
++    engine.acknowledge_alarm(engine.pending_alarms[0].id)
++
++    # avanca rapidamente ate o fim usando skip_next (nao dispara automatico por temperatura)
++    engine.skip_next(now=1001.0)  # step0->1
++    for a in list(engine.pending_alarms):
++        engine.acknowledge_alarm(a.id)
++    engine.skip_next(now=1002.0)  # step1->2 (mash->boil: end+start)
++    for a in list(engine.pending_alarms):
++        engine.acknowledge_alarm(a.id)
++    engine.skip_next(now=1003.0)  # step2 (boil, ultima) -> finished
++
++    alarms = engine.pending_alarms
++    assert len(alarms) == 1
++    assert alarms[0].type == "vessel_end"
++    assert alarms[0].label == "Final Fervura"
++    assert engine.state.status == "finished"
++
++
++def test_hop_alarm_fires_when_remaining_time_crosses_threshold(alarm_setup):
++    runtime, recipe, state_path = alarm_setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    engine.start(now=1000.0)
++    engine.acknowledge_alarm(engine.pending_alarms[0].id)
++    engine.skip_next(now=1001.0)
++    for a in list(engine.pending_alarms):
++        engine.acknowledge_alarm(a.id)
++    engine.skip_next(now=1002.0)  # agora na etapa boil (hold_minutes=2 -> 120s)
++    for a in list(engine.pending_alarms):
++        engine.acknowledge_alarm(a.id)
++
++    runtime.inject_sensor("boil_temp", 30.0)
++    engine.tick(now=1002.0)  # estabelece relogio
++    engine.tick(now=1003.0)  # entra em holding (hold_started_at=1003)
++
++    # hop_alarms: minutes_remaining=1.5 (90s) e 0 (0s), hold_total=120s
++    # com 20s decorridos, faltam 100s -> ainda nao deveria disparar o de 90s
++    engine.tick(now=1023.0)
++    assert engine.pending_alarms == []
++
++    # com 35s decorridos, faltam 85s (<=90s) -> dispara o alarme de 90s
++    engine.tick(now=1038.0)
++    alarms = engine.pending_alarms
++    assert len(alarms) == 1
++    assert alarms[0].type == "hop_addition"
++    assert alarms[0].label == "Lupulo Amargor"
++
++
++def test_hop_alarm_does_not_fire_twice_for_same_step_run(alarm_setup):
++    runtime, recipe, state_path = alarm_setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    engine.start(now=1000.0)
++    engine.acknowledge_alarm(engine.pending_alarms[0].id)
++    engine.skip_next(now=1001.0)
++    for a in list(engine.pending_alarms):
++        engine.acknowledge_alarm(a.id)
++    engine.skip_next(now=1002.0)
++    for a in list(engine.pending_alarms):
++        engine.acknowledge_alarm(a.id)
++
++    runtime.inject_sensor("boil_temp", 30.0)
++    engine.tick(now=1002.0)
++    engine.tick(now=1003.0)  # holding
++    engine.tick(now=1038.0)  # dispara alarme de 90s
++    assert len(engine.pending_alarms) == 1
++    engine.acknowledge_alarm(engine.pending_alarms[0].id)
++
++    engine.tick(now=1039.0)  # ainda nao bateu o segundo (0s) -- nao deve re-disparar o primeiro
++    assert engine.pending_alarms == []
++
++
++def test_hop_alarm_with_zero_minutes_remaining_fires_at_end_of_hold(alarm_setup):
++    runtime, recipe, state_path = alarm_setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    engine.start(now=1000.0)
++    engine.acknowledge_alarm(engine.pending_alarms[0].id)
++    engine.skip_next(now=1001.0)
++    for a in list(engine.pending_alarms):
++        engine.acknowledge_alarm(a.id)
++    engine.skip_next(now=1002.0)
++    for a in list(engine.pending_alarms):
++        engine.acknowledge_alarm(a.id)
++
++    runtime.inject_sensor("boil_temp", 30.0)
++    engine.tick(now=1002.0)
++    engine.tick(now=1003.0)  # holding, hold_started_at=1003
++    engine.tick(now=1038.0)  # dispara o de 90s
++    engine.acknowledge_alarm(engine.pending_alarms[0].id)
++
++    engine.tick(now=1122.0)  # 119s decorridos, falta 1s -> ainda nao bateu 0s
++    assert engine.pending_alarms == []
++
++    engine.tick(now=1123.0)  # 120s -> hold completo, step avanca (finished) e dispara vessel_end + hop 0min
++    # ordem: hop alarm checado antes do advance, entao "Whirlpool" dispara primeiro, depois "Final Fervura"
++    alarms = engine.pending_alarms
++    labels = [a.label for a in alarms]
++    assert "Whirlpool" in labels
++    assert "Final Fervura" in labels
++
++
++def test_acknowledge_alarm_removes_from_pending(alarm_setup):
++    runtime, recipe, state_path = alarm_setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    engine.start(now=1000.0)
++    alarm_id = engine.pending_alarms[0].id
++
++    engine.acknowledge_alarm(alarm_id)
++    assert engine.pending_alarms == []
++
++
++def test_acknowledge_unknown_alarm_id_is_noop(alarm_setup):
++    runtime, recipe, state_path = alarm_setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    engine.start(now=1000.0)
++    engine.acknowledge_alarm(99999)  # nao deve lancar
++    assert len(engine.pending_alarms) == 1  # alarme real continua la
++
++
++def test_pending_alarms_persist_across_engine_restart(alarm_setup):
++    runtime, recipe, state_path = alarm_setup
++    engine1 = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    engine1.start(now=1000.0)
++    assert len(engine1.pending_alarms) == 1
++
++    engine2 = RecipeEngine(runtime, recipe, state_path, now=1001.0)
++    # crash recovery aplica failsafe e muda status, mas o alarme pendente sobrevive
++    assert len(engine2.pending_alarms) == 1
++    assert engine2.pending_alarms[0].label == "Início Mostura"
++
++
++def test_skip_previous_does_not_fire_alarms(alarm_setup):
++    runtime, recipe, state_path = alarm_setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    engine.start(now=1000.0)
++    engine.acknowledge_alarm(engine.pending_alarms[0].id)
++    engine.skip_next(now=1001.0)  # step0->1, mash->mash, sem alarme
++    assert engine.pending_alarms == []
++
++    engine.skip_previous(now=1002.0)  # volta pra step0 -- nao deve disparar alarme (acao manual)
++    assert engine.pending_alarms == []
++
++
++def test_reset_current_step_does_not_fire_alarms(alarm_setup):
++    runtime, recipe, state_path = alarm_setup
++    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
++    engine.start(now=1000.0)
++    engine.acknowledge_alarm(engine.pending_alarms[0].id)
++
++    engine.reset_current_step(now=1005.0)
++    assert engine.pending_alarms == []
+diff --git a/tests/test_recipe_models.py b/tests/test_recipe_models.py
+index 0423798..0315365 100644
+--- a/tests/test_recipe_models.py
++++ b/tests/test_recipe_models.py
+@@ -359,3 +359,104 @@ def test_get_vessel_unknown_id_raises(tmp_path, bridge_config):
+     recipe = Recipe.load(path, bridge_config)
+     with pytest.raises(RecipeError, match="não existe nesta receita"):
+         recipe.get_vessel("does_not_exist")
++
++
++def test_step_with_hop_alarms_loads_correctly(tmp_path, bridge_config):
++    content = """
++    name: "X"
++    vessels:
++      - id: boil
++        name: "Fervura"
++        heater_device_id: boil_heater
++        sensor_device_id: boil_temp
++        pid: { kp: 1, ki: 0, kd: 0 }
++    steps:
++      - vessel: boil
++        target_temp: 100
++        hold_minutes: 60
++        hop_alarms:
++          - minutes_remaining: 60
++            label: "5kg Lupulo Amargor"
++          - minutes_remaining: 15
++            label: "2kg Lupulo Aroma"
++          - minutes_remaining: 0
++            label: "Whirlpool"
++    """
++    path = write_recipe(tmp_path, content)
++    recipe = Recipe.load(path, bridge_config)
++    alarms = recipe.steps[0].hop_alarms
++    assert len(alarms) == 3
++    assert alarms[0].minutes_remaining == 60.0
++    assert alarms[0].label == "5kg Lupulo Amargor"
++    assert alarms[2].minutes_remaining == 0.0
++
++
++def test_step_without_hop_alarms_defaults_to_empty_list(tmp_path, bridge_config):
++    path = write_recipe(tmp_path, VALID_RECIPE_YAML)
++    recipe = Recipe.load(path, bridge_config)
++    assert recipe.steps[0].hop_alarms == []
++
++
++def test_hop_alarm_missing_label_raises(tmp_path, bridge_config):
++    content = """
++    name: "X"
++    vessels:
++      - id: boil
++        name: "Fervura"
++        heater_device_id: boil_heater
++        sensor_device_id: boil_temp
++        pid: { kp: 1, ki: 0, kd: 0 }
++    steps:
++      - vessel: boil
++        target_temp: 100
++        hold_minutes: 60
++        hop_alarms:
++          - minutes_remaining: 60
++    """
++    path = write_recipe(tmp_path, content)
++    with pytest.raises(RecipeError, match=r"campo\(s\) obrigatório\(s\) ausente\(s\) \['label'\]"):
++        Recipe.load(path, bridge_config)
++
++
++def test_hop_alarm_negative_minutes_raises(tmp_path, bridge_config):
++    content = """
++    name: "X"
++    vessels:
++      - id: boil
++        name: "Fervura"
++        heater_device_id: boil_heater
++        sensor_device_id: boil_temp
++        pid: { kp: 1, ki: 0, kd: 0 }
++    steps:
++      - vessel: boil
++        target_temp: 100
++        hold_minutes: 60
++        hop_alarms:
++          - minutes_remaining: -5
++            label: "Invalido"
++    """
++    path = write_recipe(tmp_path, content)
++    with pytest.raises(RecipeError, match="não pode ser negativo"):
++        Recipe.load(path, bridge_config)
++
++
++def test_hop_alarm_minutes_greater_than_hold_raises(tmp_path, bridge_config):
++    content = """
++    name: "X"
++    vessels:
++      - id: boil
++        name: "Fervura"
++        heater_device_id: boil_heater
++        sensor_device_id: boil_temp
++        pid: { kp: 1, ki: 0, kd: 0 }
++    steps:
++      - vessel: boil
++        target_temp: 100
++        hold_minutes: 60
++        hop_alarms:
++          - minutes_remaining: 90
++            label: "Nunca vai disparar"
++    """
++    path = write_recipe(tmp_path, content)
++    with pytest.raises(RecipeError, match="nunca dispararia"):
++        Recipe.load(path, bridge_config)
+diff --git a/tests/test_recipe_state.py b/tests/test_recipe_state.py
+index 8cdcaff..84cf5b4 100644
+--- a/tests/test_recipe_state.py
++++ b/tests/test_recipe_state.py
+@@ -49,3 +49,30 @@ def test_save_overwrites_existing_file(tmp_path):
+ 
+     loaded = RecipeState.load(path)
+     assert loaded.recipe_name == "B"
++
++
++def test_pending_alarms_round_trip(tmp_path):
++    from recipe_engine.state import AlarmEvent
++
++    path = tmp_path / "recipe_state.json"
++    original = RecipeState(
++        status="holding",
++        pending_alarms=[
++            AlarmEvent(id=1, type="hop_addition", label="5kg Lupulo", fired_at=1000.0),
++        ],
++        next_alarm_id=2,
++        fired_hop_alarm_keys=["3:0"],
++    )
++    original.save(path)
++
++    loaded = RecipeState.load(path)
++    assert loaded.pending_alarms == [AlarmEvent(id=1, type="hop_addition", label="5kg Lupulo", fired_at=1000.0)]
++    assert loaded.next_alarm_id == 2
++    assert loaded.fired_hop_alarm_keys == ["3:0"]
++
++
++def test_pending_alarms_default_empty():
++    state = RecipeState()
++    assert state.pending_alarms == []
++    assert state.next_alarm_id == 1
++    assert state.fired_hop_alarm_keys == []
+-- 
+2.43.0
+

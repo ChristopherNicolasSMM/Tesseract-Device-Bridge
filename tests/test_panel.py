@@ -317,3 +317,35 @@ def test_recipe_status_includes_total_time_fields(client_with_recipe):
     assert "total_estimated_minutes" in data
     assert "total_elapsed_seconds" in data
     assert data["total_estimated_minutes"] == 1.0  # fixture: hold_minutes=1
+
+
+def test_recipe_status_includes_pending_alarms_after_start(client_with_recipe):
+    client, engine = client_with_recipe
+    res = client.post("/api/recipe/start")
+    data = res.get_json()
+    assert "pending_alarms" in data
+    assert len(data["pending_alarms"]) == 1
+    assert data["pending_alarms"][0]["type"] == "vessel_start"
+
+
+def test_acknowledge_alarm_removes_it_from_status(client_with_recipe):
+    client, engine = client_with_recipe
+    res = client.post("/api/recipe/start")
+    alarm_id = res.get_json()["pending_alarms"][0]["id"]
+
+    res2 = client.post(f"/api/recipe/alarms/{alarm_id}/ack")
+    assert res2.status_code == 200
+    assert res2.get_json()["pending_alarms"] == []
+
+
+def test_acknowledge_alarm_returns_404_when_no_recipe_engine(client):
+    res = client.post("/api/recipe/alarms/1/ack")
+    assert res.status_code == 404
+
+
+def test_acknowledge_unknown_alarm_id_returns_200_noop(client_with_recipe):
+    client, engine = client_with_recipe
+    client.post("/api/recipe/start")
+    res = client.post("/api/recipe/alarms/99999/ack")
+    assert res.status_code == 200
+    assert len(res.get_json()["pending_alarms"]) == 1  # alarme real continua pendente

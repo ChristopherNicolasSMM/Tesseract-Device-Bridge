@@ -359,3 +359,104 @@ def test_get_vessel_unknown_id_raises(tmp_path, bridge_config):
     recipe = Recipe.load(path, bridge_config)
     with pytest.raises(RecipeError, match="não existe nesta receita"):
         recipe.get_vessel("does_not_exist")
+
+
+def test_step_with_hop_alarms_loads_correctly(tmp_path, bridge_config):
+    content = """
+    name: "X"
+    vessels:
+      - id: boil
+        name: "Fervura"
+        heater_device_id: boil_heater
+        sensor_device_id: boil_temp
+        pid: { kp: 1, ki: 0, kd: 0 }
+    steps:
+      - vessel: boil
+        target_temp: 100
+        hold_minutes: 60
+        hop_alarms:
+          - minutes_remaining: 60
+            label: "5kg Lupulo Amargor"
+          - minutes_remaining: 15
+            label: "2kg Lupulo Aroma"
+          - minutes_remaining: 0
+            label: "Whirlpool"
+    """
+    path = write_recipe(tmp_path, content)
+    recipe = Recipe.load(path, bridge_config)
+    alarms = recipe.steps[0].hop_alarms
+    assert len(alarms) == 3
+    assert alarms[0].minutes_remaining == 60.0
+    assert alarms[0].label == "5kg Lupulo Amargor"
+    assert alarms[2].minutes_remaining == 0.0
+
+
+def test_step_without_hop_alarms_defaults_to_empty_list(tmp_path, bridge_config):
+    path = write_recipe(tmp_path, VALID_RECIPE_YAML)
+    recipe = Recipe.load(path, bridge_config)
+    assert recipe.steps[0].hop_alarms == []
+
+
+def test_hop_alarm_missing_label_raises(tmp_path, bridge_config):
+    content = """
+    name: "X"
+    vessels:
+      - id: boil
+        name: "Fervura"
+        heater_device_id: boil_heater
+        sensor_device_id: boil_temp
+        pid: { kp: 1, ki: 0, kd: 0 }
+    steps:
+      - vessel: boil
+        target_temp: 100
+        hold_minutes: 60
+        hop_alarms:
+          - minutes_remaining: 60
+    """
+    path = write_recipe(tmp_path, content)
+    with pytest.raises(RecipeError, match=r"campo\(s\) obrigatório\(s\) ausente\(s\) \['label'\]"):
+        Recipe.load(path, bridge_config)
+
+
+def test_hop_alarm_negative_minutes_raises(tmp_path, bridge_config):
+    content = """
+    name: "X"
+    vessels:
+      - id: boil
+        name: "Fervura"
+        heater_device_id: boil_heater
+        sensor_device_id: boil_temp
+        pid: { kp: 1, ki: 0, kd: 0 }
+    steps:
+      - vessel: boil
+        target_temp: 100
+        hold_minutes: 60
+        hop_alarms:
+          - minutes_remaining: -5
+            label: "Invalido"
+    """
+    path = write_recipe(tmp_path, content)
+    with pytest.raises(RecipeError, match="não pode ser negativo"):
+        Recipe.load(path, bridge_config)
+
+
+def test_hop_alarm_minutes_greater_than_hold_raises(tmp_path, bridge_config):
+    content = """
+    name: "X"
+    vessels:
+      - id: boil
+        name: "Fervura"
+        heater_device_id: boil_heater
+        sensor_device_id: boil_temp
+        pid: { kp: 1, ki: 0, kd: 0 }
+    steps:
+      - vessel: boil
+        target_temp: 100
+        hold_minutes: 60
+        hop_alarms:
+          - minutes_remaining: 90
+            label: "Nunca vai disparar"
+    """
+    path = write_recipe(tmp_path, content)
+    with pytest.raises(RecipeError, match="nunca dispararia"):
+        Recipe.load(path, bridge_config)

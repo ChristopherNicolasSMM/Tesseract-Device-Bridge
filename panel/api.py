@@ -127,6 +127,7 @@ def _recipe_status_payload(engine: RecipeEngine) -> dict:
         "current_duty_percent": current_duty,
         "total_estimated_minutes": engine.total_estimated_minutes(),
         "total_elapsed_seconds": engine.total_elapsed_seconds(now),
+        "pending_alarms": [asdict(a) for a in engine.pending_alarms],
     }
 
 
@@ -256,4 +257,14 @@ def recipe_reset_step():
         engine.reset_current_step(now=time.time())
     except RecipeEngineError as exc:
         return jsonify({"error": str(exc)}), 400
+    return jsonify(_recipe_status_payload(engine))
+
+
+@bp.post("/recipe/alarms/<int:alarm_id>/ack")
+def recipe_acknowledge_alarm(alarm_id: int):
+    """Confirma (dispensa) um alarme pendente — para o som no painel."""
+    engine = _recipe_engine()
+    if engine is None:
+        return jsonify({"error": "Nenhuma receita carregada neste bridge."}), 404
+    engine.acknowledge_alarm(alarm_id)
     return jsonify(_recipe_status_payload(engine))
