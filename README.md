@@ -3,6 +3,15 @@
 > Ponte entre hardware físico (GPIO de um Raspberry Pi) e automação de
 > processo — com ou sem rede.
 
+## Documentação
+
+| | |
+|---|---|
+| **📖 Manual do usuário** | [Introdução](docs/manual/01-introducao.md) · [Primeiros passos](docs/manual/02-primeiros-passos.md) · [Funcionalidades](docs/manual/03-funcionalidades.md) · [Perguntas frequentes](docs/manual/04-perguntas-frequentes.md) |
+| **🔧 Documentação técnica** | [Visão geral](docs/technical/01-visao-geral.md) · [Diagramas C4](docs/technical/02-diagrama-c4.md) · [Fluxos](docs/technical/03-fluxos.md) · [Modelo de dados](docs/technical/04-modelo-de-dados.md) · [Casos de uso](docs/technical/05-casos-de-uso.md) · [Manutenção e expansão](docs/technical/06-manutencao-e-expansao.md) |
+
+---
+
 ## O que é este projeto
 
 Este repositório é a **metade física** do [Tesseract](https://github.com/ChristopherNicolasSMM/Tesseract):
