@@ -1,83 +1,163 @@
 # 04 — Perguntas Frequentes
 
-## O painel não abre no celular. O que faço?
-
-Verifique se o celular e o Raspberry Pi estão na mesma rede Wi-Fi. O endereço
-do painel é `http://<ip-do-raspberry>:8088` — substitua `<ip-do-raspberry>`
-pelo endereço IP real do Pi (você pode ver o IP rodando `hostname -I` no
-terminal do Pi).
-
-Se ainda não abrir, confirme que o processo `run_bridge.py` está rodando
-no Pi (você deve ver a mensagem "Painel disponível em http://0.0.0.0:8088"
-no terminal).
+> **Navegação:** [Manual](01-introducao.md) | [Primeiros Passos](02-primeiros-passos.md) | [Funcionalidades](03-funcionalidades.md)
 
 ---
 
-## O sensor está mostrando temperatura errada ou zero.
+## O painel não abre no celular
 
-Possíveis causas:
+Verifique se o celular e o Pi estão na mesma rede Wi-Fi. O endereço é `http://<ip-do-pi>:8088`. Para saber o IP do Pi:
 
-1. **Endereço errado no `devices.yml`**: rode `python -m gpio.ds18b20_scan`
-   e compare os endereços encontrados com os que estão no arquivo. Se
-   forem diferentes, corrija o `devices.yml` e reinicie o processo.
+```bash
+hostname -I
+```
 
-2. **1-Wire não habilitado no Pi**: verifique se `dtoverlay=w1-gpio` está
-   em `/boot/firmware/config.txt` (ou `/boot/config.txt`). Se não estiver,
-   adicione, salve e reinicie o Pi.
+Se ainda não abrir, confirme se o bridge está rodando. Deve aparecer "Painel disponível em http://0.0.0.0:8088" no terminal ou via:
 
-3. **Conexão física**: verifique o cabo do sensor e o resistor pull-up de
-   4.7kΩ no barramento (já incluso na placa MAZZA; se usar sensor avulso,
-   é necessário colocar).
+```bash
+sudo systemctl status tesseract-bridge
+```
+
+---
+
+## O atuador não liga, mas `raspi-gpio` funciona
+
+Esse é o sintoma de backend GPIO errado. O `raspi-gpio` acessa `/dev/gpiomem` diretamente — sem biblioteca Python — enquanto o bridge usa o `gpiozero`, que precisa escolher um "pin factory" (backend). Se o backend errado for escolhido, o setup funciona mas os pinos não respondem.
+
+**Como diagnosticar:**
+
+```bash
+python tools/gpio_test.py
+# Escolha [4] — mostra qual backend está ativo
+```
+
+**O que instalar conforme o resultado:**
+
+| Backend mostrado | Problema | Solução |
+|---|---|---|
+| `lgpio` | No Raspbian/Bullseye, lgpio pode não ter permissão certa | `pip install RPi.GPIO` |
+| `RPi.GPIO` | Deveria funcionar — checar permissão | `sudo usermod -a -G gpio $USER` (logout e login) |
+| `default automático` | Nenhum backend instalado | `pip install RPi.GPIO` |
+
+**Testar pino específico:**
+
+```bash
+python tools/gpio_test.py
+# [1] Testar saída → pino 17 → active_high: true → modo manual
+```
+
+Se o relé não responder nem com o gpio_test, o problema pode ser permissão de acesso ao GPIO (`sudo` resolve temporariamente para confirmar):
+
+```bash
+sudo python tools/gpio_test.py
+```
+
+---
+
+## O sensor está mostrando temperatura errada ou zero
+
+**1. Endereço errado no `devices.yml`:**
+
+```bash
+python -m gpio.ds18b20_scan
+```
+
+Compare os endereços com o que está em `devices.yml`. Se diferente, corrija e reinicie o bridge.
+
+**2. 1-Wire não habilitado:**
+
+Verifique se existe a linha abaixo em `/boot/firmware/config.txt` (ou `/boot/config.txt` em versões antigas):
+
+```
+dtoverlay=w1-gpio
+```
+
+Se não existir, adicione, salve e reinicie o Pi.
+
+**3. Conexão física:** verifique o cabo do sensor e o resistor pull-up de 4.7kΩ (já incluso na placa MAZZA; em sensor avulso, é necessário colocar).
 
 ---
 
 ## O que significa "Subindo" vs "Em patamar"?
 
-- **Subindo**: o sistema está aquecendo para atingir a temperatura alvo
-  daquela etapa. O cronômetro mostra o tempo decorrido desde que a etapa
-  começou.
-- **Em patamar**: a temperatura alvo foi atingida e o sistema está
-  mantendo-a pelo tempo configurado (`hold_minutes`). O cronômetro mostra
-  o tempo **restante** — quando chegar a zero, o sistema avança para a
-  próxima etapa automaticamente.
+- **Subindo**: o sistema está aquecendo para atingir a temperatura alvo. O cronômetro mostra o tempo decorrido.
+- **Em patamar**: a temperatura alvo foi atingida e o sistema está mantendo-a. O cronômetro mostra o tempo **restante** — quando chegar a zero, avança para a próxima etapa automaticamente.
 
 ---
 
-## O banner de queda de energia apareceu sem o Pi ter caído.
+## O banner vermelho de queda de energia apareceu sem o Pi ter caído
 
-Se o Pi ficou sem acesso ao broker MQTT e o Tesseract Core aplicou failsafe
-remotamente, ou se o processo foi encerrado de qualquer jeito que não fosse
-`CTRL+C` limpo (ex.: `kill -9`, corte de energia), o sistema detecta isso
-como um "crash" ao reiniciar.
+Acontece quando:
+- O processo foi encerrado de qualquer forma que não seja `CTRL+C` limpo (incluindo `kill -9`, corte de energia ou `sudo systemctl stop`)
+- O Tesseract Core aplicou failsafe via MQTT remotamente
 
-Isso é comportamento esperado e é uma funcionalidade de segurança — o sistema
-prefere ser conservador e parar tudo a retomar cegamente sem que você
-confirme. Basta verificar fisicamente o equipamento e clicar em **Retomar**.
+Isso é comportamento esperado e seguro — o sistema prefere parar tudo a retomar cegamente. Verifique fisicamente o equipamento e clique em **Retomar**.
 
 ---
 
 ## Posso pausar a brassagem e retomar horas depois?
 
-Sim. Ao pausar (botão `⏯` ou "Cancelar"), o sistema desliga os aquecedores
-e bombas. O estado é salvo no Pi.
+Sim. O sistema preserva o tempo de patamar já decorrido. Mas atenção: pausar a mostura por muito tempo pode afetar o perfil enzimático — isso é uma questão de técnica cervejeira, não do sistema.
 
-**Mas atenção**: a brassagem é um processo biológico/químico. Pausar a
-mostura por muito tempo pode afetar o perfil de fermentação — isso é uma
-questão de técnica cervejeira, não de sistema. O sistema preserva o tempo de
-patamar já decorrido, mas não pode recuperar o efeito de um resfriamento
-indesejado do mosto.
+---
+
+## O serviço não inicia no boot
+
+Verifique se está habilitado:
+
+```bash
+sudo systemctl is-enabled tesseract-bridge
+# Deve mostrar: enabled
+```
+
+Se mostrar `disabled`:
+```bash
+sudo systemctl enable tesseract-bridge
+```
+
+Veja os logs para entender o erro:
+```bash
+bash tools/logs.sh --boot
+```
+
+Erros comuns:
+- `devices.yml` não encontrado → o `WorkingDirectory` do serviço precisa ser o diretório do projeto. Reinstale com `sudo bash tools/install_service.sh`.
+- `ModuleNotFoundError` → o Python do serviço não tem os pacotes instalados. Se usar virtualenv, o script detecta `.venv/` automaticamente. Senão, garanta que o `pip install -r requirements.txt` foi feito com o mesmo Python que o serviço usa.
+
+---
+
+## O terminal de logs não abre automaticamente no boot do desktop
+
+O arquivo de autostart do LXDE pode ter sido criado para outro usuário ou não foi criado. Verifique:
+
+```bash
+ls ~/.config/autostart/tesseract-bridge-logs.desktop
+```
+
+Se não existir, crie manualmente ou reinstale o serviço:
+
+```bash
+sudo bash tools/install_service.sh
+# Responda S quando perguntar sobre autostart LXDE
+```
+
+---
+
+## O som do alarme não toca
+
+Navegadores bloqueiam áudio automático até o usuário interagir com a página. **Solução**: clique em qualquer lugar na página após abrir o painel — isso desbloqueia o áudio. Ou use **⚙️ Alarmes → Testar som** logo após abrir, que serve como primeiro clique.
 
 ---
 
 ## Como adiciono uma nova receita?
 
-Edite o arquivo `recipe.yml` no Raspberry Pi com a sua nova receita.
-Você pode criar quantas receitas quiser, mas o sistema carrega **um arquivo
-de cada vez** no boot — para trocar de receita, edite (ou substitua) o
-`recipe.yml` e reinicie o processo (`CTRL+C` + `python run_bridge.py`
-novamente).
+Edite o `recipe.yml` e reinicie o processo. O bridge carrega um arquivo de cada vez — para trocar de receita, substitua o conteúdo do `recipe.yml` e reinicie:
 
-Para validar se a receita está correta antes de reiniciar:
+```bash
+sudo systemctl restart tesseract-bridge
+```
+
+Valide a receita antes de reiniciar:
 
 ```bash
 python3 -c "
@@ -91,24 +171,13 @@ print('OK:', recipe.name, recipe.step_count(), 'etapas')
 
 ---
 
-## O som do alarme não toca.
+## Posso usar sem o Tesseract Core / sem MQTT?
 
-A maioria dos navegadores bloqueia áudio automático até que haja alguma
-interação do usuário com a página. Se abrir o painel e o primeiro alarme
-tocar sem você ter clicado em nada antes, o som pode ser bloqueado.
+Sim. No `devices.yml`:
 
-**Solução**: clique em qualquer lugar na página após abrir o painel —
-isso "desbloqueia" o áudio para os alarmes seguintes. A partir daí, os
-alarmes tocam normalmente.
+```yaml
+mqtt:
+  enabled: false
+```
 
-Se preferir, use a opção **"Testar som"** no menu `⚙️ Alarmes` logo após
-abrir o painel — isso serve como o primeiro clique que desbloqueia o áudio.
-
----
-
-## Posso usar sem o Tesseract Core (sem MQTT)?
-
-Sim. Coloque `mqtt: enabled: false` no `devices.yml`. O painel, o motor de
-receita e todos os alarmes funcionam normalmente — você só perde a
-integração com o servidor Tesseract (sincronização de receitas, histórico,
-RBAC). Para uma brassagem caseira autônoma, não faz diferença.
+O painel, o motor de receita e todos os alarmes funcionam normalmente. Você só perde a integração com o servidor Tesseract (histórico, RBAC, sync de receitas). Para brassagem caseira autônoma, não faz diferença nenhuma.

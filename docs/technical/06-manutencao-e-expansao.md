@@ -1,132 +1,201 @@
 # 06 — Manutenção e Expansão
 
+> **Navegação:** [Visão Geral](01-visao-geral.md) | [C4 Diagrams](02-diagrama-c4.md) | [Fluxos](03-fluxos.md) | [Modelo de Dados](04-modelo-de-dados.md) | [Casos de Uso](05-casos-de-uso.md)
+
 ## Adicionar um novo tipo de sensor analógico
 
-O único driver analógico implementado hoje é o DS18B20 (temperatura 1-Wire).
-Para suportar outro tipo de sensor (umidade do solo, pH, CO2, etc.):
+O único driver analógico implementado é o DS18B20 (temperatura 1-Wire). Para suportar outro tipo (umidade do solo, pH, CO2, pressão, etc.):
 
-1. Criar `gpio/<nome_do_driver>_driver.py` com uma função que recebe
-   `pin` e `address` (opcional) e retorna um float:
+**1. Criar o driver em `gpio/<nome>_driver.py`:**
 
 ```python
-def read_meu_sensor(pin: int, address: str | None = None) -> float:
-    # lógica de leitura (i2c, SPI, filesystem, etc.)
-    return valor_float
+class MeuSensorReader:
+    """
+    Driver para [descrever o sensor].
+    Recebe os mesmos kwargs do bloco hardware: do devices.yml — ignore
+    os que não usar com **kwargs para manter compatibilidade futura.
+    """
+    def __init__(self, pin: int, address: str | None = None, **kwargs):
+        self.pin = pin
+        self.address = address
+        # inicializar comunicação i2c, SPI, filesystem, etc.
+
+    @property
+    def value(self) -> float:
+        # lógica de leitura — retorna float
+        return 0.0
 ```
 
-2. Registrar no `DeviceRuntime.__init__` via `register_analog_driver()`:
+**2. Registrar no `DeviceRuntime` (ou no `run_bridge.py`):**
 
 ```python
-from gpio.meu_sensor_driver import read_meu_sensor
-runtime.register_analog_driver("meu_driver", read_meu_sensor)
+from gpio.real_backend import register_analog_driver
+from gpio.meu_sensor_driver import MeuSensorReader
+register_analog_driver("meu_sensor", MeuSensorReader)
 ```
 
-3. Usar em `devices.yml`:
+**3. Usar em `devices.yml`:**
 
 ```yaml
-- id: sensor_umidade_solo
+- id: sensor_umidade
   role: sensor
-  subtype: temperature   # ou outro subtype válido
+  subtype: temperature  # use o subtype mais próximo
   hardware:
     pin: 5
-    driver: meu_driver
+    driver: meu_sensor
     address: "opcional"
 ```
 
-4. Adicionar testes cobrindo o novo driver com um filesystem fake ou mock
-   (ver `tests/test_ds18b20_driver.py` como referência de padrão).
+**4. Adicionar testes** em `tests/test_meu_sensor_driver.py` com filesystem fake ou mock (ver `tests/test_ds18b20_driver.py` como referência — usa `tmp_path` com arquivo `w1_slave` fake, sem precisar de hardware real).
 
 ---
 
 ## Adaptar para um novo domínio de automação
 
-O bridge é agnóstico de domínio. Para controlar, por exemplo, irrigação por
-zona (sensor de umidade → válvula solenóide) em vez de brassagem:
+O bridge é agnóstico de domínio. Para controlar irrigação por zona, estufa, tanque de fermentação, etc.:
+
+```mermaid
+flowchart LR
+    A["Novo domínio\nEx: irrigação"] --> B{Sensor já\nsuportado?}
+    B -- DS18B20 --> C["Só editar\ndevices.yml + recipe.yml"]
+    B -- Outro tipo --> D["Implementar driver\ngpio/meu_driver.py\nregister_analog_driver()"]
+    D --> C
+    C --> E["Declarar devices\n(sensores + válvulas/bombas)"]
+    E --> F["Declarar recipe.yml\n(zonas, etapas, alvos, alarmes)"]
+    F --> G([Bridge pronto para\nnovo domínio])
+```
 
 **O que muda:**
 
 | Arquivo | O que fazer |
 |---|---|
-| `devices.yml` | Descrever os sensores de umidade e as válvulas com os pinos corretos |
-| `recipe.yml` | Declarar as "vasilhas" (zonas de irrigação), o alvo (`target_temp` passa a ser `target_humidity` semanticamente, mas o campo se chama `target_temp` no YAML — considere renomear numa versão futura), as etapas e os alarmes |
-| `gpio/<driver>.py` | Novo driver se o sensor não for DS18B20 |
+| `devices.yml` | Mapear sensores e atuadores do novo hardware |
+| `recipe.yml` | Definir as "vasilhas" (zonas/compartimentos) e as etapas do processo |
+| `gpio/<driver>.py` | Apenas se o sensor não for DS18B20 |
 
-**O que não muda:**
+**O que não muda (nunca):**
+`recipe_engine/`, `bridge.py`, `panel/`, `mqtt_client.py`, `failsafe_watchdog.py`, `status_handler.py` — o núcleo opera sobre abstrações genéricas.
 
-Nada em `recipe_engine/`, `bridge.py`, `panel/`, `mqtt_client.py`,
-`failsafe_watchdog.py`, `status_handler.py` — o núcleo opera sobre
-abstrações de "sensor com valor float" e "atuador liga/desliga".
-
-**Limitação atual a considerar**: o campo de alvo na receita se chama
-`target_temp` (legado da origem cervejeira). Para novos domínios, o nome é
-semanticamente estranho. Para renomear sem quebrar receitas existentes:
-1. Adicionar campo `target_value` em `RecipeStep` como alias.
-2. Manter `target_temp` por retrocompatibilidade com um `DeprecationWarning`.
-3. Atualizar `recipe.yml.example` para o novo nome.
-4. Gerar migration de `recipe.yml` (renomear campo via script).
+**Limitação pendente**: o campo de alvo se chama `target_temp` (legado cervejeiro). Para renomear sem quebrar receitas existentes: adicionar `target_value` como alias, manter `target_temp` com `DeprecationWarning`.
 
 ---
 
-## Adicionar uma nova etapa ou vasilha a uma receita existente
+## Trocar ou forçar o backend GPIO
 
-1. Editar `recipe.yml` (ou criar um novo, já que `recipe.yml` é editável
-   sem reiniciar o bridge — `run_bridge.py` carrega no boot; mudar
-   `recipe.yml` exige reiniciar o processo para ter efeito).
-2. Validar localmente antes de aplicar em produção:
+O `_pick_pin_factory()` em `gpio/real_backend.py` tenta lgpio → RPi.GPIO → pigpio nessa ordem. Para forçar um específico:
 
-```bash
-python3 -c "
-from config import BridgeConfig
-from recipe_engine.models import Recipe
-config = BridgeConfig.load('devices.yml')
-recipe = Recipe.load('recipe.yml', config)
-print('OK:', recipe.name, recipe.step_count(), 'etapas')
-"
+```python
+# No run_bridge.py ou run_panel.py, antes de criar o DeviceRuntime:
+from gpiozero.pins.rpigpio import RPiGPIOFactory
+from gpio.real_backend import RealGPIOBackend
+
+backend = RealGPIOBackend(pin_factory=RPiGPIOFactory())
 ```
 
-3. Se adicionar uma nova `vessel`, verificar que `heater_device_id` e
-   `sensor_device_id` existem em `devices.yml` — a validação no `load()`
-   levanta `RecipeError` com mensagem clara se não existirem.
+Ou instale só o pacote do backend que quer que seja escolhido automaticamente:
+
+| Quer usar | Comando |
+|---|---|
+| RPi.GPIO (Raspbian/Bullseye) | `pip install RPi.GPIO` |
+| lgpio (Bookworm/Pi 5) | `pip install lgpio` |
+| pigpio (qualquer) | `pip install pigpio && sudo pigpiod` |
+
+Se nenhum estiver instalado e o gpiozero não conseguir abrir o GPIO, o erro aparece na primeira chamada a `setup()`, não no import — o bridge vai iniciar mas falhar ao configurar o primeiro device real.
 
 ---
 
-## Adicionar um novo campo ao schema de `devices.yml` ou `recipe.yml`
+## Configurar active_high para relé active-low
 
-1. Adicionar o campo no dataclass correspondente em `config.py` (devices)
-   ou `recipe_engine/models.py` (recipe), com um valor default (campo
-   opcional) ou sem (campo obrigatório com validação explícita).
-2. Adicionar validação em `validate_against()` / `validate()` se necessário.
-3. Adicionar testes em `tests/test_config.py` ou `tests/test_recipe_models.py`.
-4. Atualizar `devices.yml.example` ou `recipe.yml.example`.
-5. Atualizar este arquivo (`06-manutencao-e-expansao.md`) e
-   `04-modelo-de-dados.md` com o novo campo.
+```yaml
+# devices.yml — exemplo com módulo de relé active-low (optoacoplador invertido):
+- id: meu_rele
+  role: actuator
+  subtype: digital
+  hardware:
+    pin: 17
+    active_high: false   # LOW no pino = relé fecha = carga liga
+```
 
-**Atenção**: `recipe_state.json` é carregado por `RecipeState.load()` que
-usa `dataclass(**raw)` — adicionar um campo novo ao dataclass sem um default
-vai quebrar o load de arquivos de estado antigos. Sempre use `field(default=...)`.
+Sem esse campo (default `true`): HIGH no pino = atuador liga. Correto para a MAZZA e para a maioria dos relés industriais com transistor NPN.
+
+Cuidado: `active_high: 'false'` (com aspas) é um erro — o YAML vai interpretar como string e o `config.py` vai levantar `ConfigError` com mensagem clara.
+
+---
+
+## Gerenciar o serviço systemd
+
+```bash
+# Instalar (primeira vez):
+sudo bash tools/install_service.sh
+
+# Operação:
+sudo systemctl status tesseract-bridge    # status atual
+sudo systemctl start  tesseract-bridge    # iniciar
+sudo systemctl stop   tesseract-bridge    # parar
+sudo systemctl restart tesseract-bridge   # reiniciar (após mudar devices.yml/recipe.yml)
+sudo systemctl enable  tesseract-bridge   # habilitar no boot
+sudo systemctl disable tesseract-bridge   # desabilitar do boot
+
+# Logs:
+bash tools/logs.sh           # ao vivo (CTRL+C para parar)
+bash tools/logs.sh --all     # toda a sessão atual
+bash tools/logs.sh --boot    # desde o último boot
+sudo journalctl -fu tesseract-bridge      # equivalente direto
+
+# Remover:
+sudo bash tools/uninstall_service.sh
+```
+
+Após editar `devices.yml` ou `recipe.yml`, é necessário reiniciar o serviço — o bridge carrega as configurações apenas no boot do processo.
+
+---
+
+## Adicionar um novo campo ao schema
+
+**Em `devices.yml` (`config.py`):**
+1. Adicionar no dataclass `Device` (ou `HardwareConfig` se for campo de hardware) com default.
+2. Adicionar validação em `Device.validate()` se necessário.
+3. Propagar em `device_runtime.py` (bloco de kwargs passado ao `backend.setup()`).
+4. Adicionar testes em `tests/test_config.py`.
+5. Atualizar `devices.yml.example` e este arquivo (`06`) + `04-modelo-de-dados.md`.
+
+**Em `recipe.yml` (`recipe_engine/models.py`):**
+Mesma sequência, com `recipe_engine/models.py` + `tests/test_recipe_models.py`.
+
+⚠️ **`recipe_state.json`**: `RecipeState.load()` usa `dataclass(**raw)` — campos novos sem default quebram o load de estados antigos. **Sempre use `field(default=...)`**.
 
 ---
 
 ## Pontos de extensão conhecidos
 
-| Ponto | Como usar |
-|---|---|
-| `register_analog_driver(name, fn)` | Registra novos drivers de sensor analógico no `DeviceRuntime` |
-| `GPIOBackend` (interface abstrata) | Subclassear para novos backends (ex.: MCP23017 I²C, saída serial, etc.) |
-| `BridgeConfig.mqtt.enabled: false` | Roda o bridge 100% offline, sem dependência de broker |
-| `recipe_engine` recebe `DeviceRuntime` no construtor | Pode ser testado isoladamente com um `DeviceRuntime` com backend simulado |
-| `AlarmEvent.type` é string livre | O painel usa os tipos conhecidos (`vessel_start`, `vessel_end`, `hop_addition`) mas aceita qualquer string — extensível sem mudar a UI |
-| Polling do painel é 2.5s configurável | `setInterval(pollRecipeStatus, 2500)` em `index.html` — ajustável conforme latência aceitável |
+| Ponto | Arquivo | Como usar |
+|---|---|---|
+| `register_analog_driver(name, fn)` | `gpio/real_backend.py` | Registra novos drivers de sensor analógico |
+| `RealGPIOBackend(pin_factory=...)` | `gpio/real_backend.py` | Injeta backend específico (testes / forçar lgpio etc.) |
+| `GPIOBackend` (ABC) | `gpio/base.py` | Subclassar para backends totalmente novos (I²C, serial, etc.) |
+| `BridgeConfig.mqtt.enabled: false` | `devices.yml` | Bridge 100% offline sem broker |
+| `FORCE_COLOR=1` | env | Ativa cores nos logs mesmo sem TTY (serviço systemd) |
+| `NO_COLOR=1` | env | Desativa cores (redirect para arquivo, CI, etc.) |
+| `AlarmEvent.type` | `recipe_engine/state.py` | String livre — adicionar novos tipos sem mudar UI |
+| Polling 2.5s | `panel/templates/index.html` | `setInterval(pollRecipeStatus, 2500)` — ajustável |
 
 ---
 
-## Checklist de validação antes de um deploy em Pi real
+## Checklist de deploy em Pi real
 
-- [ ] `python -m pytest tests/ -v` — todos passando
-- [ ] `python3 -c "from config import BridgeConfig; BridgeConfig.load('devices.yml')"` — sem erros
-- [ ] `python3 -c "from recipe_engine.models import Recipe; from config import BridgeConfig; Recipe.load('recipe.yml', BridgeConfig.load('devices.yml'))"` — sem erros (se recipe.yml existir)
-- [ ] `python -m gpio.ds18b20_scan` — sensores encontrados com os endereços certos
+### Antes de trocar para `backend: real`
+
+- [ ] `python tools/gpio_test.py` → opção `[4]` confirma qual backend GPIO está ativo
+- [ ] `python tools/gpio_test.py` → opção `[2]` testa cada pino da MAZZA (17, 27, 22, 26) — cada relé deve responder visualmente
+- [ ] `python -m gpio.ds18b20_scan` → endereços dos sensores encontrados e anotados
+- [ ] `devices.yml` com os endereços reais (`28-xxxxxx`) nos campos `address`
+
+### Antes de usar na brassagem
+
+- [ ] `python -m pytest tests/ -v` → 283+ testes passando
 - [ ] `devices.yml` com `backend: real` (não `simulated`)
-- [ ] `mqtt.host` apontando pro broker real (ou `mqtt.enabled: false` se não houver broker)
-- [ ] Testar manualmente no painel: ligar/desligar cada atuador e confirmar resposta física
-- [ ] Testar failsafe: matar o processo com `kill -9` durante execução, confirmar que atuadores de risco desligam ao reiniciar
+- [ ] `mqtt.host` correto (ou `mqtt.enabled: false`)
+- [ ] Receita validada: `python3 -c "from config import BridgeConfig; from recipe_engine.models import Recipe; config=BridgeConfig.load('devices.yml'); recipe=Recipe.load('recipe.yml', config); print('OK:', recipe.name, recipe.step_count(), 'etapas')"`
+- [ ] Testar failsafe: `kill -9 <pid>` durante execução → confirmar que relés desligam ao reiniciar
+- [ ] Serviço instalado e auto-start verificado: `sudo systemctl enable tesseract-bridge`
+- [ ] Autostart LXDE verificado: lxterminal abre com logs no boot do desktop

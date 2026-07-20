@@ -7,8 +7,22 @@
 
 | | |
 |---|---|
-| **📖 Manual do usuário** | [Introdução](docs/manual/01-introducao.md) · [Primeiros passos](docs/manual/02-primeiros-passos.md) · [Funcionalidades](docs/manual/03-funcionalidades.md) · [Perguntas frequentes](docs/manual/04-perguntas-frequentes.md) |
-| **🔧 Documentação técnica** | [Visão geral](docs/technical/01-visao-geral.md) · [Diagramas C4](docs/technical/02-diagrama-c4.md) · [Fluxos](docs/technical/03-fluxos.md) · [Modelo de dados](docs/technical/04-modelo-de-dados.md) · [Casos de uso](docs/technical/05-casos-de-uso.md) · [Manutenção e expansão](docs/technical/06-manutencao-e-expansao.md) |
+| **📖 Manual do usuário** | [Introdução](docs/manual/01-introducao.md) · [Primeiros passos](docs/manual/02-primeiros-passos.md) · [Funcionalidades](docs/manual/03-funcionalidades.md) · [FAQ](docs/manual/04-perguntas-frequentes.md) |
+| **🔧 Documentação técnica** | [Visão geral](docs/technical/01-visao-geral.md) · [Diagramas C4](docs/technical/02-diagrama-c4.md) · [Fluxos](docs/technical/03-fluxos.md) · [Modelo de dados (ER/MER)](docs/technical/04-modelo-de-dados.md) · [Casos de uso](docs/technical/05-casos-de-uso.md) · [Manutenção e expansão](docs/technical/06-manutencao-e-expansao.md) |
+
+**Acesso rápido por tema:**
+
+| Tema | Documento |
+|---|---|
+| Como funciona o GPIO / active_high / relés NPN | [Manutenção](docs/technical/06-manutencao-e-expansao.md) · [Modelo de dados](docs/technical/04-modelo-de-dados.md) |
+| Diagnosticar pino que não responde | [FAQ](docs/manual/04-perguntas-frequentes.md#o-atuador-não-liga-mas-raspi-gpio-funciona) · [UC08](docs/technical/05-casos-de-uso.md#uc08--diagnosticar-gpio-com-gpio_testpy) |
+| Instalar como serviço systemd | [Primeiros passos §7](docs/manual/02-primeiros-passos.md#7-instalar-como-serviço-recomendado-para-uso-regular) · [UC09](docs/technical/05-casos-de-uso.md#uc09--instalar-como-serviço-systemd) |
+| Diagrama de contexto / containers | [C4](docs/technical/02-diagrama-c4.md) |
+| Fluxo de execução de receita | [Fluxos §3](docs/technical/03-fluxos.md#fluxo-3--execução-de-receita-caminho-feliz) |
+| Crash recovery / queda de energia | [Fluxos §4](docs/technical/03-fluxos.md#fluxo-4--recuperação-de-crash-queda-de-energia--kill--9) · [UC06](docs/technical/05-casos-de-uso.md#uc06--recuperação-após-queda-de-energia) |
+| Schema do devices.yml e recipe.yml | [Modelo de dados](docs/technical/04-modelo-de-dados.md) |
+| Adaptar para irrigação / outro domínio | [Manutenção](docs/technical/06-manutencao-e-expansao.md#adaptar-para-um-novo-domínio-de-automação) |
+| Logs coloridos | [Visão geral](docs/technical/01-visao-geral.md#logs-coloridos) · [Funcionalidades](docs/manual/03-funcionalidades.md#logs-do-sistema) |
 
 ---
 

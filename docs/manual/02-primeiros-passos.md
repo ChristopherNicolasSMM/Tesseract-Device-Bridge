@@ -1,10 +1,34 @@
 # 02 — Primeiros Passos
 
+> **Navegação:** [Manual](01-introducao.md) | [Funcionalidades](03-funcionalidades.md) | [FAQ](04-perguntas-frequentes.md)
+
 ## O que você vai precisar
 
-- Raspberry Pi com a placa de controle já conectada e cabeada ao equipamento.
-- Computador ou celular na mesma rede Wi-Fi que o Raspberry Pi.
-- Python 3.10 ou superior instalado no Pi.
+- Raspberry Pi com a placa de controle já conectada e cabeada ao equipamento (resistências, bombas, sensores de temperatura)
+- Computador ou celular na mesma rede Wi-Fi que o Raspberry Pi
+- Python 3.10 ou superior instalado no Pi
+
+---
+
+## Passo a passo — do zero à primeira brassagem
+
+```mermaid
+flowchart TD
+    A([Começar]) --> B[1. Instalar o sistema]
+    B --> C[2. Configurar o hardware\ndevices.yml]
+    C --> D[3. Testar o hardware\ncom gpio_test.py]
+    D --> E{Hardware\nrespondeu?}
+    E -- Não --> F[Ver FAQ:\nGPIO não responde]
+    F --> D
+    E -- Sim --> G[4. Configurar a receita\nrecipe.yml]
+    G --> H[5. Testar no modo simulado\nrun_bridge.py]
+    H --> I{Receita e painel\nok?}
+    I -- Não --> J[Ajustar recipe.yml\nou devices.yml]
+    J --> H
+    I -- Sim --> K[6. Trocar para backend real\nbackend: real]
+    K --> L[7. Instalar como serviço\ninstall_service.sh]
+    L --> M([Pronto para brasser 🍺])
+```
 
 ---
 
@@ -20,54 +44,59 @@ pip install -r requirements.txt
 
 ## 2. Configurar o hardware (`devices.yml`)
 
-Copie o arquivo de exemplo e edite com as informações do seu equipamento:
-
 ```bash
 cp devices.yml.example devices.yml
 ```
 
-Para descobrir os endereços dos seus sensores de temperatura (você vai
-precisar desses endereços para preencher o `devices.yml`):
+**Descobrir os endereços dos sensores DS18B20** (você precisa dessas informações para preencher o `devices.yml`):
 
 ```bash
 python -m gpio.ds18b20_scan
 ```
 
-Isso vai listar algo como:
-
+Vai aparecer algo como:
 ```
 28-0000071234ab  ->  GPIO 4
 28-0000059876cd  ->  GPIO 4
 ```
 
-Abra o `devices.yml` num editor de texto e substitua os endereços
-(`address: "28-xxx"`) pelos valores que o scan mostrou. Ajuste também
-os pinos (`pin`) se a sua fiação for diferente do exemplo.
+Abra o `devices.yml` e substitua os valores de `address` pelos que o scan mostrou.
 
-**Dica**: deixe `backend: simulated` durante os testes iniciais — assim você
-pode usar o painel sem precisar da placa física ligada, pra conferir se a
-receita está configurada do jeito certo.
+**Dica**: durante os primeiros testes, deixe `backend: simulated` — assim você pode usar o painel sem a placa ligada para verificar se a receita está configurada do jeito certo.
 
 ---
 
-## 3. Configurar a receita (`recipe.yml`)
+## 3. Testar o hardware antes de usar na brassagem
 
-Copie o arquivo de exemplo e adapte para a sua receita:
+Este passo é importante e evita descobrir problemas no meio de uma brassagem. Troque para `backend: real` no `devices.yml` e rode a ferramenta de diagnóstico:
+
+```bash
+python tools/gpio_test.py
+```
+
+Escolha `[4] Informações do backend` primeiro — confirma qual biblioteca GPIO está sendo usada (deve aparecer `RPi.GPIO` no Raspbian).
+
+Depois escolha `[2] Diagnóstico rápido` e teste os pinos `17,27,22,26` (os 4 atuadores padrão da MAZZA). Cada relé deve clicar fisicamente durante o teste.
+
+Se os relés não responderem, veja a seção [FAQ — GPIO não responde](04-perguntas-frequentes.md#o-atuador-não-liga-mas-raspi-gpio-funciona).
+
+---
+
+## 4. Configurar a receita (`recipe.yml`)
 
 ```bash
 cp recipe.yml.example recipe.yml
 ```
 
-Abra o `recipe.yml` num editor de texto. Os campos principais que você vai
-querer editar:
+Os campos principais para editar:
 
 ```yaml
 name: "Nome da sua receita"
 
 vessels:
   - id: mash
-    name: "Mostura"           # nome que vai aparecer na tela
-    heater_device_id: mash_heater   # mesmo id que está no devices.yml
+    name: "Mostura"               # aparece na tela
+    heater_device_id: mash_heater # mesmo id do devices.yml
     sensor_device_id: mash_tun_temp
     pid:
       kp: 5.0
@@ -76,53 +105,88 @@ vessels:
 
 steps:
   - vessel: mash
-    label: "Sacarificação"    # nome que vai aparecer na timeline
-    target_temp: 67           # temperatura alvo em graus Celsius
-    hold_minutes: 60          # quanto tempo manter nessa temperatura
-    pumps: [pump_b1]          # bomba(s) que ficam ligadas durante essa etapa
+    label: "Sacarificação"        # aparece na timeline
+    target_temp: 67               # temperatura alvo em °C
+    hold_minutes: 60              # tempo de patamar
+    pumps: [pump_b1]              # bomba ligada nesta etapa
     hop_alarms:
-      - minutes_remaining: 60   # alerta quando faltam 60min para o fim da fervura
+      - minutes_remaining: 60     # alerta quando faltam 60min para o fim da fervura
         label: "Lúpulo Amargor - 30g Magnum"
+```
+
+Para validar se a receita está correta:
+
+```bash
+python3 -c "
+from config import BridgeConfig
+from recipe_engine.models import Recipe
+config = BridgeConfig.load('devices.yml')
+recipe = Recipe.load('recipe.yml', config)
+print('OK:', recipe.name, recipe.step_count(), 'etapas')
+"
 ```
 
 ---
 
-## 4. Primeira tela que você vai ver
-
-Inicie o sistema:
+## 5. Testar o painel
 
 ```bash
 python run_bridge.py
 ```
 
-Abra o navegador no endereço `http://<ip-do-raspberry>:8088` (ou
-`http://localhost:8088` se estiver usando o teclado e monitor diretamente
-no Pi).
+Abra o navegador em `http://<ip-do-raspberry>:8088`.
 
-Você vai ver o painel com três abas:
-
-- **Painel** — lista de todos os sensores e atuadores, com os valores ao vivo.
-  Útil pra confirmar que o sensor está lendo certo e o relé responde.
-- **Gerenciamento** — inventário dos devices configurados.
-- **Receitas** — aqui é onde você vai usar o sistema durante a brassagem.
-
-**Primeiro teste recomendado antes de usar na brassagem de verdade**: na aba
-Painel, clique no botão de ligar/desligar de cada atuador e confirme que o
-relé na placa responde. Verifique também que os sensores estão mostrando
-temperaturas plausíveis.
+Na aba **Painel**: verifique se os sensores estão mostrando temperaturas plausíveis. Na aba **Receitas**: confirme que as etapas aparecem na timeline corretamente.
 
 ---
 
-## 5. Configurar o som dos alarmes
+## 6. Trocar para o hardware real
 
-Na aba Receitas, clique no botão **⚙️ Alarmes** (canto superior direito).
+No `devices.yml`, mude:
+```yaml
+backend: simulated
+```
+para:
+```yaml
+backend: real
+```
 
-- **Som**: escolha entre Beep, Sirene ou Campainha, ou faça upload de um
-  arquivo de áudio próprio.
-- **Repetições**: quantas vezes o som toca antes de parar sozinho. O som
-  também para se você clicar em "OK" antes de terminar as repetições.
+Reinicie o bridge com `CTRL+C` e `python run_bridge.py` novamente. Os sensores devem mostrar a temperatura ambiente real.
 
-Clique em "Testar som" para ouvir como vai ficar.
+---
 
-Essas configurações ficam salvas no seu navegador — não precisa refazer toda
-vez que abrir o painel.
+## 7. Instalar como serviço (recomendado para uso regular)
+
+Isso faz o bridge iniciar automaticamente toda vez que o Pi ligar e abre um terminal com os logs ao vivo quando o desktop carregar:
+
+```bash
+sudo bash tools/install_service.sh
+```
+
+O script vai:
+1. Detectar o usuário automaticamente e pedir confirmação
+2. Instalar o serviço que inicia no boot
+3. Perguntar se quer criar o terminal de logs automático (LXDE)
+
+Para ver os logs depois:
+```bash
+bash tools/logs.sh
+```
+
+Para gerenciar o serviço:
+```bash
+sudo systemctl status  tesseract-bridge   # status
+sudo systemctl restart tesseract-bridge   # reiniciar (após mudar configs)
+sudo systemctl stop    tesseract-bridge   # parar
+```
+
+---
+
+## 8. Configurar o som dos alarmes
+
+Na aba Receitas, clique em **⚙️ Alarmes**.
+
+- **Som**: Beep, Sirene, Campainha ou arquivo próprio (MP3, WAV, etc.)
+- **Repetições**: quantas vezes o som toca antes de parar sozinho (1 a 20)
+
+Clique em **Testar som** para ouvir. As configurações ficam salvas no navegador — não precisa refazer toda vez.
