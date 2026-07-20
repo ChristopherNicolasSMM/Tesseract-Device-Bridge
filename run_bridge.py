@@ -6,6 +6,7 @@ ver recipe_engine/) se um arquivo de receita existir.
 
 Uso:
     python run_bridge.py [caminho/para/devices.yml] [caminho/para/recipe.yml]
+    python run_bridge.py --debug   # ativa logs de nível DEBUG
 
 Receita é opcional — se `recipe.yml` (ou o caminho passado) não
 existir, o bridge roda normalmente sem motor de receita, exatamente
@@ -16,6 +17,12 @@ import logging
 import sys
 import threading
 import time
+
+# Logging colorido deve ser o primeiro import do projeto, antes de
+# qualquer outro módulo que crie loggers (ou eles herdam o formatter
+# padrão do Python em vez do nosso).
+from logging_config import setup_logging
+setup_logging(debug="--debug" in sys.argv)
 
 from bridge import Bridge
 from config import BridgeConfig

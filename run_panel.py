@@ -4,6 +4,7 @@ hardware (real ou simulado) sem broker nem Tesseract de pé.
 
 Uso:
     python run_panel.py [caminho/para/devices.yml]
+    python run_panel.py --debug   # ativa logs de nível DEBUG
 
 Se omitido, usa `devices.yml` na raiz do projeto. Se o arquivo não
 existir, é criado automaticamente a partir de `devices.yml.example`
@@ -11,8 +12,12 @@ existir, é criado automaticamente a partir de `devices.yml.example`
 de um clone novo já funciona, sem passo manual de "copie o exemplo".
 """
 
-import shutil
+# Logging colorido antes de tudo — ver logging_config.py.
 import sys
+from logging_config import setup_logging
+setup_logging(debug="--debug" in sys.argv)
+
+import shutil
 from pathlib import Path
 
 from config import BridgeConfig, ConfigError
