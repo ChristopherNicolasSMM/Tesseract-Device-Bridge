@@ -152,6 +152,18 @@ class DeviceConfig:
                     f"para descobrir os endereços conectados."
                 )
 
+        # active_high é opcional (default true).
+        # Deve ser bool se declarado — capturar strings como "true"/"false"
+        # que o YAML pode interpretar como string dependendo do contexto.
+        if "active_high" in self.hardware:
+            if not isinstance(self.hardware["active_high"], bool):
+                raise ConfigError(
+                    f"{prefix}: hardware.active_high deve ser true ou false (booleano), "
+                    f"não uma string. No YAML, escreva sem aspas:\n"
+                    f"    active_high: false   # correto\n"
+                    f"    active_high: 'false' # ERRADO — vira string"
+                )
+
         if self.is_risk and self.failsafe_value is None:
             raise ConfigError(
                 f"{prefix}: is_risk=true requer failsafe_value explícito "

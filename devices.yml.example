@@ -84,6 +84,9 @@ devices:
     state_topic: "actuators/mash_heater/state"
     hardware:
       pin: 17
+      # active_high: true   # MAZZA NPN: HIGH = liga (default, pode omitir)
+      #                     # Use false apenas para relés active-low (módulos
+      #                     # azuis do AliExpress com optoacoplador invertido)
     failsafe_value: false
     is_risk: true
     failsafe_timeout_seconds: 30
@@ -96,6 +99,7 @@ devices:
     state_topic: "actuators/boil_heater/state"
     hardware:
       pin: 27
+      # active_high: true   # MAZZA NPN: HIGH = liga (default, pode omitir)
     failsafe_value: false
     is_risk: true
     failsafe_timeout_seconds: 30
@@ -107,6 +111,7 @@ devices:
     command_topic: "actuators/pump_b1/set"
     hardware:
       pin: 22
+      # active_high: true   # MAZZA NPN: HIGH = liga (default, pode omitir)
     failsafe_value: false
     is_risk: true
     failsafe_timeout_seconds: 30
@@ -118,6 +123,7 @@ devices:
     command_topic: "actuators/pump_b2/set"
     hardware:
       pin: 26
+      # active_high: true   # MAZZA NPN: HIGH = liga (default, pode omitir)
     failsafe_value: false
     is_risk: true
     failsafe_timeout_seconds: 30

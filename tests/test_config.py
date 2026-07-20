@@ -494,3 +494,55 @@ def test_ds18b20_cannot_share_pin_with_non_ds18b20_device(tmp_path):
     path = write_yaml(tmp_path, yaml_content)
     with pytest.raises(ConfigError, match="usado em mais de um device"):
         BridgeConfig.load(path)
+
+
+# ---- active_high ----------------------------------------------------------
+
+def test_active_high_true_is_accepted(tmp_path):
+    """active_high: true no YAML deve ser aceito sem erro."""
+    content = VALID_YAML.replace(
+        "      pin: 18",
+        "      pin: 18\n      active_high: true",
+    )
+    path = write_yaml(tmp_path, content)
+    config = BridgeConfig.load(path)
+    heater = config.get_device("mash_heater")
+    assert heater.hardware["active_high"] is True
+
+
+def test_active_high_false_is_accepted(tmp_path):
+    """active_high: false no YAML deve ser aceito sem erro."""
+    content = VALID_YAML.replace(
+        "      pin: 18",
+        "      pin: 18\n      active_high: false",
+    )
+    path = write_yaml(tmp_path, content)
+    config = BridgeConfig.load(path)
+    heater = config.get_device("mash_heater")
+    assert heater.hardware["active_high"] is False
+
+
+def test_active_high_omitted_is_not_in_hardware_dict(tmp_path):
+    """
+    Quando active_high não é declarado, não deve aparecer no dict hardware.
+    O default True é aplicado pelo backend (gpio/real_backend.py), não pelo
+    config — assim o devices.yml existente sem esse campo continua funcionando.
+    """
+    path = write_yaml(tmp_path, VALID_YAML)
+    config = BridgeConfig.load(path)
+    heater = config.get_device("mash_heater")
+    assert "active_high" not in heater.hardware
+
+
+def test_active_high_as_string_raises_config_error(tmp_path):
+    """
+    active_high: 'false' (string) deve levantar ConfigError com mensagem
+    explicativa — erro fácil de cometer ao editar YAML manualmente.
+    """
+    content = VALID_YAML.replace(
+        "      pin: 18",
+        "      pin: 18\n      active_high: 'false'",
+    )
+    path = write_yaml(tmp_path, content)
+    with pytest.raises(ConfigError, match="deve ser true ou false \\(booleano\\)"):
+        BridgeConfig.load(path)

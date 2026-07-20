@@ -84,6 +84,12 @@ class DeviceRuntime:
                 kwargs["driver"] = device.hardware["driver"]
             if "address" in device.hardware:
                 kwargs["address"] = device.hardware["address"]
+            # active_high: controla se HIGH = ligado (True, default) ou
+            # LOW = ligado (False, para relés active-low).
+            # Só propagado se declarado explicitamente no devices.yml;
+            # o backend usa True como default quando ausente.
+            if "active_high" in device.hardware:
+                kwargs["active_high"] = device.hardware["active_high"]
             self._backend.setup(pin=device.hardware["pin"], mode=mode, **kwargs)
 
     def list_devices(self) -> List[DeviceState]:
