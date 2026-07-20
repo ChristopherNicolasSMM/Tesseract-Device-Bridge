@@ -12,7 +12,7 @@ Mensagem retained (qos=1, retain=true) -> tratada como snapshot do
 momento da última conexão do Tesseract, nunca como garantia de estar
 atualizada em tempo real (confirmado: lista é estática até reconnect
 do lado Tesseract).
-
+ 
 Comportamento ao voltar para "online": nenhum (decisão registrada) —
 atuador permanece no failsafe_value até receber um comando normal.
 """
