@@ -83,7 +83,7 @@ devices:
     command_topic: "actuators/mash_heater/set"
     state_topic: "actuators/mash_heater/state"
     hardware:
-      pin: 17
+      pin: 12
     failsafe_value: false
     is_risk: true
     failsafe_timeout_seconds: 30
@@ -95,7 +95,7 @@ devices:
     command_topic: "actuators/boil_heater/set"
     state_topic: "actuators/boil_heater/state"
     hardware:
-      pin: 27
+      pin: 24
     failsafe_value: false
     is_risk: true
     failsafe_timeout_seconds: 30
@@ -106,7 +106,7 @@ devices:
     subtype: digital
     command_topic: "actuators/pump_b1/set"
     hardware:
-      pin: 22
+      pin: 5
     failsafe_value: false
     is_risk: true
     failsafe_timeout_seconds: 30
@@ -117,7 +117,7 @@ devices:
     subtype: digital
     command_topic: "actuators/pump_b2/set"
     hardware:
-      pin: 26
+      pin: 7
     failsafe_value: false
     is_risk: true
     failsafe_timeout_seconds: 30
