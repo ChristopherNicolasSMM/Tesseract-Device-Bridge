@@ -3,6 +3,6 @@ __pycache__/
 .pytest_cache/
 venv/
 .venv/
-devices.yml
 *.log
 .env
+*.patch
