@@ -10,11 +10,12 @@
 # Referências de device_id (heater_device_id, sensor_device_id, pumps)
 # precisam existir no devices.yml carregado — validado no boot.
 
-name: "Pilsen Clássica"
+
+name: "Lagers da Casa"
 
 vessels:
   - id: mash
-    name: "Mostura"
+    name: "Mash"
     order: 0
     heater_device_id: mash_heater
     sensor_device_id: mash_tun_temp
@@ -25,7 +26,7 @@ vessels:
     window_seconds: 10   # janela de time-proportioning (liga/desliga) — ver README
 
   - id: boil
-    name: "Fervura"
+    name: "Boil"
     order: 1
     heater_device_id: boil_heater
     sensor_device_id: boil_temp
@@ -37,9 +38,21 @@ vessels:
 
 steps:
   - vessel: mash
-    label: "Mostura - Sacarificação"
+    label: "Mostura - Beta-Amilase"
     target_temp: 67
-    hold_minutes: 60
+    hold_minutes: 40
+    pumps: [pump_b1]   # recirculação durante a mostura
+
+  - vessel: mash
+    label: "Mostura - Alfa-Amilase"
+    target_temp: 67
+    hold_minutes: 20
+    pumps: [pump_b1]   # recirculação durante a mostura
+
+  - vessel: mash
+    label: "Mostura - Mash Out"
+    target_temp: 75
+    hold_minutes: 15
     pumps: [pump_b1]   # recirculação durante a mostura
 
   - vessel: boil
@@ -49,11 +62,14 @@ steps:
     pumps: [pump_b2]   # whirlpool/chiller na fervura
     # Alarmes de lupulagem (opcional) -- minutes_remaining conta pra
     # TRÁS, a partir do fim do patamar (convenção cervejeira: "60min"
-    # = faltam 60min pro fim da fervura, não 60min desde o início).
+    # = faltam 60min pro fim da fervura, não 60min desde o início).    
     hop_alarms:
-      - minutes_remaining: 60
-        label: "Lúpulo Amargor - 30g Magnum"
-      - minutes_remaining: 15
-        label: "Lúpulo Aroma - 20g Cascade"
-      - minutes_remaining: 0
-        label: "Whirlpool - fim da fervura"
+          - minutes_remaining: 60   # alerta quando faltam 60min para o fim da fervura
+            label: "Lúpulo Amargor - 30g Magnum"
+          - minutes_remaining: 55   
+            label: "Lúpulo Amargor - 10g Magnum"
+          - minutes_remaining: 50   
+            label: "Lúpulo Amargor - 15g Magnum"   
+          - minutes_remaining: 01   
+            label: "Whirpool - 10min" 
+            

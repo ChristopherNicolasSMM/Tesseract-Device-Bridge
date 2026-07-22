@@ -31,50 +31,50 @@ panel:
 # trocar livremente, desde que bata com o que foi fisicamente cabeado.
 
 devices:
-#  - id: mash_tun_temp
-#    name: "Temperatura Mostura"
-#    role: sensor
-#    subtype: temperature
-#    unit: "°C"
-#    state_topic: "sensors/mash_tun_temp/state"
-#    hardware:
-#      pin: 4
-#      driver: ds18b20
-#      address: "28-0000071234ab"   # substituir pelo endereço real (ver gpio/ds18b20_scan.py)
-#    simulated:
-#      initial_value: 25.0
-#      min: 0
-#      max: 120
-#
-#  - id: boil_temp
-#    name: "Temperatura Fervura"
-#    role: sensor
-#    subtype: temperature
-#    unit: "°C"
-#    state_topic: "sensors/boil_temp/state"
-#    hardware:
-#      pin: 4
-#      driver: ds18b20
-#      address: "28-0000071234cd"   # substituir pelo endereço real
-#    simulated:
-#      initial_value: 100.0
-#      min: 0
-#      max: 120
-#
-#  - id: chiller_out_temp
-#    name: "Temperatura Saída Chiller"
-#    role: sensor
-#    subtype: temperature
-#    unit: "°C"
-#    state_topic: "sensors/chiller_out_temp/state"
-#    hardware:
-#      pin: 4
-#      driver: ds18b20
-#      address: "28-0000071234ef"   # substituir pelo endereço real
-#    simulated:
-#      initial_value: 18.0
-#      min: 0
-#      max: 100
+  - id: mash_tun_temp
+    name: "Temperatura Mostura"
+    role: sensor
+    subtype: temperature
+    unit: "°C"
+    state_topic: "sensors/mash_tun_temp/state"
+    hardware:
+      pin: 4
+      driver: ds18b20
+      address: "28-0000071234ab"   # substituir pelo endereço real (ver gpio/ds18b20_scan.py)
+    simulated:
+      initial_value: 25.0
+      min: 0
+      max: 120
+
+  - id: boil_temp
+    name: "Temperatura Fervura"
+    role: sensor
+    subtype: temperature
+    unit: "°C"
+    state_topic: "sensors/boil_temp/state"
+    hardware:
+      pin: 4
+      driver: ds18b20
+      address: "28-0000071234cd"   # substituir pelo endereço real
+    simulated:
+      initial_value: 100.0
+      min: 0
+      max: 120
+
+  - id: chiller_out_temp
+    name: "Temperatura Saída Chiller"
+    role: sensor
+    subtype: temperature
+    unit: "°C"
+    state_topic: "sensors/chiller_out_temp/state"
+    hardware:
+      pin: 4
+      driver: ds18b20
+      address: "28-0000071234ef"   # substituir pelo endereço real
+    simulated:
+      initial_value: 18.0
+      min: 0
+      max: 100
 
   - id: mash_heater
     name: "Resistência Caldeira Mostura"
@@ -106,7 +106,7 @@ devices:
     subtype: digital
     command_topic: "actuators/pump_b1/set"
     hardware:
-      pin: 19
+      pin: 5
     failsafe_value: false
     is_risk: true
     failsafe_timeout_seconds: 30
@@ -117,7 +117,7 @@ devices:
     subtype: digital
     command_topic: "actuators/pump_b2/set"
     hardware:
-      pin: 13
+      pin: 7
     failsafe_value: false
     is_risk: true
     failsafe_timeout_seconds: 30
