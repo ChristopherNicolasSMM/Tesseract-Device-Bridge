@@ -4,66 +4,96 @@
 # =============================================================================
 #
 # Uso:
-#   bash tools/logs.sh           # logs ao vivo (CTRL+C para parar)
-#   bash tools/logs.sh --all     # mostra logs desde o início desta sessão
-#   bash tools/logs.sh --boot    # mostra logs desde o último boot
+#   bash tools/logs.sh              # logs ao vivo (CTRL+C para parar)
+#   bash tools/logs.sh --all        # logs desde o inicio desta sessao
+#   bash tools/logs.sh --boot       # logs desde o ultimo boot
+#   bash tools/logs.sh --boot-log   # log de inicializacao (diagnostico de falha)
 #
-# Como funciona:
-#   Usa journalctl com --output=cat para passar os códigos ANSI gerados
-#   pelo ColoredFormatter do bridge (FORCE_COLOR=1 no serviço), mostrando
-#   as cores exatamente como no terminal interativo.
-#
-# Pré-requisito:
-#   O serviço precisa estar instalado e rodando.
-#   Instalar com: sudo bash tools/install_service.sh
+# O --boot-log mostra /var/log/tesseract-bridge/boot.log,
+# gravado ANTES do logging Python subir — util quando o servico
+# falha no boot e o journal nao mostra o motivo claro.
 # =============================================================================
 
 SERVICE_NAME="tesseract-bridge"
+BOOT_LOG_FILE="/var/log/tesseract-bridge/boot.log"
+BOOT_LOG_FALLBACK="./logs/boot.log"
 
-# Verificar se o serviço existe
+# ---- opcao --boot-log -------------------------------------------------------
+if [[ "${1:-}" == "--boot-log" ]]; then
+    echo ""
+    echo "  Tesseract Bridge - Boot Log (diagnostico de falha)"
+    echo "  ======================================================"
+    echo ""
+
+    if [ -f "$BOOT_LOG_FILE" ]; then
+        echo "  Arquivo: $BOOT_LOG_FILE"
+        echo ""
+        cat "$BOOT_LOG_FILE"
+    elif [ -f "$BOOT_LOG_FALLBACK" ]; then
+        echo "  Arquivo: $BOOT_LOG_FALLBACK"
+        echo ""
+        cat "$BOOT_LOG_FALLBACK"
+    else
+        echo "  Boot log nao encontrado."
+        echo "  Caminhos verificados:"
+        echo "    $BOOT_LOG_FILE"
+        echo "    $BOOT_LOG_FALLBACK"
+        echo ""
+        echo "  O boot.log so existe se o bridge ja tiver sido iniciado"
+        echo "  pelo menos uma vez (manualmente ou como servico)."
+    fi
+    echo ""
+    exit 0
+fi
+
+# ---- verificar se o servico existe -----------------------------------------
 if ! systemctl list-units --full --all 2>/dev/null | grep -q "$SERVICE_NAME"; then
     echo ""
-    echo "  ⚠️  Serviço '$SERVICE_NAME' não encontrado."
-    echo "     Instale primeiro: sudo bash tools/install_service.sh"
+    echo "  Servico '$SERVICE_NAME' nao encontrado."
+    echo "  Instale primeiro: sudo bash tools/install_service.sh"
     echo ""
     exit 1
 fi
 
-# Cabeçalho
 echo ""
-echo "  ┌─────────────────────────────────────────────────────┐"
-echo "  │  Tesseract Device Bridge — Logs ao vivo              │"
-echo "  │  CTRL+C para parar                                   │"
-echo "  └─────────────────────────────────────────────────────┘"
+echo "  Tesseract Device Bridge - Logs ao vivo (CTRL+C para parar)"
+echo "  ============================================================"
 echo ""
 
-# Status rápido do serviço antes de mostrar os logs
 STATUS="$(systemctl is-active "$SERVICE_NAME" 2>/dev/null || echo "desconhecido")"
 if [ "$STATUS" = "active" ]; then
-    echo "  ● Serviço: ATIVO ✓"
+    echo "  Servico: ATIVO"
 elif [ "$STATUS" = "inactive" ]; then
-    echo "  ○ Serviço: INATIVO (não está rodando)"
+    echo "  Servico: INATIVO"
+    echo ""
+    echo "  Para ver por que nao iniciou:"
+    echo "    bash tools/logs.sh --boot-log"
+    echo "    sudo journalctl -u $SERVICE_NAME -n 30"
 elif [ "$STATUS" = "failed" ]; then
-    echo "  ✗ Serviço: FALHOU — use 'sudo systemctl status $SERVICE_NAME' para detalhes"
+    echo "  Servico: FALHOU"
+    echo ""
+    echo "  Diagnostico:"
+    echo "    bash tools/logs.sh --boot-log"
+    echo "    sudo journalctl -u $SERVICE_NAME -n 30"
 else
-    echo "  ? Serviço: $STATUS"
+    echo "  Servico: $STATUS"
 fi
 echo ""
 
-# Opções de filtro temporal
+# Mostrar boot log resumido se o servico nao esta ativo
+if [ "$STATUS" != "active" ] && [ -f "$BOOT_LOG_FILE" ]; then
+    echo "  Ultimas linhas do boot log:"
+    tail -10 "$BOOT_LOG_FILE" | sed 's/^/    /'
+    echo ""
+fi
+
+# Opcoes de filtro temporal
 if [[ "${1:-}" == "--all" ]]; then
-    # Todos os logs desta sessão do serviço (sem --since)
     EXTRA_ARGS="--no-pager"
 elif [[ "${1:-}" == "--boot" ]]; then
-    # Desde o último boot
-    EXTRA_ARGS="--since=@$(who -b 2>/dev/null | awk '{print $3" "$4}' | xargs -I{} date -d "{}" +%s 2>/dev/null || echo "0")"
     EXTRA_ARGS="--boot=0 --no-pager"
 else
-    # Padrão: só ao vivo (últimas 50 linhas + follow)
     EXTRA_ARGS="-n 50"
 fi
 
-# --output=cat: passa os códigos ANSI do bridge diretamente, sem
-# adicionar prefixos do journald (timestamp, hostname, etc.) — o
-# ColoredFormatter já formata tudo o que precisamos.
 exec journalctl -fu "$SERVICE_NAME" --output=cat $EXTRA_ARGS

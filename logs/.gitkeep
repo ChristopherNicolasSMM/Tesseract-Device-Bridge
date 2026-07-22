@@ -1,0 +1,3 @@
+# Esta pasta é o fallback local para o boot.log quando /var/log/tesseract-bridge/
+# não está disponível (sem permissão, executando fora do Pi, etc.).
+# O arquivo boot.log gerado aqui não é versionado (ver .gitignore: *.log).

@@ -13,18 +13,99 @@ existir, o bridge roda normalmente sem motor de receita, exatamente
 como antes desta funcionalidade existir.
 """
 
-import logging
+# ===========================================================================
+# BOOT LOG — deve ser a PRIMEIRA coisa que roda, antes de qualquer import.
+#
+# Por quê: quando o processo sobe via systemd (sem terminal interativo),
+# qualquer falha de importação silencia tudo — o serviço marca "failed"
+# mas o motivo não aparece claramente no journal. O boot.log resolve isso:
+# ele grava em disco ANTES de tentar importar flask, paho, etc., então se
+# travar no meio dos imports você sabe exatamente onde parou.
+#
+# Localização: /var/log/tesseract-bridge/boot.log
+# Fallback: ./logs/boot.log (se não tiver permissão em /var/log)
+# ===========================================================================
+import os
 import sys
+import datetime
+
+def _boot_log(msg: str) -> None:
+    """
+    Grava uma linha no arquivo de boot log, independente do logging
+    Python normal. Nunca levanta exceção — se falhar, só printa no stderr
+    e segue (não pode deixar o log de boot matar o boot).
+    """
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    line = f"[{timestamp}] {msg}\n"
+
+    # Tenta o diretório padrão de logs do sistema, depois o local do projeto
+    log_dirs = [
+        "/var/log/tesseract-bridge",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs"),
+    ]
+    written = False
+    for log_dir in log_dirs:
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+            log_path = os.path.join(log_dir, "boot.log")
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(line)
+            written = True
+            break
+        except OSError:
+            continue
+
+    if not written:
+        # Último recurso: stderr (capturado pelo journal no systemd)
+        print(f"[boot_log] {line.strip()}", file=sys.stderr)
+
+# Marca o início do processo — visível mesmo em falha de import total
+_boot_log("=" * 60)
+_boot_log(f"INICIO do processo run_bridge.py")
+_boot_log(f"Python: {sys.executable}")
+_boot_log(f"Versao: {sys.version.split()[0]}")
+_boot_log(f"CWD:    {os.getcwd()}")
+_boot_log(f"Args:   {sys.argv}")
+
+# Verifica se está rodando em Windows e aborta com mensagem clara.
+# systemd é exclusivo do Linux — no Windows use Task Scheduler ou WSL.
+if sys.platform.startswith("win"):
+    _boot_log("ERRO: servico systemd nao suportado no Windows.")
+    print(
+        "\nERRO: o servico systemd nao funciona no Windows.\n"
+        "Opcoes:\n"
+        "  1. Use WSL (Windows Subsystem for Linux)\n"
+        "  2. Use Task Scheduler do Windows\n"
+        "  3. Execute manualmente: python run_bridge.py\n",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+import logging
 import threading
 import time
+
+_boot_log("imports stdlib OK")
 
 # Logging colorido deve ser o primeiro import do projeto, antes de
 # qualquer outro módulo que crie loggers (ou eles herdam o formatter
 # padrão do Python em vez do nosso).
-from logging_config import setup_logging
+try:
+    from logging_config import setup_logging
+    _boot_log("import logging_config OK")
+except ImportError as e:
+    _boot_log(f"ERRO import logging_config: {e}")
+    raise
+
 setup_logging(debug="--debug" in sys.argv)
 
-from bridge import Bridge
+try:
+    from bridge import Bridge
+    _boot_log("import bridge OK")
+except ImportError as e:
+    _boot_log(f"ERRO import bridge: {e} — verifique se a venv esta ativada e os pacotes instalados")
+    raise
+
 from config import BridgeConfig
 from device_runtime import DeviceRuntime
 from gpio.simulated_backend import SimulatedGPIOBackend
@@ -77,21 +158,44 @@ def load_recipe_engine(runtime: DeviceRuntime, config: BridgeConfig, recipe_path
 
 
 def main() -> None:
-    config_path = sys.argv[1] if len(sys.argv) > 1 else "devices.yml"
-    recipe_path = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_RECIPE_PATH
+    # Filtrar args que não são caminhos de arquivo (ex.: --debug)
+    file_args = [a for a in sys.argv[1:] if not a.startswith("-")]
+    config_path = file_args[0] if len(file_args) > 0 else "devices.yml"
+    recipe_path = file_args[1] if len(file_args) > 1 else DEFAULT_RECIPE_PATH
+
+    _boot_log(f"main() iniciado")
+    _boot_log(f"config_path={config_path}  recipe_path={recipe_path}")
+    _boot_log(f"config_path existe: {os.path.exists(config_path)}")
 
     ensure_config_file(config_path)
-    config = BridgeConfig.load(config_path)
+
+    try:
+        config = BridgeConfig.load(config_path)
+        _boot_log(f"devices.yml carregado OK — backend={config.backend}")
+    except Exception as e:
+        _boot_log(f"ERRO ao carregar devices.yml: {e}")
+        raise
 
     if config.backend == "real":
-        from gpio.real_backend import RealGPIOBackend  # implementado na Fase 5
-        backend = RealGPIOBackend()
+        try:
+            from gpio.real_backend import RealGPIOBackend
+            backend = RealGPIOBackend()
+            _boot_log("RealGPIOBackend criado OK")
+        except Exception as e:
+            _boot_log(f"ERRO ao criar RealGPIOBackend: {e}")
+            raise
     else:
         backend = SimulatedGPIOBackend()
+        _boot_log("SimulatedGPIOBackend criado OK")
 
     runtime = DeviceRuntime(config, backend)
+    _boot_log("DeviceRuntime criado OK")
+
     recipe_engine = load_recipe_engine(runtime, config, recipe_path)
+    _boot_log(f"recipe_engine={'ativo' if recipe_engine else 'nao carregado'}")
+
     bridge = Bridge(config, runtime, recipe_engine=recipe_engine)
+    _boot_log("Bridge criado OK")
 
     if config.panel.enabled:
         app = create_panel_app(config, runtime, mqtt_status_provider(bridge, config), recipe_engine=recipe_engine)
@@ -100,6 +204,7 @@ def main() -> None:
             daemon=True,
         )
         panel_thread.start()
+        _boot_log(f"Painel iniciado em http://{config.panel.host}:{config.panel.port}")
         print(f"Painel disponível em http://{config.panel.host}:{config.panel.port}")
 
     if config.mqtt.enabled:
@@ -112,6 +217,7 @@ def main() -> None:
     else:
         print(f"Nenhuma receita em '{recipe_path}' — rodando sem motor de receita.")
 
+    _boot_log("Processo totalmente inicializado — entrando em run_forever()")
     bridge.run_forever()
 
 
