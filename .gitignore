@@ -6,3 +6,5 @@ venv/
 *.log
 .env
 *.patch
+#Incluido para não conflitar com o arquivo local.yml do projeto tesseract-device-bridge
+*yml
