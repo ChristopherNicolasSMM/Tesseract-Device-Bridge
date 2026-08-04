@@ -459,12 +459,14 @@
       border-radius: var(--radius);
       padding: 22px;
       display: flex;
-      align-items: center;
-      gap: 20px;
+      flex-direction: column;
+      gap: 14px;
       position: relative;
       overflow: hidden;
       transition: border-color 0.3s;
     }
+    .vessel-top-row { display: flex; align-items: center; gap: 20px; }
+    .vessel-manual-control { border-top: 1px solid var(--border-subtle); padding-top: 12px; }
     .vessel-card.active { border-color: rgba(201,118,63,0.45); }
     .vessel-card.active::before {
       content: '';
@@ -1130,6 +1132,26 @@
       }
     }
 
+    // Toggle do controle manual dentro do card da vasilha (receita) — usa
+    // o mesmo endpoint /duty/enabled do heater_device_id da vasilha, só
+    // lê o estado atual em window.lastDevices em vez de um valor fixo
+    // gravado no HTML (o card da vasilha é renderizado uma vez só, ao
+    // carregar a receita, então não dá pra "cravar" o !enabled no onclick
+    // como é feito na grade de Atuadores, que é re-renderizada a cada poll).
+    window.toggleVesselManual = function(vesselName, heaterDeviceId) {
+      const device = deviceById(heaterDeviceId);
+      const currentlyEnabled = !!(device && device.duty_enabled);
+      toggleDutyEnabled(heaterDeviceId, !currentlyEnabled);
+    };
+
+    // Atualiza só o label do slider de duty dentro do card da vasilha
+    // enquanto o usuário arrasta — mesma lógica de dutyPreview(), só que
+    // aponta pro elemento do card da receita em vez do card de Atuadores.
+    window.vesselDutyPreview = function(vesselName, value) {
+      const label = document.getElementById(`vdutyLabel-${vesselName}`);
+      if (label) label.textContent = `${value}%`;
+    };
+
     async function refresh() {
       try {
         const res = await fetch('/api/devices');
@@ -1153,6 +1175,11 @@
       const list = window.lastDevices || [];
       const d = list.find(x => x.id === id);
       return d ? d.value : null;
+    }
+
+    function deviceById(id) {
+      const list = window.lastDevices || [];
+      return list.find(x => x.id === id) || null;
     }
 
     async function loadRecipeDefinition() {
@@ -1187,23 +1214,40 @@
         // Busca o label. Se não existir, usa o próprio name e coloca a 1ª letra em maiúscula
         const vesselData = recipeDefinition.vessels[name];
         const displayLabel = vesselData.label || (name.charAt(0).toUpperCase() + name.slice(1));
+        const heaterId = vesselData.heater_device_id;
 
         return `
-        <div class="vessel-card" id="vcard-${name}"> <div class="gauge-wrap">
-            <svg viewBox="0 0 104 104">
-              <circle class="gauge-track" cx="52" cy="52" r="44"></circle>
-              <circle class="gauge-fill" id="gfill-${name}" cx="52" cy="52" r="44"
-                      stroke-dasharray="0 276.5"></circle>
-            </svg>
-            <div class="gauge-center">
-              <div class="gauge-temp" id="gtemp-${name}">\u2014</div>
-              <div class="gauge-duty" id="gduty-${name}">0% pot.</div>
+        <div class="vessel-card" id="vcard-${name}">
+          <div class="vessel-top-row">
+            <div class="gauge-wrap">
+              <svg viewBox="0 0 104 104">
+                <circle class="gauge-track" cx="52" cy="52" r="44"></circle>
+                <circle class="gauge-fill" id="gfill-${name}" cx="52" cy="52" r="44"
+                        stroke-dasharray="0 276.5"></circle>
+              </svg>
+              <div class="gauge-center">
+                <div class="gauge-temp" id="gtemp-${name}">\u2014</div>
+                <div class="gauge-duty" id="gduty-${name}">0% pot.</div>
+              </div>
+            </div>
+            <div class="vessel-info">
+              <div class="vessel-name">${displayLabel}</div>
+              <div class="vessel-target" id="vtarget-${name}"><span class="arrow">\u2192</span> aguardando</div>
+              <div class="vessel-pumps" id="vpumps-${name}"></div>
             </div>
           </div>
-          <div class="vessel-info">
-            <div class="vessel-name">${displayLabel}</div> 
-            <div class="vessel-target" id="vtarget-${name}"><span class="arrow">\u2192</span> aguardando</div>
-            <div class="vessel-pumps" id="vpumps-${name}"></div>
+          <div class="vessel-manual-control" id="vmanual-${name}">
+            <div class="toggle-wrapper">
+              <div class="toggle" id="vtoggle-${name}" onclick="toggleVesselManual('${name}', '${heaterId}')">
+                <div class="thumb"></div>
+              </div>
+              <span class="toggle-label" id="vtoggle-label-${name}">Controle desligado</span>
+            </div>
+            <input type="range" min="0" max="100" step="1" value="0" id="vduty-slider-${name}"
+                   oninput="dutyPreview('${heaterId}', this.value); vesselDutyPreview('${name}', this.value)"
+                   onchange="setDuty('${heaterId}', parseFloat(this.value))">
+            <div class="range-labels"><span>0%</span><span id="vdutyLabel-${name}">0%</span><span>100%</span></div>
+            <small style="color:var(--text-secondary);font-size:11px;" id="vsource-${name}"></small>
           </div>
         </div>
         `;
@@ -1271,21 +1315,49 @@
 
     let currentStepIndexCache = 0;
 
-    function updateGauge(vesselName, currentTemp, targetTemp, dutyPercent, active) {
+    function updateGauge(vesselName, currentTemp, targetTemp, heaterDevice, active) {
       const card = $('vcard-' + vesselName);
       if (!card) return;
       card.classList.toggle('active', !!active);
 
+      const dutyPercent = heaterDevice ? (heaterDevice.duty_percent || 0) : 0;
+      const dutySource = heaterDevice ? heaterDevice.duty_source : null;
+      const heating = dutySource && dutySource !== 'idle';
+
       const C = 2 * Math.PI * 44;
-      const frac = Math.max(0, Math.min(1, (dutyPercent || 0) / 100));
+      const frac = Math.max(0, Math.min(1, dutyPercent / 100));
       $('gfill-' + vesselName).setAttribute('stroke-dasharray', `${(frac * C).toFixed(1)} ${C.toFixed(1)}`);
       $('gtemp-' + vesselName).textContent = (currentTemp !== null && currentTemp !== undefined) ? `${currentTemp.toFixed(1)}\u00b0` : '\u2014';
-      $('gduty-' + vesselName).textContent = active ? `${Math.round(dutyPercent)}% pot.` : 'inativo';
+      $('gduty-' + vesselName).textContent = heating ? `${Math.round(dutyPercent)}% pot.` : 'inativo';
 
       const targetEl = $('vtarget-' + vesselName);
       targetEl.innerHTML = active
         ? `<span class="arrow">\u2192</span> alvo ${targetTemp}\u00b0C`
         : `<span class="arrow">\u2192</span> aguardando`;
+
+      // Sincroniza o controle manual (toggle + slider) com o estado real
+      // do heater_device_id dessa vasilha — funciona mesmo quando a
+      // receita não está na etapa desta vasilha (um override manual não
+      // depende de qual etapa está ativa).
+      const toggleEl = $('vtoggle-' + vesselName);
+      const toggleLabelEl = $('vtoggle-label-' + vesselName);
+      const sliderEl = $('vduty-slider-' + vesselName);
+      const sliderLabelEl = $('vdutyLabel-' + vesselName);
+      const sourceEl = $('vsource-' + vesselName);
+      const manualEnabled = !!(heaterDevice && heaterDevice.duty_enabled);
+      const manualDuty = heaterDevice ? (heaterDevice.manual_duty_percent ?? 0) : 0;
+      if (toggleEl) toggleEl.classList.toggle('active', manualEnabled);
+      if (toggleLabelEl) toggleLabelEl.textContent = manualEnabled ? 'Controle ligado' : 'Controle desligado';
+      // Não sobrescreve o slider enquanto o usuário está arrastando (foco ativo nele).
+      if (sliderEl && document.activeElement !== sliderEl) sliderEl.value = manualDuty;
+      if (sliderLabelEl) sliderLabelEl.textContent = `${manualDuty}%`;
+      if (sourceEl) {
+        const sourceLabels = {
+          manual: '\ud83e\uddb1\ufe0f Manual', pid: '\ud83c\udf21\ufe0f Receita (PID)',
+          failsafe_suspended: '\ud83d\uded1 Failsafe', idle: '\u23f8\ufe0f Repouso',
+        };
+        sourceEl.textContent = heaterDevice ? `Aplicado: ${sourceLabels[dutySource] || dutySource || ''}` : '';
+      }
 
       const pumpsEl = $('vpumps-' + vesselName);
       const pumpIds = vesselPumpIds(vesselName);
@@ -1368,9 +1440,11 @@
 
         (recipeDefinition.vessel_order || Object.keys(recipeDefinition.vessels)).forEach(name => {
           const isActive = active && name === currentVessel;
-          const sensorId = recipeDefinition.vessels[name].sensor_device_id;
+          const vesselInfo = recipeDefinition.vessels[name];
+          const sensorId = vesselInfo.sensor_device_id;
           const temp = deviceValue(sensorId);
-          updateGauge(name, temp, currentStep ? currentStep.target_temp : null, status.current_duty_percent, isActive);
+          const heaterDevice = deviceById(vesselInfo.heater_device_id);
+          updateGauge(name, temp, currentStep ? currentStep.target_temp : null, heaterDevice, isActive);
         });
 
         if (active && currentVessel) {
