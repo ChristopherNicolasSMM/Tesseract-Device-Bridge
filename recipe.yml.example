@@ -1,6 +1,9 @@
 # Exemplo de receita autônoma — não depende de MQTT/Tesseract para
-# rodar. Copie para recipe.yml na raiz do projeto (mesmo diretório de
-# devices.yml) para o run_bridge.py carregar automaticamente.
+# rodar. Referência de schema: a receita "de fábrica" já vem migrada
+# em data/publico/receita_base.yaml (edite ela direto — é a única
+# receita que não passa pelo sistema de cadastro em data/, mas
+# continua selecionável normalmente pra brassar). Este arquivo aqui é
+# só documentação de formato — não é mais copiado/carregado automaticamente.
 #
 # Schema de `vessels` espelha devices.yml: lista de itens com `id`
 # (referência estável, usada por steps.vessel) + `name` (texto livre

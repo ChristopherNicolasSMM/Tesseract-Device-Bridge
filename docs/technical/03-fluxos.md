@@ -27,7 +27,7 @@ sequenceDiagram
     GPIO-->>BR: INFO: backend selecionado: RPi.GPIO
 
     BR->>BR: BridgeConfig.load(devices.yml)
-    BR->>BR: Recipe.load(recipe.yml) se existir
+    BR->>BR: data.load_active_recipe(config) se alguma receita disponível
     BR->>BR: DeviceRuntime → setup() de cada device
     BR-->>SD: Processo rodando (PID registrado)
 

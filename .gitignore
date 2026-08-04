@@ -6,3 +6,13 @@ venv/
 *.log
 .env
 *.patch
+
+# data/privado/ é onde a diferença entre público e privado vira real:
+# tudo aqui dentro NUNCA vai commitado (exceto o .gitkeep, que mantém
+# a pasta existindo em qualquer clone novo do repositório).
+data/privado/*
+!data/privado/.gitkeep
+
+# Qual receita fica ativa no próximo boot é escolha de operação local
+# ("o que eu vou brassar agora"), não configuração do projeto.
+data/active_recipe.txt

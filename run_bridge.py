@@ -102,6 +102,10 @@ except ImportError as e:
     _boot_log(f"ERRO import bridge: {e} — verifique se a venv esta ativada e os pacotes instalados")
     raise
 
+import data
+from pathlib import Path
+from typing import Optional
+
 from config import BridgeConfig
 from device_runtime import DeviceRuntime
 from gpio.simulated_backend import SimulatedGPIOBackend
@@ -112,7 +116,6 @@ from run_panel import ensure_config_file
 
 logger = logging.getLogger("tesseract_bridge.run_bridge")
 
-DEFAULT_RECIPE_PATH = "recipe.yml"
 DEFAULT_RECIPE_STATE_PATH = "recipe_state.json"
 
 
@@ -124,22 +127,33 @@ def mqtt_status_provider(bridge: Bridge, config: BridgeConfig):
     return _provider
 
 
-def load_recipe_engine(runtime: DeviceRuntime, config: BridgeConfig, recipe_path: str):
+def load_recipe_engine(runtime: DeviceRuntime, config: BridgeConfig, recipe_path: Optional[str] = None):
     """
-    Carrega o motor de receita se `recipe_path` existir e for válido.
-    Ausência do arquivo não é erro — motor de receita é opcional, o
-    bridge funciona normalmente sem ele (caso de uso "só GPIO<->MQTT",
-    sem automação de processo).
+    Carrega o motor de receita. Ausência de qualquer receita não é
+    erro — motor de receita é opcional, o bridge funciona normalmente
+    sem ele (caso de uso "só GPIO<->MQTT", sem automação de processo).
+
+    `recipe_path` explícito (passado via argumento de linha de comando):
+    usa Recipe.load(path, config) direto, sem passar pelo sistema de
+    receitas cadastradas (`data/`) — útil pra apontar um arquivo
+    qualquer manualmente (teste, receita fora do fluxo normal).
+
+    `recipe_path=None` (uso normal, sem argumento na CLI): resolve via
+    data.load_active_recipe(config) — ponteiro de receita ativa ->
+    data/publico/receita_base.yaml -> recipe.yml da raiz (legado),
+    nessa ordem (ver data/__init__.py).
     """
-    from pathlib import Path
-
-    if not Path(recipe_path).exists():
-        return None
-
     try:
-        recipe = Recipe.load(recipe_path, config)
+        if recipe_path is not None:
+            if not Path(recipe_path).exists():
+                return None
+            recipe = Recipe.load(recipe_path, config)
+        else:
+            recipe = data.load_active_recipe(config)
+            if recipe is None:
+                return None
     except RecipeError as exc:
-        logger.error("Receita em '%s' inválida, motor de receita desabilitado: %s", recipe_path, exc)
+        logger.error("Receita inválida, motor de receita desabilitado: %s", exc)
         return None
 
     engine = RecipeEngine(runtime, recipe, DEFAULT_RECIPE_STATE_PATH, now=time.time())
@@ -157,10 +171,13 @@ def main() -> None:
     # Filtrar args que não são caminhos de arquivo (ex.: --debug)
     file_args = [a for a in sys.argv[1:] if not a.startswith("-")]
     config_path = file_args[0] if len(file_args) > 0 else "devices.yml"
-    recipe_path = file_args[1] if len(file_args) > 1 else DEFAULT_RECIPE_PATH
+    # Sem argumento explícito na CLI, recipe_path fica None -- resolvido
+    # por data.load_active_recipe() dentro de load_recipe_engine(), não
+    # mais um caminho fixo "recipe.yml".
+    recipe_path = file_args[1] if len(file_args) > 1 else None
 
     _boot_log(f"main() iniciado")
-    _boot_log(f"config_path={config_path}  recipe_path={recipe_path}")
+    _boot_log(f"config_path={config_path}  recipe_path={recipe_path or '(resolvido via data/)'}")
     _boot_log(f"config_path existe: {os.path.exists(config_path)}")
 
     ensure_config_file(config_path)
@@ -210,8 +227,10 @@ def main() -> None:
 
     if recipe_engine is not None:
         print(f"Motor de receita ativo (status atual: {recipe_engine.state.status}).")
+    elif recipe_path is not None:
+        print(f"Nenhuma receita válida em '{recipe_path}' — rodando sem motor de receita.")
     else:
-        print(f"Nenhuma receita em '{recipe_path}' — rodando sem motor de receita.")
+        print("Nenhuma receita disponível (data/ vazia e sem recipe.yml legado) — rodando sem motor de receita.")
 
     _boot_log("Processo totalmente inicializado — entrando em run_forever()")
     bridge.run_forever()

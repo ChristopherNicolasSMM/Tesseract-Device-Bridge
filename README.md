@@ -22,6 +22,7 @@
 | Fluxo de execução de receita | [Fluxos §3](docs/technical/03-fluxos.md#fluxo-3--execução-de-receita-caminho-feliz) |
 | Crash recovery / queda de energia | [Fluxos §4](docs/technical/03-fluxos.md#fluxo-4--recuperação-de-crash-queda-de-energia--kill--9) · [UC06](docs/technical/05-casos-de-uso.md#uc06--recuperação-após-queda-de-energia) |
 | Schema do devices.yml e recipe.yml | [Modelo de dados](docs/technical/04-modelo-de-dados.md) |
+| Onde ficam as receitas (data/, público/privado) | [Visão geral rápida](#modelagem-do-processo-data) · [Manutenção](docs/technical/06-manutencao-e-expansao.md#armazenamento-de-receitas-data) |
 | Adaptar para irrigação / outro domínio | [Manutenção](docs/technical/06-manutencao-e-expansao.md#adaptar-para-um-novo-domínio-de-automação) |
 | Logs coloridos | [Visão geral](docs/technical/01-visao-geral.md#logs-coloridos) · [Funcionalidades](docs/manual/03-funcionalidades.md#logs-do-sistema) |
 
@@ -41,8 +42,8 @@ que é específico de brassagem vive em dois lugares isolados:
 - **`devices.yml`** — descreve *o que está fisicamente ligado em quais
   pinos* (sensores, relés, bombas). Trocar o domínio é trocar este
   arquivo.
-- **`recipe.yml`** — descreve *o processo a automatizar* (vasilhas,
-  etapas, alvos, alarmes). Também é só configuração.
+- **`data/`** (receitas) — descreve *o processo a automatizar* (vasilhas,
+  etapas, alvos, alarmes). Também é só configuração — sem banco de dados.
 
 O núcleo (`gpio/`, `device_runtime.py`, `bridge.py`,
 `recipe_engine/`) não sabe o que é "mostura" ou "lúpulo" — ele sabe
@@ -63,7 +64,7 @@ integrar com plataformas de automação agrícola maiores (ex.: Conecta
 Agro e similares) — o bridge já resolve a parte difícil e repetitiva
 (leitura confiável de sensores 1-Wire, controle PID com proteção
 contra falha, recuperação de queda de energia, alarmes programáveis,
-painel web pronto) e deixa só a modelagem do processo (`recipe.yml`)
+painel web pronto) e deixa só a modelagem do processo (`data/`, receitas)
 e o mapeamento de hardware (`devices.yml`) como trabalho específico de
 cada novo domínio.
 
@@ -82,13 +83,14 @@ nenhum**, em modo só-painel-local). A compatibilidade com o
 
 ```
 devices.yml   -> o que está ligado em qual pino (hardware real)
-recipe.yml    -> o processo a automatizar (opcional — sem ele, o bridge
-                 ainda funciona como painel manual + ponte MQTT pura)
+data/         -> o processo a automatizar (opcional — sem nenhuma receita
+                 disponível, o bridge ainda funciona como painel manual +
+                 ponte MQTT pura)
 
 run_panel.py  -> só o painel web, sem MQTT, sem motor de receita
                  (bom pra testar hardware isolado na bancada)
 run_bridge.py -> processo completo: painel + MQTT (se habilitado) +
-                 motor de receita (se recipe.yml existir)
+                 motor de receita (se houver alguma receita disponível)
 ```
 
 | Camada | Arquivo(s) | Especificidade de domínio? |
@@ -100,7 +102,43 @@ run_bridge.py -> processo completo: painel + MQTT (se habilitado) +
 | Ponte MQTT | `mqtt_client.py`, `status_handler.py`, `failsafe_watchdog.py`, `bridge.py` | Nenhuma |
 | Painel web | `panel/` | Genérico (lista sensores/atuadores quaisquer) + aba "Receitas" |
 | Motor de processo | `recipe_engine/` | Nenhuma — "vasilha" é só um nome, pode ser zona de irrigação, estufa, tanque |
-| Modelagem do processo | `recipe.yml` | **Aqui mora toda a especificidade de domínio** |
+| Armazenamento de receitas | `data/` | Nenhuma (formato genérico) — o **conteúdo** de cada receita é onde mora a especificidade de domínio |
+
+### Modelagem do processo (`data/`)
+
+Receitas não vivem mais num único `recipe.yml` fixo — ficam em `data/`,
+sem banco de dados, tudo em arquivo:
+
+```
+data/
+├── publico/
+│   ├── receita_base.yaml   # migração do antigo recipe.yml — sempre disponível,
+│   │                       # NÃO editável pelo sistema de cadastro, mas
+│   │                       # selecionável normalmente pra brassar
+│   └── receita.json        # lista de receitas cadastradas — VAI commitado
+└── privado/
+    └── receita.json        # mesma coisa, mas NUNCA commitado (gitignored)
+```
+
+`publico`/`privado` só diferem em versionamento — o sistema lê as duas
+igualmente. Cada `receita.json` é uma **lista** (não um arquivo por
+receita):
+
+```json
+[
+  { "id": "minha-receita", "recipe": { "name": "...", "vessels": [...], "steps": [...] } }
+]
+```
+
+```
+GET  /api/recipes                 -> lista todas (base + publico/receita.json + privado/receita.json), validadas
+POST /api/recipes/active          -> {"id": "privado:minha-receita"} marca ativa pro PRÓXIMO boot (troca de receita exige restart)
+```
+
+Sem nenhum cadastro em `receita.json`, o bridge usa
+`data/publico/receita_base.yaml` automaticamente — zero configuração
+necessária pra já funcionar. Tela de cadastro pelo painel ainda não
+existe (edição manual do JSON por enquanto) — ver `BACKLOG.md`.
 
 ---
 
@@ -117,13 +155,15 @@ python run_panel.py
 
 # Processo completo (painel + MQTT se habilitado + receita se existir):
 cp devices.yml.example devices.yml      # ajuste pinos/sensores reais
-cp recipe.yml.example recipe.yml        # opcional — defina o processo
+# receita já vem pronta em data/publico/receita_base.yaml — edite ela
+# direto se quiser, ou cadastre outras em data/{publico,privado}/receita.json
 python run_bridge.py
 ```
 
-`devices.yml`/`recipe.yml` nunca são sobrescritos se já existirem —
-`run_panel.py`/`run_bridge.py` só criam a partir do `.example`
-correspondente na primeira vez que rodam num diretório novo.
+`devices.yml` nunca é sobrescrito se já existir — `run_panel.py`/
+`run_bridge.py` só cria a partir do `devices.yml.example` na primeira
+vez que rodam num diretório novo. Receitas seguem outra lógica, ver
+[Modelagem do processo (`data/`)](#modelagem-do-processo-data) abaixo.
 
 ### Diferença entre `run_panel.py` e `run_bridge.py`
 
@@ -131,7 +171,7 @@ correspondente na primeira vez que rodam num diretório novo.
 |---|---|---|
 | Painel web | ✅ | ✅ |
 | MQTT (Tesseract) | ❌ nunca | ✅ se `mqtt.enabled: true` |
-| Motor de receita | ❌ nunca | ✅ se `recipe.yml` existir |
+| Motor de receita | ❌ nunca | ✅ se houver alguma receita disponível (`data/` ou legado) |
 | Failsafe por timeout de conexão | ❌ | ✅ |
 | Uso típico | bancada, debug de hardware isolado | operação real |
 
@@ -220,6 +260,11 @@ eventual override manual (painel ou comando MQTT individual) — ver
 seção "Controle de potência por atuador" abaixo.
 
 ### Schema do `recipe.yml`
+
+> O schema abaixo é o mesmo pra `data/publico/receita_base.yaml` (raiz
+> do arquivo YAML) e pro campo `"recipe"` de cada registro dentro de
+> `data/{publico,privado}/receita.json` (só que em JSON em vez de
+> YAML) — é o formato de "uma receita", independente de onde ela mora.
 
 ```yaml
 name: "Pilsen Clássica"

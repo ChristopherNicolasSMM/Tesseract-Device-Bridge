@@ -22,14 +22,20 @@ from typing import Callable, Optional
 
 from flask import Blueprint, current_app, jsonify, request
 
+import data
 from device_runtime import DeviceRuntime, DeviceRuntimeError
 from recipe_engine.engine import RecipeEngine, RecipeEngineError
+from recipe_engine.models import RecipeError
 
 bp = Blueprint("panel_api", __name__, url_prefix="/api")
 
 
 def _runtime() -> DeviceRuntime:
     return current_app.config["DEVICE_RUNTIME"]
+
+
+def _bridge_config():
+    return current_app.config["BRIDGE_CONFIG"]
 
 
 def _mqtt_status_provider() -> Callable[[], str]:
@@ -365,3 +371,39 @@ def recipe_decline_pump(pump_id: str):
     except DeviceRuntimeError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify(_recipe_status_payload(engine))
+
+
+@bp.get("/recipes")
+def list_recipes():
+    """
+    Lista as receitas disponíveis (data/publico/receita_base.yaml +
+    data/publico/receita.json + data/privado/receita.json), já
+    validadas contra o devices.yml carregado neste bridge.
+    """
+    return jsonify(data.list_recipes(bridge_config=_bridge_config()))
+
+
+@bp.post("/recipes/active")
+def set_active_recipe():
+    """
+    Marca qual receita fica ativa no PRÓXIMO boot do processo — NÃO
+    troca a receita em execução agora (troca de receita exige restart,
+    decisão registrada). Rejeita ids desconhecidos ou inválidos antes
+    de gravar o ponteiro, pra nunca deixar o próximo boot sem receita
+    nenhuma carregando por engano.
+    """
+    payload = request.get_json(silent=True) or {}
+    recipe_id = payload.get("id")
+    if not recipe_id:
+        return jsonify({"error": "corpo da requisição deve conter 'id'."}), 400
+
+    try:
+        data.load_recipe_by_id(recipe_id, _bridge_config())
+    except RecipeError as exc:
+        return jsonify({"error": str(exc)}), 404
+
+    data.set_active_recipe_id(recipe_id)
+    return jsonify({
+        "active_recipe_id": recipe_id,
+        "note": "efetivo só no próximo restart do processo (troca de receita exige reiniciar).",
+    })

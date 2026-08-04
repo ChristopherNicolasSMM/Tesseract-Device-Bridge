@@ -2,6 +2,67 @@
 
 > **Navegação:** [Visão Geral](01-visao-geral.md) | [C4 Diagrams](02-diagrama-c4.md) | [Fluxos](03-fluxos.md) | [Modelo de Dados](04-modelo-de-dados.md) | [Casos de Uso](05-casos-de-uso.md)
 
+## Armazenamento de receitas (`data/`)
+
+Substituiu o `recipe.yml` único e fixo na raiz. Sem banco de dados —
+tudo em arquivo, mesma filosofia de `devices.yml`. Módulo:
+`data/__init__.py` (decisão deliberada: lógica direto no `__init__.py`
+em vez de um módulo nomeado à parte, diferente do padrão do resto do
+projeto — mantido assim por escolha explícita, não repita esse padrão
+em outro lugar sem o mesmo motivo).
+
+```
+data/
+├── publico/
+│   ├── receita_base.yaml   # migração do antigo recipe.yml — YAML, não passa pelo
+│   │                       # sistema de cadastro (não editável via API), mas
+│   │                       # sempre selecionável pra brassar
+│   └── receita.json        # lista de receitas cadastradas via painel — versionado
+└── privado/
+    └── receita.json        # mesma estrutura, gitignored (.gitignore: data/privado/*)
+```
+
+**Convenção de "entidade"**: um arquivo JSON por pasta, contendo uma
+**lista** de registros — não "um arquivo por receita". `receita` é a
+primeira entidade; o par `read_entities(source, entity)` /
+`write_entities(source, entity, entries)` é genérico o bastante pra
+outros tipos cadastráveis reaproveitarem sem duplicar a parte de I/O.
+
+**Id global de uma receita**: `"{source}:{id}"` (ex.: `"publico:base"`
+pra receita_base, `"privado:3fa85f64-..."` pra uma entrada de
+`receita.json`) — evita colisão entre uma receita pública e uma
+privada com o mesmo id local, sem precisar de nenhum registro central.
+
+**Resolução da receita ativa no boot** (`load_active_recipe()`,
+chamada por `run_bridge.py` quando nenhum path é passado explicitamente
+via CLI), nesta ordem:
+
+1. Ponteiro salvo (`data/active_recipe.txt`, gitignored — escolha de
+   operação local, não configuração do projeto). Se apontar pra algo
+   que sumiu ou ficou inválido, loga aviso e cai pro próximo nível —
+   nunca derruba o motor de receita por causa de um ponteiro velho.
+2. `data/publico/receita_base.yaml`, se existir.
+3. `recipe.yml` na raiz do projeto — **fallback legado**, preservado
+   só pra quem ainda não migrou pra `data/` não quebrar.
+4. `None` — motor de receita desabilitado (mesmo comportamento de
+   sempre quando não há nenhuma receita configurada).
+
+**Troca de receita ativa exige reiniciar o processo** (decisão
+registrada) — `POST /api/recipes/active` só grava o ponteiro pro
+próximo boot, nunca troca o `RecipeEngine` em memória agora. Trocar
+isso pra "a quente" (sem restart) é trabalho futuro, ver `BACKLOG.md`.
+
+**Reaproveitamento de validação**: `Recipe.from_dict(raw)` +
+`recipe.validate(bridge_config)` (já existiam separados de
+`Recipe.load()`, que só os combina com leitura de arquivo YAML) são o
+que permite ler uma receita de dentro de um registro de
+`receita.json` (JSON, não YAML) sem duplicar nenhuma validação —
+`data.load_recipe_by_id()` chama exatamente esses dois métodos.
+
+**Tela de cadastro pelo painel ainda não existe** — este trabalho foi
+só a fundação (armazenamento + descoberta + resolução + `GET /api/recipes`
++ `POST /api/recipes/active`). Editar `receita.json` hoje é manual.
+
 ## Prioridade de controle: dono único do GPIO por atuador
 
 `DeviceRuntime` é o dono único da escrita física em qualquer atuador
@@ -232,7 +293,7 @@ Mesma sequência, com `recipe_engine/models.py` + `tests/test_recipe_models.py`.
 
 ### Antes de usar na brassagem
 
-- [ ] `python -m pytest tests/ -v` → 370+ testes passando
+- [ ] `python -m pytest tests/ -v` → 393+ testes passando
 - [ ] `devices.yml` com `backend: real` (não `simulated`)
 - [ ] `mqtt.host` correto (ou `mqtt.enabled: false`)
 - [ ] Receita validada: `python3 -c "from config import BridgeConfig; from recipe_engine.models import Recipe; config=BridgeConfig.load('devices.yml'); recipe=Recipe.load('recipe.yml', config); print('OK:', recipe.name, recipe.step_count(), 'etapas')"`

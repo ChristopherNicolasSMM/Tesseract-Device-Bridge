@@ -151,20 +151,44 @@ Navegadores bloqueiam áudio automático até o usuário interagir com a página
 
 ## Como adiciono uma nova receita?
 
-Edite o `recipe.yml` e reinicie o processo. O bridge carrega um arquivo de cada vez — para trocar de receita, substitua o conteúdo do `recipe.yml` e reinicie:
+Suas receitas ficam em `data/`, não mais direto em `recipe.yml` na raiz. Duas formas:
+
+**Receita-base** (`data/publico/receita_base.yaml`): é a que já vem migrada, sempre disponível como padrão — não editável pelo sistema de cadastro (edite o YAML na mão se quiser mudar ela mesma).
+
+**Receitas cadastradas**: vivem em `data/publico/receita.json` (versionadas, vão pro repositório) ou `data/privado/receita.json` (só na sua máquina, nunca versionadas) — cada arquivo é uma **lista** com todas as receitas daquela pasta. A tela de cadastro pelo painel ainda não existe (fica pra um próximo patch); por enquanto, edite o JSON manualmente, no formato:
+
+```json
+[
+  {
+    "id": "minha-receita",
+    "recipe": { "name": "...", "vessels": [...], "steps": [...] }
+  }
+]
+```
+
+(o conteúdo de `"recipe"` segue o mesmo schema do `recipe.yml.example`.)
+
+**Trocar qual receita fica ativa** exige reiniciar o processo (o bridge carrega a receita ativa só uma vez, no boot):
 
 ```bash
+curl -X POST http://localhost:8088/api/recipes/active -H "Content-Type: application/json" -d '{"id": "privado:minha-receita"}'
 sudo systemctl restart tesseract-bridge
 ```
 
-Valide a receita antes de reiniciar:
+Pra ver todas as receitas disponíveis (com validação contra o `devices.yml` carregado):
+
+```bash
+curl http://localhost:8088/api/recipes
+```
+
+Ou valide manualmente antes de marcar como ativa:
 
 ```bash
 python3 -c "
 from config import BridgeConfig
-from recipe_engine.models import Recipe
+import data
 config = BridgeConfig.load('devices.yml')
-recipe = Recipe.load('recipe.yml', config)
+recipe = data.load_recipe_by_id('privado:minha-receita', config)
 print('OK:', recipe.name, recipe.step_count(), 'etapas')
 "
 ```

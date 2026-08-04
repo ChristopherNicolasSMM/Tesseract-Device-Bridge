@@ -34,6 +34,7 @@ def create_panel_app(
 ) -> Flask:
     app = Flask(__name__)
     app.config["DEVICE_RUNTIME"] = runtime
+    app.config["BRIDGE_CONFIG"] = config
     app.config["MQTT_STATUS_PROVIDER"] = mqtt_status_provider or default_status_provider(config)
     app.config["RECIPE_ENGINE"] = recipe_engine
 

@@ -20,10 +20,10 @@ flowchart TD
     D --> E{Hardware\nrespondeu?}
     E -- Não --> F[Ver FAQ:\nGPIO não responde]
     F --> D
-    E -- Sim --> G[4. Configurar a receita\nrecipe.yml]
+    E -- Sim --> G[4. Configurar a receita\ndata/publico/receita_base.yaml]
     G --> H[5. Testar no modo simulado\nrun_bridge.py]
     H --> I{Receita e painel\nok?}
-    I -- Não --> J[Ajustar recipe.yml\nou devices.yml]
+    I -- Não --> J[Ajustar a receita em data/\nou devices.yml]
     J --> H
     I -- Sim --> K[6. Trocar para backend real\nbackend: real]
     K --> L[7. Instalar como serviço\ninstall_service.sh]
@@ -82,10 +82,12 @@ Se os relés não responderem, veja a seção [FAQ — GPIO não responde](04-pe
 
 ---
 
-## 4. Configurar a receita (`recipe.yml`)
+## 4. Configurar a receita (`data/publico/receita_base.yaml`)
+
+A receita "de fábrica" já vem em `data/publico/receita_base.yaml` — edite ela direto (é a única receita que **não** passa pelo sistema de cadastro, mas continua 100% selecionável pra brassar):
 
 ```bash
-cp recipe.yml.example recipe.yml
+nano data/publico/receita_base.yaml
 ```
 
 Os campos principais para editar:
@@ -119,12 +121,14 @@ Para validar se a receita está correta:
 ```bash
 python3 -c "
 from config import BridgeConfig
-from recipe_engine.models import Recipe
+import data
 config = BridgeConfig.load('devices.yml')
-recipe = Recipe.load('recipe.yml', config)
+recipe = data.load_recipe_by_id('publico:base', config)
 print('OK:', recipe.name, recipe.step_count(), 'etapas')
 "
 ```
+
+Quiser cadastrar outras receitas (além da base)? Ver [FAQ — Como adiciono uma nova receita?](04-perguntas-frequentes.md#como-adiciono-uma-nova-receita).
 
 ---
 

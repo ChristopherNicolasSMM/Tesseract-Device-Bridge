@@ -77,12 +77,6 @@ banner de aviso no topo (sem botão, some sozinho) + subcard da bomba
 com borda âmbar pulsante e os botões Confirmar/Manter manual. Ver
 [Fluxo 9](docs/technical/03-fluxos.md#fluxo-9--confirmação-de-acionamento-automático-de-bomba-só-bombas-não-heaters).
 
-### Suíte de testes
-
-291 → 370 testes ao longo da sessão (79 novos/reescritos). Todos os
-patches validados em clone limpo do HEAD real via `git am` antes da
-entrega.
-
 ### Documentação atualizada nesta sessão
 
 - `README.md` — endpoints novos, seção de override de bombas, DS18B20,
@@ -94,40 +88,67 @@ entrega.
 - `docs/manual/03-funcionalidades.md` — removido aviso obsoleto de
   conflito manual/receita (resolvido nesta sessão); documentado o
   toggle+slider, o subcard de bomba e a confirmação automática.
+- `docs/manual/02-primeiros-passos.md` / `04-perguntas-frequentes.md`
+  — seção 4 e "Como adiciono uma nova receita?" reescritas pro sistema
+  `data/` (base + json + ponteiro ativo).
+- `recipe.yml.example` — cabeçalho avisando que virou referência de
+  schema, não é mais copiado/carregado automaticamente.
 - Este arquivo (`BACKLOG.md`), criado agora.
+
+**8. Fundação de armazenamento de receitas (`data/`) — primeira metade do item 2 original**
+Decisão de sessão própria: `recipe.yml` fixo na raiz virou
+`data/publico/receita_base.yaml` (migração real, `git mv`) — YAML,
+não editável pelo sistema de cadastro, mas sempre selecionável.
+Receitas cadastradas (ainda sem UI) ficam em
+`data/{publico,privado}/receita.json` — **um arquivo por pasta,
+contendo uma lista** (convenção de "entidade"), não um arquivo por
+receita. `publico`/`privado` só diferem em versionamento
+(`.gitignore`: `data/privado/*`). Módulo `data/__init__.py` (lógica
+direto no `__init__.py`, decisão explícita, foge do padrão do resto
+do projeto de propósito) expõe `list_recipes()`, `load_recipe_by_id()`,
+`get_active_recipe_id()`/`set_active_recipe_id()`,
+`load_active_recipe()` — cadeia de fallback ponteiro → receita_base →
+`recipe.yml` legado → `None`, reaproveitando `Recipe.from_dict()` +
+`recipe.validate()` (já existiam separados de `Recipe.load()`) pra
+validar receitas em JSON sem duplicar nada. Novos endpoints
+`GET /api/recipes` e `POST /api/recipes/active`. Troca de receita
+ativa **exige reiniciar o processo** (decisão tomada — endpoint só
+grava o ponteiro pro próximo boot). 23 testes novos
+(`tests/test_data_store.py`).
+
+### Suíte de testes
+
+291 → 393 testes ao longo de toda a sessão (102 novos/reescritos no
+total). Todos os patches validados em clone limpo do HEAD real via
+`git am` antes da entrega.
 
 ---
 
 ## Pendente (próximos patches)
 
-### 1. Nova aba — cadastro e seleção de receitas
+### 1. Tela de cadastro de receitas pelo painel (UI em cima da fundação já pronta)
 
-Hoje o bridge carrega **um único `recipe.yml`** no boot; trocar de
-receita exige editar o arquivo manualmente e reiniciar o processo (ver
-FAQ "Como adiciono uma nova receita?" em `docs/manual/04-perguntas-frequentes.md`
-— vai precisar de atualização quando isso for implementado).
-
-Pedido: uma aba nova, depois de "Receitas", pra cadastrar múltiplas
-receitas pelo próprio painel e escolher qual usar em cada brassagem,
-sem editar arquivo nem reiniciar o serviço.
-
-**Direção já discutida (não fechada, retomar quando chegar a vez)**:
-manter YAML (sem banco) — uma pasta `dados/` com um arquivo por
-receita, e um `receita_base.yaml` como fallback: se `dados/` estiver
-vazia, o sistema usa ela pra já funcionar sem cadastro nenhum (mesmo
-comportamento de hoje). Se o painel (JS) precisar listar as receitas
-cadastradas, um índice leve em JSON (`dados/index.json`, só
-nome+arquivo) evita precisar de um parser YAML no navegador — o
-conteúdo de cada receita continua YAML, parseado só no lado Python.
+A fundação (item 8 acima) já resolve armazenamento, descoberta,
+validação e resolução de qual receita usar no boot. Falta só a
+**interface** — uma aba nova, depois de "Receitas", pra:
+- Cadastrar uma receita nova (formulário, não editar JSON na mão) —
+  grava em `data/publico/receita.json` ou `data/privado/receita.json`
+  via `write_entities()` (já existe, só falta a rota da API que
+  monta o registro e chama).
+- Listar as disponíveis (já tem `GET /api/recipes`) e escolher qual
+  fica ativa (já tem `POST /api/recipes/active`) — só falta o HTML/JS.
+- Validar no momento do cadastro (reaproveitar `Recipe.from_dict()` +
+  `recipe.validate()`, mesma validação que `list_recipes()` já faz),
+  com mensagem de erro clara antes de salvar — não só ao carregar.
 
 **Perguntas em aberto pra próxima sessão de decisão**:
-- Trocar de receita exige reiniciar o processo (limitação atual,
-  `Recipe` é carregada uma vez no boot) ou precisa suportar troca a
-  quente, sem restart?
+- Troca de receita ativa **exige restart** (já decidido, ver item 8)
+  — a UI precisa deixar isso claro pro operador (ex.: aviso "só
+  efetivo no próximo restart", já retornado pela API hoje).
 - Interação com o Tesseract Core: essas receitas cadastradas aqui
   deveriam sincronizar com receitas do lado do Tesseract (fora de
   escopo da Fase F ainda pendente na skill 05), ou são independentes?
-- Validação de receita cadastrada pelo painel: mesma validação de
-  `Recipe.load()` (falha cedo, mensagem clara) precisa rodar no
-  momento do cadastro, não só ao carregar — senão um erro de digitação
-  só aparece na hora de tentar usar a receita numa brassagem real.
+- Formulário de cadastro replica a estrutura toda de `vessels`/`steps`/
+  `hop_alarms` (mais flexível, mais trabalho de UI) ou começa mais
+  simples (ex.: só duplicar uma receita existente e editar campos
+  específicos)?
