@@ -216,6 +216,32 @@ def test_teardown_on_unconfigured_pin_is_noop(backend):
     backend.teardown(99)  # não deve explodir
 
 
+def test_teardown_stops_ds18b20_background_thread(tmp_path):
+    """
+    RealGPIOBackend.teardown() usa hasattr(device, "close") de forma
+    genérica — Ds18b20Reader.close() para a thread de fundo através
+    desse mesmo mecanismo, sem precisar de nenhum caso especial aqui.
+    """
+    w1_dir = tmp_path / "28-teardown-test"
+    w1_dir.mkdir()
+    (w1_dir / "w1_slave").write_text(
+        "4e 01 4b 46 7f ff 0e 10 68 : crc=68 YES\n4e 01 4b 46 7f ff 0e 10 68 t=20000\n",
+        encoding="ascii",
+    )
+
+    backend = RealGPIOBackend(pin_factory=MockFactory(pin_class=MockPWMPin))
+    backend.setup(
+        pin=4, mode="input_analog", driver="ds18b20",
+        address="28-teardown-test", base_path=str(tmp_path),
+        poll_interval_seconds=0.01,
+    )
+    reader = backend._devices[(4, "28-teardown-test")]
+    assert reader._thread.is_alive() is True
+
+    backend.teardown(4, address="28-teardown-test")
+    assert reader._thread.is_alive() is False
+
+
 # ---- seleção de backend (sem hardware real) --------------------------------
 
 def test_real_backend_accepts_explicit_pin_factory():

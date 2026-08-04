@@ -161,3 +161,54 @@ def test_get_state_unknown_device_raises_key_error(tmp_path):
 
     with pytest.raises(KeyError):
         runtime.get_state("does_not_exist")
+
+
+def test_setup_all_forwards_ds18b20_poll_kwargs_to_driver(tmp_path):
+    """
+    Achado real: _setup_all() usa uma allowlist de chaves de hardware:
+    repassadas pro backend/driver — poll_interval_seconds e
+    stale_after_seconds (específicas do driver ds18b20) ficaram de fora
+    dessa lista até esse teste existir, então mesmo declaradas no
+    devices.yml nunca chegavam no Ds18b20Reader.
+    """
+    from gpiozero.pins.mock import MockFactory, MockPWMPin
+
+    from gpio.real_backend import RealGPIOBackend
+
+    w1_dir = tmp_path / "28-poll-test"
+    w1_dir.mkdir()
+    (w1_dir / "w1_slave").write_text(
+        "4e 01 4b 46 7f ff 0e 10 68 : crc=68 YES\n4e 01 4b 46 7f ff 0e 10 68 t=20000\n",
+        encoding="ascii",
+    )
+
+    yaml_content = f"""
+    mqtt:
+      enabled: false
+    backend: real
+    panel:
+      enabled: true
+
+    devices:
+      - id: mash_tun_temp
+        name: "Temperatura Mostura"
+        role: sensor
+        subtype: temperature
+        state_topic: "sensors/mash_tun_temp/state"
+        hardware:
+          pin: 4
+          driver: ds18b20
+          address: "28-poll-test"
+          base_path: "{tmp_path}"
+          poll_interval_seconds: 0.01
+          stale_after_seconds: 0.05
+    """
+    config = make_config(tmp_path, yaml_content)
+    backend = RealGPIOBackend(pin_factory=MockFactory(pin_class=MockPWMPin))
+    runtime = DeviceRuntime(config, backend)
+
+    assert runtime.get_state("mash_tun_temp").value == 20.0
+
+    reader = backend._devices[(4, "28-poll-test")]
+    assert reader._poll_interval == 0.01
+    assert reader._stale_after == 0.05

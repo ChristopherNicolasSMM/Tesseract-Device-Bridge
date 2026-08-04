@@ -158,6 +158,16 @@ class DeviceRuntime:
             # o backend usa True como default quando ausente.
             if "active_high" in device.hardware:
                 kwargs["active_high"] = device.hardware["active_high"]
+            # Só usados pelo driver ds18b20 (thread de fundo) — opcionais,
+            # ignorados por qualquer outro driver/modo que não os espere.
+            # base_path normalmente só é usado em teste (injeta um
+            # filesystem falso); em produção o driver usa o default real.
+            if "poll_interval_seconds" in device.hardware:
+                kwargs["poll_interval_seconds"] = device.hardware["poll_interval_seconds"]
+            if "stale_after_seconds" in device.hardware:
+                kwargs["stale_after_seconds"] = device.hardware["stale_after_seconds"]
+            if "base_path" in device.hardware:
+                kwargs["base_path"] = device.hardware["base_path"]
             self._backend.setup(pin=device.hardware["pin"], mode=mode, **kwargs)
 
             if device.has_duty_control:

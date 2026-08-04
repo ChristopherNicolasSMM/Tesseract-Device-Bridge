@@ -166,6 +166,37 @@ desde que todos usem `driver: ds18b20` e tenham `hardware.address`
 único entre si — único caso em que duplicar `pin` não é erro de
 configuração.
 
+### Leitura de DS18B20 em thread de fundo (não bloqueia o painel)
+
+Ler `w1_slave` no Linux dispara uma conversão nova no sensor a cada
+chamada — o kernel bloqueia até o resultado sair, tipicamente
+~750-950ms. Sem cache, um `/api/devices` com vários sensores DS18B20
+(mostura, fervura, chiller) travava a requisição inteira por
+N × ~800ms, deixando o painel visivelmente lento a cada poll.
+
+`Ds18b20Reader` resolve isso com uma thread dedicada por sensor: a
+primeira leitura é síncrona (só uma vez, no boot — nunca durante uma
+requisição HTTP); depois disso, uma thread de fundo mantém o valor
+sempre atualizado em cache, e `.value` nunca bloqueia. Dois parâmetros
+opcionais em `hardware:` (por sensor, no `devices.yml`):
+
+```yaml
+hardware:
+  pin: 4
+  driver: ds18b20
+  address: "28-0000071234ab"
+  poll_interval_seconds: 1.0   # opcional, default 1.0 — intervalo entre leituras
+  stale_after_seconds: 10.0    # opcional, default 10.0 — ver abaixo
+```
+
+Se as leituras em background começarem a falhar (CRC ruim — comum em
+1-Wire por ruído elétrico —, ou sensor desconectado), a thread loga o
+erro e mantém o último valor bom em cache, sem derrubar nada. Só
+depois de `stale_after_seconds` sem NENHUMA leitura bem-sucedida é que
+`.value` passa a levantar `Ds18b20ReadError` de verdade — evita tanto
+"trava tudo a cada glitch" quanto "mostra um valor de 20 minutos atrás
+pra sempre, calado".
+
 ---
 
 ## Motor de receita (`recipe_engine/`)
