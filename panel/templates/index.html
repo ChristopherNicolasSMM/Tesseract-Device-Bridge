@@ -8,7 +8,7 @@
     /* ===== RESET & VARIÁVEIS ===== */
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Noto Color Emoji', 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif;
       background: #0b0e14;
       color: #e2e8f0;
       padding: 0;
@@ -963,6 +963,13 @@
       const unit = d.unit || '';
       let valueDisplay = d.value;
       if (typeof d.value === 'boolean') valueDisplay = d.value ? 'Ligado' : 'Desligado';
+      if (d.window_seconds != null) {
+        // Controle de potência: o pino físico pisca liga/desliga várias
+        // vezes por janela (time-proportioning) — mostrar o valor cru
+        // (d.value) piscaria de forma confusa a cada poll. Mostra o
+        // resultado estável (efetivo) em vez disso.
+        valueDisplay = d.duty_source === 'idle' || d.duty_source == null ? 'Desligado' : `${d.duty_percent}%`;
+      }
 
       let controlsHtml = '';
       if (d.role === 'sensor') {
@@ -982,7 +989,12 @@
           // Controle de potência (time-proportioning) — SSR liga/desliga
           // por ciclos inteiros, potência real vem da % de tempo ligado
           // dentro da janela (d.window_seconds), não de PWM de hardware.
-          const duty = d.duty_percent ?? 0;
+          //
+          // Interruptor mestre (d.duty_enabled) e valor de % (d.manual_duty_percent)
+          // são independentes de propósito: arrastar o slider sozinho
+          // NUNCA energiza o atuador — só quando o interruptor é ligado
+          // explicitamente é que o valor configurado passa a valer.
+          const manualDuty = d.manual_duty_percent ?? 0;
           const sourceLabels = {
             manual: '🖐️ Manual',
             pid: '🌡️ Receita (PID)',
@@ -990,13 +1002,19 @@
             idle: '⏸️ Repouso',
           };
           const sourceLabel = sourceLabels[d.duty_source] || d.duty_source || '';
+          const appliedNote = (d.duty_source && d.duty_source !== 'idle') ? ` (${d.duty_percent}%)` : '';
           controlsHtml = `
-            <input type="range" min="0" max="100" step="1" value="${duty}"
+            <div class="toggle-wrapper">
+              <div class="toggle ${d.duty_enabled ? 'active' : ''}" onclick="toggleDutyEnabled('${d.id}', ${!d.duty_enabled})">
+                <div class="thumb"></div>
+              </div>
+              <span class="toggle-label">${d.duty_enabled ? 'Controle ligado' : 'Controle desligado'}</span>
+            </div>
+            <input type="range" min="0" max="100" step="1" value="${manualDuty}"
                    oninput="dutyPreview('${d.id}', this.value)"
                    onchange="setDuty('${d.id}', parseFloat(this.value))">
-            <div class="range-labels"><span>0%</span><span id="dutyLabel-${d.id}">${duty}%</span><span>100%</span></div>
-            <small style="color:var(--text-secondary);font-size:11px;">Fonte: ${sourceLabel} · janela ${d.window_seconds}s</small>
-            ${d.duty_source === 'manual' ? `<button class="btn-recipe ghost" style="margin-top:6px;width:100%;" onclick="clearDuty('${d.id}')">Liberar controle</button>` : ''}
+            <div class="range-labels"><span>0%</span><span id="dutyLabel-${d.id}">${manualDuty}%</span><span>100%</span></div>
+            <small style="color:var(--text-secondary);font-size:11px;">Aplicado: ${sourceLabel}${appliedNote} · janela ${d.window_seconds}s</small>
           `;
         } else if (d.subtype === 'pwm') {
           controlsHtml = `
@@ -1097,15 +1115,15 @@
       }
     }
 
-    async function clearDuty(id) {
+    async function toggleDutyEnabled(id, enabled) {
       try {
-        const res = await fetch(`/api/devices/${id}/duty`, {
+        const res = await fetch(`/api/devices/${id}/duty/enabled`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ duty_percent: null })
+          body: JSON.stringify({ enabled })
         });
-        if (!res.ok) throw new Error('Falha ao liberar controle');
-        toast(`✅ Controle de ${id} liberado`, 'success');
+        if (!res.ok) throw new Error('Falha ao ligar/desligar controle');
+        toast(`✅ Controle de ${id} ${enabled ? 'ligado' : 'desligado'}`, 'success');
         refresh();
       } catch (e) {
         toast(`❌ Erro: ${e.message}`, 'error');

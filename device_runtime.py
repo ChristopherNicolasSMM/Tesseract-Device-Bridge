@@ -22,9 +22,13 @@ README, seção de limitações conhecidas).
 Prioridade resolvida a cada tick, do mais forte pro mais fraco:
   1. Failsafe suspenso (apply_failsafe/apply_failsafe_external) — força
      0%, sempre, independente de qualquer override ou receita.
-  2. Override manual (set_manual_duty) — vence a receita enquanto ativo.
+  2. Override manual **armado** (set_manual_enabled(id, True)) — vence a
+     receita enquanto ativo. Definir o valor de % (set_manual_duty_percent)
+     sozinho NÃO arma nada — só guarda o valor a ser aplicado quando/se
+     o controle for ligado. Isso evita energizar o atuador sem intenção
+     explícita só por ajustar o slider no painel.
   3. Duty da receita (set_pid_duty, do RecipeEngine) — só se não houver
-     override nem failsafe suspenso.
+     override armado nem failsafe suspenso.
   4. Repouso (0%) — nenhuma das anteriores presente.
 
 Suspensão por failsafe só é revertida por `resume_all_suspended_overrides()`,
@@ -74,8 +78,10 @@ class DeviceState:
     # Campos de controle de potência (time-proportioning) — None quando
     # o device não declara hardware.window_seconds (has_duty_control=False).
     window_seconds: float | None = None
-    duty_percent: float | None = None
+    duty_percent: float | None = None  # duty EFETIVO (o que está realmente sendo aplicado)
     duty_source: str | None = None  # "manual" | "pid" | "failsafe_suspended" | "idle"
+    duty_enabled: bool | None = None  # override manual armado? (interruptor mestre do painel)
+    manual_duty_percent: float | None = None  # valor configurado pro override manual, mesmo desarmado
 
 
 @dataclass
@@ -110,6 +116,11 @@ class DeviceRuntime:
         # hardware.window_seconds; populado em _setup_all().
         self._tpc: Dict[str, TimeProportioningController] = {}
         self._manual_duty: Dict[str, float] = {}
+        # Interruptor mestre do override manual — SEPARADO do valor de %
+        # (self._manual_duty). Ajustar o % sozinho nunca arma o atuador;
+        # só quando o device_id está aqui, o valor de _manual_duty é
+        # aplicado de fato (ver _resolve_effective_duty).
+        self._manual_enabled: Set[str] = set()
         self._pid_duty: Dict[str, float] = {}
         self._failsafe_suspended: Set[str] = set()
 
@@ -221,33 +232,69 @@ class DeviceRuntime:
     def has_duty_control(self, device_id: str) -> bool:
         return device_id in self._tpc
 
-    def set_manual_duty(self, device_id: str, duty_percent: Optional[float]) -> DeviceState:
+    def set_manual_duty_percent(self, device_id: str, duty_percent: float) -> DeviceState:
         """
-        Define (duty_percent numérico) ou limpa (None) o override manual
-        de potência de um atuador. Sempre tem prioridade sobre o duty da
-        receita, exceto quando o device está com failsafe suspenso.
+        Define só o VALOR de % do override manual — NÃO arma o
+        interruptor mestre (ver set_manual_enabled). Ajustar o slider no
+        painel chama só isto: o atuador não energiza sozinho só porque
+        o valor mudou, precisa do controle estar explicitamente ligado.
         """
         device = self._config.get_device(device_id)
         if device.id not in self._tpc:
             raise DeviceRuntimeError(
-                f"set_manual_duty chamado em '{device_id}', que não declara "
+                f"set_manual_duty_percent chamado em '{device_id}', que não declara "
                 f"hardware.window_seconds (sem controle de potência)."
             )
-        if duty_percent is None:
-            self._manual_duty.pop(device.id, None)
-        else:
-            if not isinstance(duty_percent, (int, float)) or isinstance(duty_percent, bool):
-                raise DeviceRuntimeError(f"duty_percent deve ser numérico (recebido {duty_percent!r}).")
-            if not (0.0 <= duty_percent <= 100.0):
-                raise DeviceRuntimeError(f"duty_percent deve estar entre 0 e 100 (recebido {duty_percent}).")
-            self._manual_duty[device.id] = float(duty_percent)
+        if not isinstance(duty_percent, (int, float)) or isinstance(duty_percent, bool):
+            raise DeviceRuntimeError(f"duty_percent deve ser numérico (recebido {duty_percent!r}).")
+        if not (0.0 <= duty_percent <= 100.0):
+            raise DeviceRuntimeError(f"duty_percent deve estar entre 0 e 100 (recebido {duty_percent}).")
+        self._manual_duty[device.id] = float(duty_percent)
         return self._state_of(device)
+
+    def set_manual_enabled(self, device_id: str, enabled: bool) -> DeviceState:
+        """
+        Liga/desliga o interruptor mestre do override manual — separado
+        do valor de % (set_manual_duty_percent). Só quando enabled=True
+        o valor configurado é de fato aplicado (ver _resolve_effective_duty).
+        Desligar preserva o valor de % configurado (não zera), pra poder
+        religar depois no mesmo nível sem precisar reconfigurar.
+        """
+        device = self._config.get_device(device_id)
+        if device.id not in self._tpc:
+            raise DeviceRuntimeError(
+                f"set_manual_enabled chamado em '{device_id}', que não declara "
+                f"hardware.window_seconds (sem controle de potência)."
+            )
+        if enabled:
+            self._manual_enabled.add(device.id)
+            # Garante que exista um valor (default seguro 0%) — ligar o
+            # interruptor sem nunca ter configurado % não deve dar erro,
+            # só não aplica potência nenhuma até o usuário ajustar o slider.
+            self._manual_duty.setdefault(device.id, 0.0)
+        else:
+            self._manual_enabled.discard(device.id)
+        return self._state_of(device)
+
+    def set_manual_duty(self, device_id: str, duty_percent: Optional[float]) -> DeviceState:
+        """
+        Atômico: define o valor de % E arma o interruptor mestre de uma
+        vez (duty_percent numérico), ou desarma por completo (None) —
+        usado por comando MQTT/externo (bridge.py), onde o comando em si
+        já é a intenção explícita de ligar, diferente de um humano
+        arrastando o slider no painel (que usa os dois métodos acima,
+        separados, via a API do painel).
+        """
+        if duty_percent is None:
+            return self.set_manual_enabled(device_id, False)
+        self.set_manual_duty_percent(device_id, duty_percent)
+        return self.set_manual_enabled(device_id, True)
 
     def set_pid_duty(self, device_id: str, duty_percent: float) -> None:
         """
         Chamado pelo RecipeEngine a cada tick com o duty calculado pelo
         PID daquele instante — só tem efeito real se não houver override
-        manual ativo nem failsafe suspenso para este device (ver
+        manual armado nem failsafe suspenso para este device (ver
         _resolve_effective_duty).
         """
         device = self._config.get_device(device_id)
@@ -275,8 +322,8 @@ class DeviceRuntime:
     def _resolve_effective_duty(self, device_id: str) -> Tuple[float, str]:
         if device_id in self._failsafe_suspended:
             return 0.0, "failsafe_suspended"
-        if device_id in self._manual_duty:
-            return self._manual_duty[device_id], "manual"
+        if device_id in self._manual_enabled:
+            return self._manual_duty.get(device_id, 0.0), "manual"
         if device_id in self._pid_duty:
             return self._pid_duty[device_id], "pid"
         return 0.0, "idle"
@@ -317,9 +364,13 @@ class DeviceRuntime:
         window_seconds = None
         duty_percent = None
         duty_source = None
+        duty_enabled = None
+        manual_duty_percent = None
         if device.id in self._tpc:
             window_seconds = device.hardware["window_seconds"]
             duty_percent, duty_source = self._resolve_effective_duty(device.id)
+            duty_enabled = device.id in self._manual_enabled
+            manual_duty_percent = self._manual_duty.get(device.id)
 
         return DeviceState(
             id=device.id,
@@ -335,4 +386,6 @@ class DeviceRuntime:
             window_seconds=window_seconds,
             duty_percent=duty_percent,
             duty_source=duty_source,
+            duty_enabled=duty_enabled,
+            manual_duty_percent=manual_duty_percent,
         )

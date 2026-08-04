@@ -282,20 +282,62 @@ def client_with_duty_device(tmp_path):
     return app.test_client()
 
 
-def test_set_duty_percent_returns_updated_state(client_with_duty_device):
+def test_set_duty_percent_alone_does_not_arm_actuator(client_with_duty_device):
+    """
+    Ajustar só o valor de % nunca liga o atuador sozinho — precisa do
+    interruptor mestre (POST .../duty/enabled) explicitamente.
+    """
     res = client_with_duty_device.post("/api/devices/mash_heater/duty", json={"duty_percent": 40})
     assert res.status_code == 200
     data = res.get_json()
+    assert data["manual_duty_percent"] == 40.0  # valor configurado
+    assert data["duty_enabled"] is False  # mas NÃO armado
+    assert data["duty_percent"] == 0.0  # duty efetivo continua 0
+    assert data["duty_source"] == "idle"
+
+
+def test_duty_missing_body_returns_400(client_with_duty_device):
+    res = client_with_duty_device.post("/api/devices/mash_heater/duty", json={})
+    assert res.status_code == 400
+
+
+def test_enable_duty_control_applies_configured_percent(client_with_duty_device):
+    client_with_duty_device.post("/api/devices/mash_heater/duty", json={"duty_percent": 40})
+    res = client_with_duty_device.post("/api/devices/mash_heater/duty/enabled", json={"enabled": True})
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["duty_enabled"] is True
     assert data["duty_percent"] == 40.0
     assert data["duty_source"] == "manual"
 
 
-def test_clear_duty_percent_returns_idle(client_with_duty_device):
+def test_disable_duty_control_returns_idle_but_keeps_configured_percent(client_with_duty_device):
     client_with_duty_device.post("/api/devices/mash_heater/duty", json={"duty_percent": 40})
-    res = client_with_duty_device.post("/api/devices/mash_heater/duty", json={"duty_percent": None})
+    client_with_duty_device.post("/api/devices/mash_heater/duty/enabled", json={"enabled": True})
+    res = client_with_duty_device.post("/api/devices/mash_heater/duty/enabled", json={"enabled": False})
     assert res.status_code == 200
     data = res.get_json()
+    assert data["duty_enabled"] is False
     assert data["duty_source"] == "idle"
+    assert data["manual_duty_percent"] == 40.0  # não perde o valor configurado
+
+
+def test_enable_without_ever_setting_percent_defaults_to_zero(client_with_duty_device):
+    res = client_with_duty_device.post("/api/devices/mash_heater/duty/enabled", json={"enabled": True})
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["duty_enabled"] is True
+    assert data["duty_percent"] == 0.0  # seguro por default
+
+
+def test_duty_enabled_missing_body_returns_400(client_with_duty_device):
+    res = client_with_duty_device.post("/api/devices/mash_heater/duty/enabled", json={})
+    assert res.status_code == 400
+
+
+def test_duty_enabled_on_device_without_duty_control_returns_400(client):
+    res = client.post("/api/devices/mash_heater/duty/enabled", json={"enabled": True})
+    assert res.status_code == 400
 
 
 def test_set_duty_on_device_without_duty_control_returns_400(client):

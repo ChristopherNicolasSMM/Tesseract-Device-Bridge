@@ -83,20 +83,45 @@ def command_device(device_id: str):
 @bp.post("/devices/<device_id>/duty")
 def duty_device(device_id: str):
     """
-    Define ou limpa o override manual de potência (duty-cycle) de um
-    atuador com controle por time-proportioning (hardware.window_seconds
-    no devices.yml). Sempre vence o duty de uma receita ativa, exceto
-    se o device estiver com failsafe suspenso.
+    Define o VALOR de % configurado para o override manual de potência
+    de um atuador com controle por time-proportioning
+    (hardware.window_seconds no devices.yml) — NÃO liga o atuador
+    sozinho. Só tem efeito físico quando o controle estiver armado via
+    POST .../duty/enabled — ajustar o slider no painel não pode
+    energizar a resistência sem uma ação explícita de ligar.
 
-    Corpo: {"duty_percent": 40} define; {"duty_percent": null} (ou
-    campo omitido) limpa o override, devolvendo o controle pra receita
-    ativa (se houver) ou repouso (0%).
+    Corpo: {"duty_percent": 40} (obrigatório, numérico 0-100).
     """
     payload = request.get_json(silent=True) or {}
-    duty_percent = payload.get("duty_percent")
+    if "duty_percent" not in payload or payload["duty_percent"] is None:
+        return jsonify({"error": "corpo da requisição deve conter 'duty_percent' numérico."}), 400
 
     try:
-        state = _runtime().set_manual_duty(device_id, duty_percent)
+        state = _runtime().set_manual_duty_percent(device_id, payload["duty_percent"])
+    except KeyError as exc:
+        return jsonify({"error": str(exc)}), 404
+    except DeviceRuntimeError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(asdict(state))
+
+
+@bp.post("/devices/<device_id>/duty/enabled")
+def duty_enabled_device(device_id: str):
+    """
+    Liga/desliga o interruptor mestre do override manual de potência —
+    separado do valor de % (POST .../duty). Enquanto desligado, o
+    atuador fica em 0% mesmo que um valor de % tenha sido configurado
+    (a menos que uma receita ativa esteja controlando ele via PID,
+    nesse caso o duty da receita continua valendo normalmente).
+
+    Corpo: {"enabled": true} liga; {"enabled": false} desliga.
+    """
+    payload = request.get_json(silent=True) or {}
+    if "enabled" not in payload:
+        return jsonify({"error": "corpo da requisição deve conter 'enabled' (bool)."}), 400
+
+    try:
+        state = _runtime().set_manual_enabled(device_id, bool(payload["enabled"]))
     except KeyError as exc:
         return jsonify({"error": str(exc)}), 404
     except DeviceRuntimeError as exc:

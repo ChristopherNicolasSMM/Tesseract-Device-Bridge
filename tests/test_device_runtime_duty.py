@@ -248,3 +248,90 @@ def test_resume_without_prior_failsafe_is_a_safe_noop(runtime):
     duty = runtime.get_duty_state("mash_heater")
     assert duty.source == "manual"
     assert duty.duty_percent == 50.0
+
+
+# ---- set_manual_duty_percent / set_manual_enabled (interruptor separado
+# do valor) -- ajustar o % sozinho nunca arma o atuador ----------------------
+
+
+def test_set_manual_duty_percent_alone_does_not_enable(runtime):
+    runtime.set_manual_duty_percent("mash_heater", 60.0)
+    duty = runtime.get_duty_state("mash_heater")
+    assert duty.duty_percent == 0.0
+    assert duty.source == "idle"
+
+    state = runtime.get_state("mash_heater")
+    assert state.manual_duty_percent == 60.0  # valor guardado
+    assert state.duty_enabled is False  # mas não armado
+
+
+def test_set_manual_enabled_true_applies_configured_percent(runtime):
+    runtime.set_manual_duty_percent("mash_heater", 60.0)
+    runtime.set_manual_enabled("mash_heater", True)
+
+    duty = runtime.get_duty_state("mash_heater")
+    assert duty.duty_percent == 60.0
+    assert duty.source == "manual"
+
+
+def test_set_manual_enabled_true_without_percent_defaults_to_zero(runtime):
+    runtime.set_manual_enabled("mash_heater", True)
+    duty = runtime.get_duty_state("mash_heater")
+    assert duty.duty_percent == 0.0
+    assert duty.source == "manual"  # armado, só que em 0%
+
+
+def test_disabling_keeps_configured_percent_for_next_time(runtime):
+    runtime.set_manual_duty_percent("mash_heater", 70.0)
+    runtime.set_manual_enabled("mash_heater", True)
+    runtime.set_manual_enabled("mash_heater", False)
+
+    state = runtime.get_state("mash_heater")
+    assert state.manual_duty_percent == 70.0  # preservado
+    assert state.duty_enabled is False
+    assert state.duty_percent == 0.0
+    assert state.duty_source == "idle"
+
+    runtime.set_manual_enabled("mash_heater", True)  # religa sem reconfigurar
+    duty = runtime.get_duty_state("mash_heater")
+    assert duty.duty_percent == 70.0
+
+
+def test_changing_percent_while_enabled_takes_effect_immediately(runtime):
+    runtime.set_manual_enabled("mash_heater", True)
+    runtime.set_manual_duty_percent("mash_heater", 25.0)
+
+    duty = runtime.get_duty_state("mash_heater")
+    assert duty.duty_percent == 25.0
+    assert duty.source == "manual"
+
+
+def test_set_manual_duty_percent_on_non_duty_device_raises(runtime):
+    with pytest.raises(DeviceRuntimeError):
+        runtime.set_manual_duty_percent("mash_pump", 50.0)
+
+
+def test_set_manual_enabled_on_non_duty_device_raises(runtime):
+    with pytest.raises(DeviceRuntimeError):
+        runtime.set_manual_enabled("mash_pump", True)
+
+
+def test_tick_duty_does_not_energize_when_percent_set_but_not_enabled(runtime):
+    runtime.set_manual_duty_percent("mash_heater", 100.0)
+    runtime.tick_duty(now=0.0)
+    assert runtime.get_state("mash_heater").value is False
+
+
+def test_failsafe_suspends_regardless_of_enabled_state(runtime):
+    runtime.set_manual_duty_percent("mash_heater", 80.0)
+    runtime.set_manual_enabled("mash_heater", True)
+    runtime.tick_duty(now=0.0)
+    assert runtime.get_state("mash_heater").value is True
+
+    runtime.apply_failsafe("mash_heater")
+    runtime.tick_duty(now=1.0)
+    assert runtime.get_state("mash_heater").value is False
+
+    runtime.resume_all_suspended_overrides()
+    runtime.tick_duty(now=1.0)
+    assert runtime.get_state("mash_heater").value is True  # duty_enabled sobreviveu ao failsafe
