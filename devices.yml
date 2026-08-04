@@ -86,7 +86,9 @@ devices:
       pin: 12
     failsafe_value: false
     is_risk: true
+    window_seconds: 10 
     failsafe_timeout_seconds: 30
+
 
   - id: boil_heater
     name: "Resistência Caldeira Fervura"
@@ -98,6 +100,7 @@ devices:
       pin: 24
     failsafe_value: false
     is_risk: true
+    window_seconds: 10 
     failsafe_timeout_seconds: 30
 
   - id: pump_b1
