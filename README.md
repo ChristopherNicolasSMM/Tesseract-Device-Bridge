@@ -9,6 +9,7 @@
 |---|---|
 | **📖 Manual do usuário** | [Introdução](docs/manual/01-introducao.md) · [Primeiros passos](docs/manual/02-primeiros-passos.md) · [Funcionalidades](docs/manual/03-funcionalidades.md) · [FAQ](docs/manual/04-perguntas-frequentes.md) |
 | **🔧 Documentação técnica** | [Visão geral](docs/technical/01-visao-geral.md) · [Diagramas C4](docs/technical/02-diagrama-c4.md) · [Fluxos](docs/technical/03-fluxos.md) · [Modelo de dados (ER/MER)](docs/technical/04-modelo-de-dados.md) · [Casos de uso](docs/technical/05-casos-de-uso.md) · [Manutenção e expansão](docs/technical/06-manutencao-e-expansao.md) |
+| **📋 Backlog** | [BACKLOG.md](BACKLOG.md) — histórico de sessão e pendências |
 
 **Acesso rápido por tema:**
 

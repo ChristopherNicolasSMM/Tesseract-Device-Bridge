@@ -208,3 +208,38 @@ flowchart LR
 
     C -->|"[5] Sair"| O([Fim])
 ```
+
+## Fluxo 8 — Prioridade de controle de um atuador (failsafe > manual > receita > repouso)
+
+`DeviceRuntime` é o dono único da escrita física em qualquer atuador que
+o `RecipeEngine` também gerencia (heaters com `hardware.window_seconds`
+via `tick_duty()`; bombas via `_apply_pumps()`) — nenhum dos dois
+escreve direto no GPIO por conta própria, ambos passam por essa
+resolução de prioridade. Isso evita a receita desfazer silenciosamente
+um comando manual (heater) ou uma bomba "voltar sozinha" numa troca de
+etapa (achado real, ver `_apply_pumps`/`has_manual_override`).
+
+```mermaid
+flowchart TD
+    A([A cada tick / comando]) --> B{Failsafe\nsuspenso?}
+    B -- Sim --> C["Força 0% / desligado\nSempre vence, sem exceção"]
+    B -- Não --> D{Override manual\nativo?}
+    D -- "Sim (heater: duty_enabled\nbomba: has_manual_override)" --> E["Aplica o valor manual\n(duty_percent ou True/False)"]
+    D -- Não --> F{Receita ativa\nneste device?}
+    F -- Sim --> G["Aplica o valor da receita\n(PID para heater, step.pumps\npara bomba)"]
+    F -- Não --> H["Repouso (0% / desligado)"]
+```
+
+**Quem chama o quê:**
+
+| Situação | Heater (`hardware.window_seconds`) | Bomba (sem controle de potência) |
+|---|---|---|
+| Painel: toggle Ligado/Desligado | `set_manual_enabled(id, bool)` | `set_manual_override(id, bool)` via `/command` |
+| Painel: slider de % | `set_manual_duty_percent(id, valor)` — não arma sozinho | N/A |
+| Receita pedindo controle | `set_pid_duty(id, valor)` a cada tick | `_apply_pumps()` — só se não houver override |
+| Failsafe (local ou externo) | `apply_failsafe`/`apply_failsafe_external` — suspende e força 0% | Mesmo mecanismo — suspende e escreve `failsafe_value` |
+| Retomada explícita (`resume()`) | `resume_all_suspended_overrides()` — TPC se resolve sozinho no próximo `tick_duty()` | Mesmo método — reescreve o GPIO explicitamente (bomba não tem loop contínuo) |
+
+Retomada **nunca** acontece por reconexão de rede (watchdog de timeout,
+status agregado do Tesseract voltando a `online`) — só por
+`POST /api/recipe/resume`, ação explícita do operador.

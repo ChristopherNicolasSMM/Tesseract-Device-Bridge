@@ -2,6 +2,28 @@
 
 > **Navegação:** [Visão Geral](01-visao-geral.md) | [C4 Diagrams](02-diagrama-c4.md) | [Fluxos](03-fluxos.md) | [Modelo de Dados](04-modelo-de-dados.md) | [Casos de Uso](05-casos-de-uso.md)
 
+## Prioridade de controle: dono único do GPIO por atuador
+
+`DeviceRuntime` é o dono único da escrita física em qualquer atuador
+que o `RecipeEngine` também controla — nem o motor de receita nem o
+painel escrevem direto no GPIO desses devices, os dois só *pedem*
+(`set_pid_duty`/`set_manual_duty_percent`+`set_manual_enabled` pra
+heaters; `_apply_pumps`/`set_manual_override` pra bombas).
+
+**Achado real que motivou isso**: `RecipeEngine._apply_pumps()` decidia
+liga/desliga comparando a lista de pumps da etapa atual contra seu
+**próprio bookkeeping interno** (`self._active_pumps`), nunca contra o
+estado físico real. Sem `has_manual_override()`, um comando manual
+numa bomba era desfeito silenciosamente na próxima troca de etapa —
+sem erro, sem aviso. Ver [Fluxo 8](03-fluxos.md#fluxo-8--prioridade-de-controle-de-um-atuador-failsafe--manual--receita--repouso)
+pro diagrama completo de prioridade (failsafe > manual > receita >
+repouso) e a tabela de qual método cada camada chama.
+
+Ao adicionar qualquer automação nova que controle um atuador também
+exposto ao painel: **nunca escrever direto via `backend.write()`** —
+sempre passar por `DeviceRuntime` e checar/registrar override, ou o
+mesmo tipo de dessincronização volta a acontecer.
+
 ## Adicionar um novo tipo de sensor analógico
 
 O único driver analógico implementado é o DS18B20 (temperatura 1-Wire). Para suportar outro tipo (umidade do solo, pH, CO2, pressão, etc.):
@@ -47,6 +69,8 @@ register_analog_driver("meu_sensor", MeuSensorReader)
 ```
 
 **4. Adicionar testes** em `tests/test_meu_sensor_driver.py` com filesystem fake ou mock (ver `tests/test_ds18b20_driver.py` como referência — usa `tmp_path` com arquivo `w1_slave` fake, sem precisar de hardware real).
+
+> **Sensor lento (I²C, SPI, conversão com delay)?** Não bloqueie `.value` — sem cache, cada `/api/devices` do painel travaria pelo tempo de leitura do sensor multiplicado pela quantidade deles. `gpio/ds18b20_driver.py` (`Ds18b20Reader`) já resolve isso com o padrão "thread de fundo + cache contínuo": primeira leitura síncrona só no `__init__` (uma vez, no boot), depois uma thread dedicada mantém `.value` sempre atualizado sem nunca bloquear quem chama. Reaproveite o mesmo padrão (inclusive `close()` via `hasattr(device, "close")`, já genérico em `RealGPIOBackend.teardown()`) em vez de reinventar.
 
 ---
 
@@ -178,6 +202,8 @@ Mesma sequência, com `recipe_engine/models.py` + `tests/test_recipe_models.py`.
 | `NO_COLOR=1` | env | Desativa cores (redirect para arquivo, CI, etc.) |
 | `AlarmEvent.type` | `recipe_engine/state.py` | String livre — adicionar novos tipos sem mudar UI |
 | Polling 2.5s | `panel/templates/index.html` | `setInterval(pollRecipeStatus, 2500)` — ajustável |
+| `has_manual_override(id)` / `set_manual_override(id, valor)` | `device_runtime.py` | Registra override manual pra qualquer atuador sem controle de potência — `RecipeEngine._apply_pumps()` já respeita |
+| `hardware.poll_interval_seconds` / `stale_after_seconds` | `devices.yml` (por sensor `ds18b20`) | Ajusta o intervalo da thread de fundo e o limite de "sensor desconectado" — ver [Ds18b20Reader](../../gpio/ds18b20_driver.py) |
 
 ---
 
@@ -192,7 +218,7 @@ Mesma sequência, com `recipe_engine/models.py` + `tests/test_recipe_models.py`.
 
 ### Antes de usar na brassagem
 
-- [ ] `python -m pytest tests/ -v` → 283+ testes passando
+- [ ] `python -m pytest tests/ -v` → 356+ testes passando
 - [ ] `devices.yml` com `backend: real` (não `simulated`)
 - [ ] `mqtt.host` correto (ou `mqtt.enabled: false`)
 - [ ] Receita validada: `python3 -c "from config import BridgeConfig; from recipe_engine.models import Recipe; config=BridgeConfig.load('devices.yml'); recipe=Recipe.load('recipe.yml', config); print('OK:', recipe.name, recipe.step_count(), 'etapas')"`

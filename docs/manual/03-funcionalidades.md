@@ -20,7 +20,11 @@ Lista todos os sensores e atuadores com atualização automática a cada poucos 
 
 **Sensores** mostram o valor atual em tempo real (temperatura em °C).
 
-**Atuadores** têm um botão de controle manual — útil para testar antes de uma brassagem ou acionar algo pontualmente. ⚠️ Se uma receita estiver rodando, o controle manual e o motor de receita podem entrar em conflito no mesmo atuador. Use só quando a receita não estiver ativa naquele equipamento.
+**Atuadores simples** (bombas, válvulas) têm um interruptor Ligado/Desligado.
+
+**Atuadores com controle de potência** (resistências com SSR — mostura, fervura) têm um **interruptor Ligado/Desligado separado de um slider de 0-100%**: ajustar o slider sozinho nunca liga a resistência — precisa do interruptor estar explicitamente ligado. Abaixo do slider, um texto mostra o que está de fato sendo aplicado no momento (ex.: "Aplicado: 🌡️ Receita (PID) (60%)" ou "Aplicado: 🖐️ Manual (40%)").
+
+Um comando manual sempre tem prioridade sobre uma receita ativa no mesmo atuador — não há mais risco de conflito entre os dois. Um failsafe (queda de energia, perda de conexão) sempre vence qualquer controle manual, mesmo assim.
 
 ---
 
@@ -71,13 +75,17 @@ flowchart LR
 
 ### Medidores de vasilha
 
-Um medidor circular por vasilha. O **anel cobre** preenche conforme a potência aplicada — dado real do controlador PID, não decoração. Anel cheio = aquecendo a 100% de potência; anel vazio = aquecedor desligado.
+Um medidor circular por vasilha. O **anel cobre** preenche conforme a potência aplicada — dado real, seja da receita (PID) ou de um controle manual ativo, não decoração. Anel cheio = aquecendo a 100% de potência; anel vazio = aquecedor desligado.
 
-Na vasilha ativa:
-- Temperatura atual no centro do anel
-- Temperatura alvo e indicador da bomba ligada
+Abaixo do medidor, cada vasilha tem seu próprio **interruptor Ligado/Desligado + slider de %** (mesmo controle da Aba Painel, só que sem precisar sair da tela da receita) e, quando a vasilha tem bomba associada, um **subcard de bomba** por bomba:
 
-Vasilhas fora da etapa atual ficam acinzentadas com "aguardando".
+- Botão redondo com ícone: ▶ quando desligada (toque para ligar), ⏹ quando ligada (toque para parar) — sempre assume controle manual.
+- Badge indicando o modo atual: 🤖 Receita (controlada automaticamente pela etapa em andamento) ou 🖐️ Manual (você assumiu o controle).
+- Quando em modo manual, um botão pequeno ↺ aparece para devolver o controle pra receita.
+
+Um override manual (de heater ou de bomba) continua valendo mesmo se a receita avançar de etapa — só é liberado quando você clica em ↺ (ou desliga o interruptor), nunca sozinho.
+
+Vasilhas fora da etapa atual ficam acinzentadas com "aguardando" no alvo — mas o medidor de potência e os controles manuais funcionam normalmente em qualquer vasilha, ativa ou não.
 
 ### Timeline de etapas
 

@@ -492,21 +492,59 @@
       display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
     }
     .vessel-target .arrow { color: var(--copper-300); }
-    .vessel-pumps { display: flex; flex-wrap: wrap; gap: 6px; }
-    .pump-chip {
-      font-size: 11px; padding: 3px 9px; border-radius: 20px;
-      background: var(--bg-primary); border: 1px solid var(--border-subtle); color: var(--text-secondary);
-      cursor: pointer; user-select: none; display: inline-flex; align-items: center; gap: 4px;
-      transition: border-color 0.2s, color 0.2s;
+
+    /* Subcard de bomba: antes era só uma "pílula" de texto sem nenhuma
+       affordance visual de que era clicável ou de que tinha 2 ações
+       (manual/automático + liga/desliga) — substituído por um botão de
+       ícone real (liga/desliga explícito) + badge de modo + botão
+       pequeno de liberar controle, só quando sob controle manual. */
+    .vessel-pumps { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+    .pump-subcard {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-subtle);
+      transition: border-color 0.2s;
     }
-    .pump-chip:hover { border-color: var(--copper-300); }
-    .pump-chip.on { color: var(--hold-green); border-color: rgba(76,174,110,0.4); }
-    .pump-chip.manual { border-style: dashed; border-color: var(--copper-300); color: var(--copper-300); }
-    .pump-chip.manual.on { color: var(--hold-green); border-color: var(--hold-green); }
-    .pump-chip-release {
-      font-size: 12px; line-height: 1; opacity: 0.75; padding-left: 2px;
+    .pump-subcard.manual { border-style: dashed; border-color: var(--copper-300); }
+    .pump-subcard.on { border-color: rgba(76,174,110,0.35); }
+    .pump-subcard.on.manual { border-color: var(--hold-green); }
+
+    .pump-power-btn {
+      width: 32px; height: 32px; flex-shrink: 0;
+      border-radius: 50%;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      font-size: 13px;
+      transition: border-color 0.15s, color 0.15s, transform 0.1s, background 0.15s;
     }
-    .pump-chip-release:hover { opacity: 1; }
+    .pump-power-btn:hover { border-color: var(--copper-500); color: var(--copper-300); }
+    .pump-power-btn:active { transform: scale(0.9); }
+    .pump-subcard.on .pump-power-btn {
+      background: var(--hold-green); border-color: var(--hold-green); color: #0d1f14;
+    }
+
+    .pump-subcard-info { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+    .pump-subcard-name { font-size: 12.5px; font-weight: 600; color: var(--ink-warm-0); }
+    .pump-mode-badge { font-size: 10.5px; color: var(--text-secondary); }
+    .pump-mode-badge.manual { color: var(--copper-300); }
+
+    .pump-release-btn {
+      width: 26px; height: 26px; flex-shrink: 0;
+      border-radius: 50%;
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      font-size: 12px;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .pump-release-btn:hover { border-color: var(--copper-500); color: var(--copper-300); }
 
     .timeline-wrap {
       background: var(--bg-card);
@@ -1400,18 +1438,34 @@
       pumpsEl.innerHTML = pumpIds.map(pid => {
         // Estado físico real do pump (window.lastDevices), não mais
         // condicionado a "pertence à etapa atual" — um override manual
-        // pode ligar/desligar um pump independente da receita, e o chip
-        // precisa refletir isso corretamente em qualquer etapa.
+        // pode ligar/desligar um pump independente da receita, e o
+        // subcard precisa refletir isso corretamente em qualquer etapa.
         const pumpDevice = deviceById(pid);
         const isOn = pumpDevice ? pumpDevice.value === true : false;
         const isManual = !!(pumpDevice && pumpDevice.manual_override !== null && pumpDevice.manual_override !== undefined);
+
+        // Botão de ícone real (não mais um label sem affordance) —
+        // o próprio ícone já comunica a ação disponível: ▶ quando
+        // desligada (ação = "ligar"), ⏹ quando ligada (ação = "parar").
+        const powerIcon = isOn ? '\u23f9' : '\u25b6';
+        const powerTitle = isOn ? 'Parar bomba (assume controle manual)' : 'Ligar bomba (assume controle manual)';
+        const modeBadge = isManual
+          ? '<span class="pump-mode-badge manual">\ud83e\uddb1\ufe0f Manual</span>'
+          : '<span class="pump-mode-badge">\ud83e\udd16 Receita</span>';
         const releaseBtn = isManual
-          ? `<span class="pump-chip-release" onclick="event.stopPropagation(); releasePumpManual('${pid}')" title="Devolver pro controle automático da receita">\u21ba</span>`
+          ? `<button type="button" class="pump-release-btn" onclick="releasePumpManual('${pid}')" title="Devolver pro controle automático da receita">\u21ba</button>`
           : '';
-        const title = isManual
-          ? 'Sob controle manual \u2014 toque pra alternar'
-          : 'Sob controle da receita \u2014 toque pra assumir manualmente';
-        return `<span class="pump-chip ${isOn ? 'on' : ''} ${isManual ? 'manual' : ''}" onclick="togglePumpManual('${pid}')" title="${title}">${pid}${releaseBtn}</span>`;
+
+        return `
+          <div class="pump-subcard ${isOn ? 'on' : ''} ${isManual ? 'manual' : ''}">
+            <button type="button" class="pump-power-btn" onclick="togglePumpManual('${pid}')" title="${powerTitle}">${powerIcon}</button>
+            <div class="pump-subcard-info">
+              <span class="pump-subcard-name">${pid}</span>
+              ${modeBadge}
+            </div>
+            ${releaseBtn}
+          </div>
+        `;
       }).join('');
     }
 
