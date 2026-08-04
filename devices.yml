@@ -41,6 +41,8 @@ devices:
       pin: 4
       driver: ds18b20
       address: "28-0000071234ab"   # substituir pelo endereço real (ver gpio/ds18b20_scan.py) | python -m gpio.ds18b20_scan
+      #poll_interval_seconds: 1.0
+      #stale_after_seconds: 10.0            
     simulated:
       initial_value: 25.0
       min: 0
@@ -56,6 +58,8 @@ devices:
       pin: 4
       driver: ds18b20
       address: "28-0000071234cd"   # substituir pelo endereço real
+      #poll_interval_seconds: 1.0
+      #stale_after_seconds: 10.0      
     simulated:
       initial_value: 100.0
       min: 0

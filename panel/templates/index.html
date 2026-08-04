@@ -1848,7 +1848,7 @@
     fetchStatus();
     refresh();
     loadRecipeDefinition().then(() => { pollRecipeStatus(); });
-    setInterval(fetchStatus, 4000);
+    setInterval(fetchStatus, 8000);//Conexão MQTT
     setInterval(refresh, 3000);
     setInterval(pollRecipeStatus, 2500);
     setInterval(tickCountdownDisplay, 1000);
