@@ -43,6 +43,10 @@ devices:
 
 YAML_MQTT_ENABLED = YAML_MQTT_DISABLED.replace("enabled: false\nbackend", "enabled: true\nbackend")
 
+YAML_MQTT_DISABLED_WITH_DUTY = YAML_MQTT_DISABLED.replace(
+    "    hardware:\n      pin: 18\n", "    hardware:\n      pin: 18\n      window_seconds: 10\n"
+)
+
 
 def build_bridge(tmp_path, yaml_content):
     path = tmp_path / "devices.yml"
@@ -73,6 +77,31 @@ def test_handle_command_message_with_raw_payload(tmp_path):
 def test_handle_command_message_unknown_device_does_not_raise(tmp_path):
     bridge, runtime, config = build_bridge(tmp_path, YAML_MQTT_DISABLED)
     bridge._handle_command_message("does_not_exist", json.dumps({"value": 1}))  # não deve lançar
+
+
+def test_handle_command_message_routes_to_manual_duty_when_device_has_window_seconds(tmp_path):
+    bridge, runtime, config = build_bridge(tmp_path, YAML_MQTT_DISABLED_WITH_DUTY)
+    bridge._handle_command_message("mash_heater", json.dumps({"value": 40}))
+
+    duty = runtime.get_duty_state("mash_heater")
+    assert duty.duty_percent == 40.0
+    assert duty.source == "manual"
+
+
+def test_handle_command_message_with_null_value_clears_duty_override(tmp_path):
+    bridge, runtime, config = build_bridge(tmp_path, YAML_MQTT_DISABLED_WITH_DUTY)
+    bridge._handle_command_message("mash_heater", json.dumps({"value": 40}))
+    bridge._handle_command_message("mash_heater", json.dumps({"value": None}))
+
+    duty = runtime.get_duty_state("mash_heater")
+    assert duty.source == "idle"
+
+
+def test_tick_duty_delegates_to_runtime(tmp_path):
+    bridge, runtime, config = build_bridge(tmp_path, YAML_MQTT_DISABLED_WITH_DUTY)
+    runtime.set_manual_duty("mash_heater", 100.0)
+    bridge.tick_duty(now=0.0)
+    assert runtime.get_state("mash_heater").value is True
 
 
 def test_publish_sensor_states_noop_when_mqtt_disabled(tmp_path):
@@ -193,7 +222,10 @@ def test_tick_recipe_delegates_to_engine_when_present(tmp_path):
     from recipe_engine.models import Recipe
 
     path = tmp_path / "devices.yml"
-    path.write_text(textwrap.dedent(YAML_MQTT_DISABLED), encoding="utf-8")
+    devices_yaml = textwrap.dedent(YAML_MQTT_DISABLED).replace(
+        "    hardware:\n      pin: 18\n", "    hardware:\n      pin: 18\n      window_seconds: 10\n"
+    )
+    path.write_text(devices_yaml, encoding="utf-8")
     config = BridgeConfig.load(path)
     backend = SimulatedGPIOBackend()
     runtime = DeviceRuntime(config, backend)
@@ -206,7 +238,6 @@ def test_tick_recipe_delegates_to_engine_when_present(tmp_path):
         heater_device_id: mash_heater
         sensor_device_id: mash_tun_temp
         pid: { kp: 50.0, ki: 0.0, kd: 0.0 }
-        window_seconds: 10
     steps:
       - vessel: mash
         target_temp: 35.0

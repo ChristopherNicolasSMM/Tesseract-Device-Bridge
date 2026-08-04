@@ -39,7 +39,7 @@ devices:
     role: actuator
     subtype: digital
     command_topic: "actuators/mash_heater/set"
-    hardware: { pin: 17 }
+    hardware: { pin: 17, window_seconds: 10 }
     failsafe_value: false
     is_risk: true
     failsafe_timeout_seconds: 30
@@ -49,7 +49,7 @@ devices:
     role: actuator
     subtype: digital
     command_topic: "actuators/boil_heater/set"
-    hardware: { pin: 27 }
+    hardware: { pin: 27, window_seconds: 10 }
     failsafe_value: false
     is_risk: true
     failsafe_timeout_seconds: 30
@@ -73,13 +73,11 @@ vessels:
     heater_device_id: mash_heater
     sensor_device_id: mash_tun_temp
     pid: { kp: 50.0, ki: 0.0, kd: 0.0 }
-    window_seconds: 10
   - id: boil
     name: "Boil"
     heater_device_id: boil_heater
     sensor_device_id: boil_temp
     pid: { kp: 50.0, ki: 0.0, kd: 0.0 }
-    window_seconds: 10
 steps:
   - vessel: mash
     target_temp: 25.0
@@ -599,13 +597,11 @@ vessels:
     heater_device_id: mash_heater
     sensor_device_id: mash_tun_temp
     pid: { kp: 50.0, ki: 0.0, kd: 0.0 }
-    window_seconds: 10
   - id: boil
     name: "Fervura"
     heater_device_id: boil_heater
     sensor_device_id: boil_temp
     pid: { kp: 50.0, ki: 0.0, kd: 0.0 }
-    window_seconds: 10
 steps:
   - vessel: mash
     target_temp: 25.0

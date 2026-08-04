@@ -79,7 +79,7 @@ devices:
   - id: mash_heater
     name: "Resistência Caldeira Mostura"
     role: actuator
-    subtype: digital              # liga/desliga — potência controlada via time-proportioning (recipe_engine), não PWM de hardware
+    subtype: digital              # liga/desliga — potência via time-proportioning (ver hardware.window_seconds), não PWM de hardware
     command_topic: "actuators/mash_heater/set"
     state_topic: "actuators/mash_heater/state"
     hardware:
@@ -87,6 +87,11 @@ devices:
       # active_high: true   # MAZZA NPN: HIGH = liga (default, pode omitir)
       #                     # Use false apenas para relés active-low (módulos
       #                     # azuis do AliExpress com optoacoplador invertido)
+      window_seconds: 10    # ativa controle de potência (0-100%) via DeviceRuntime —
+                             # slider no painel + override manual + duty de receita,
+                             # com prioridade failsafe > manual > receita > repouso.
+                             # Obrigatório se este device for usado como heater_device_id
+                             # de uma vessel em recipe.yml.
     failsafe_value: false
     is_risk: true
     failsafe_timeout_seconds: 30
@@ -100,6 +105,7 @@ devices:
     hardware:
       pin: 27
       # active_high: true   # MAZZA NPN: HIGH = liga (default, pode omitir)
+      window_seconds: 10
     failsafe_value: false
     is_risk: true
     failsafe_timeout_seconds: 30

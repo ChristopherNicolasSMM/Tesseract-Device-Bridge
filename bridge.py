@@ -8,18 +8,16 @@ Dois mecanismos de fail-safe, complementares:
 - FailsafeTimeoutWatchdog: bridge perdeu o broker, Tesseract pode estar
   vivo (timeout local por device, failsafe_timeout_seconds).
 
-Ambos chamam, no fim das contas, DeviceRuntime.set_actuator/apply_failsafe
-— um único caminho de aplicação de fail-safe, dois gatilhos diferentes.
+Ambos chamam, no fim das contas, DeviceRuntime.apply_failsafe/
+apply_failsafe_external — um único caminho de aplicação de fail-safe,
+dois gatilhos diferentes.
 
-⚠️ Limitação conhecida (não resolvida nesta entrega): se um device for
-controlado ao mesmo tempo por uma receita ativa (RecipeEngine) E por
-comando MQTT individual (command_topic), os dois podem competir pelo
-mesmo atuador sem nenhum mecanismo de prioridade/lock entre eles. Para
-o caso de uso atual (receita 100% autônoma, MQTT tipicamente
-desabilitado ou usado só para os devices fora da receita) isso não é
-um problema na prática, mas se os dois forem usados simultaneamente
-sobre os mesmos devices, é preciso decidir uma regra de prioridade
-antes — sinalizar se isso virar necessidade real.
+Prioridade entre receita ativa (RecipeEngine) e comando MQTT/painel
+individual sobre o mesmo atuador (resolvida — ver device_runtime.py):
+para atuadores com hardware.window_seconds, DeviceRuntime é o dono
+único do GPIO — failsafe > override manual > duty da receita > repouso.
+Isso substitui a limitação de "sem lock de prioridade" registrada
+anteriormente aqui e no README.
 """
 
 from __future__ import annotations
@@ -87,6 +85,14 @@ class Bridge:
         Aceita payload em JSON ({"value": ...}) ou valor cru — formato
         exato do lado Tesseract não fazia parte do contrato confirmado
         nesta sessão; assumido aqui, sinalizar se divergir na prática.
+
+        Devices com controle de potência (hardware.window_seconds) são
+        roteados como override manual de duty (0-100%), nunca como
+        liga/desliga puro — mesmo que o subtype declarado seja
+        "digital" (isso descreve o tipo físico do GPIO, não como o
+        valor de comando deve ser interpretado). raw_value None (ex.:
+        payload JSON {"value": null}) limpa o override, devolvendo o
+        controle pra receita ativa (se houver) ou repouso.
         """
         try:
             device = self._runtime.get_device_config(device_id)
@@ -99,6 +105,15 @@ class Bridge:
             raw_value = data.get("value", data) if isinstance(data, dict) else data
         except json.JSONDecodeError:
             raw_value = payload
+
+        if device.has_duty_control:
+            try:
+                duty_percent = None if raw_value is None else coerce_value(raw_value, "pwm")
+                self._runtime.set_manual_duty(device_id, duty_percent)
+                logger.info("Duty manual aplicado via MQTT: device=%s duty=%s", device_id, duty_percent)
+            except DeviceRuntimeError as exc:
+                logger.error("Falha ao aplicar duty em '%s': %s", device_id, exc)
+            return
 
         value = coerce_value(raw_value, device.subtype)
         try:
@@ -123,6 +138,16 @@ class Bridge:
         if self._recipe_engine is not None:
             self._recipe_engine.tick(now)
 
+    def tick_duty(self, now: float) -> None:
+        """
+        Avança o controle de potência de todo atuador com
+        hardware.window_seconds — precisa rodar mesmo sem receita
+        carregada (cobre override manual isolado). Chamado depois de
+        tick_recipe() no loop principal, pra já refletir o duty que a
+        receita acabou de calcular neste mesmo ciclo.
+        """
+        self._runtime.tick_duty(now)
+
     def start(self) -> None:
         if self._mqtt:
             self._mqtt.connect()
@@ -139,6 +164,7 @@ class Bridge:
                 self.publish_sensor_states()
                 self.check_watchdog(now)
                 self.tick_recipe(now)
+                self.tick_duty(now)
                 time.sleep(poll_interval_seconds)
         except KeyboardInterrupt:
             logger.info("Encerrando bridge (KeyboardInterrupt).")

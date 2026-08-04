@@ -100,6 +100,16 @@ class DeviceConfig:
     failsafe_timeout_seconds: Optional[int] = None
     limits: Dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def has_duty_control(self) -> bool:
+        """
+        True quando este actuator declara hardware.window_seconds —
+        controlado por TimeProportioningController no DeviceRuntime em
+        vez de liga/desliga puro. Usado por DeviceRuntime, RecipeEngine,
+        bridge.py (coerção de comando) e a API do painel.
+        """
+        return self.role == "actuator" and "window_seconds" in self.hardware
+
     @classmethod
     def from_dict(cls, raw: Dict[str, Any]) -> "DeviceConfig":
         missing = [k for k in ("id", "name", "role") if k not in raw]
@@ -163,6 +173,17 @@ class DeviceConfig:
                     f"    active_high: false   # correto\n"
                     f"    active_high: 'false' # ERRADO — vira string"
                 )
+
+        if "window_seconds" in self.hardware:
+            if self.role != "actuator":
+                raise ConfigError(
+                    f"{prefix}: hardware.window_seconds só é válido para role='actuator' "
+                    f"(ativa controle de potência por time-proportioning — ver DeviceRuntime)."
+                )
+            window_seconds = self.hardware["window_seconds"]
+            is_number = isinstance(window_seconds, (int, float)) and not isinstance(window_seconds, bool)
+            if not is_number or window_seconds <= 0:
+                raise ConfigError(f"{prefix}: hardware.window_seconds deve ser numérico > 0.")
 
         if self.is_risk and self.failsafe_value is None:
             raise ConfigError(

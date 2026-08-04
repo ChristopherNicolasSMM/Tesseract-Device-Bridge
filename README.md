@@ -173,11 +173,19 @@ configuração.
 Máquina de estado **100% autônoma** — funciona com `mqtt.enabled: false`
 e sem o Tesseract de pé, dirigida só pelo loop principal de
 `bridge.py`. Cada `vessel` (vasilha — ou zona, tanque, o que o seu
-domínio precisar) tem seu próprio `PidController` +
-`TimeProportioningController`; cada `step` da receita declara qual
-vasilha controla, o alvo (`target_temp`), quanto tempo segurar
-(`hold_minutes`), quais atuadores extras ligar (`pumps`), e
-opcionalmente alarmes de etapa (`hop_alarms`).
+domínio precisar) tem seu próprio `PidController`; cada `step` da
+receita declara qual vasilha controla, o alvo (`target_temp`), quanto
+tempo segurar (`hold_minutes`), quais atuadores extras ligar
+(`pumps`), e opcionalmente alarmes de etapa (`hop_alarms`).
+
+O `TimeProportioningController` (que traduz duty 0-100% em liga/desliga
+dentro de uma janela) **não pertence mais ao motor de receita** — vive
+em `DeviceRuntime`, um por atuador que declarar `hardware.window_seconds`
+no `devices.yml` (não mais no `recipe.yml`). O motor só *pede* um duty
+a cada tick (`DeviceRuntime.set_pid_duty()`); quem decide o valor
+efetivo e escreve no GPIO é o `DeviceRuntime`, considerando também um
+eventual override manual (painel ou comando MQTT individual) — ver
+seção "Controle de potência por atuador" abaixo.
 
 ### Schema do `recipe.yml`
 
@@ -188,10 +196,9 @@ vessels:
   - id: mash               # referência estável, usada em steps.vessel
     name: "Mostura"         # texto livre de exibição
     order: 0                 # ordem de exibição na UI (opcional)
-    heater_device_id: mash_heater
+    heater_device_id: mash_heater   # precisa ter hardware.window_seconds no devices.yml
     sensor_device_id: mash_tun_temp
     pid: { kp: 5.0, ki: 0.1, kd: 0.0 }
-    window_seconds: 10       # janela de time-proportioning
 
   - id: boil
     name: "Fervura"
@@ -224,25 +231,68 @@ em `devices.yml`: `id` é a referência estável usada por `steps.vessel`,
 `name` é texto livre de exibição. Toda referência a `device_id`
 (`heater_device_id`, `sensor_device_id`, `pumps`) é validada contra o
 `devices.yml` carregado no boot — falha cedo, com mensagem clara, se
-referenciar algo que não existe.
+referenciar algo que não existe. `heater_device_id` também é validado
+quanto a ter `hardware.window_seconds` declarado — sem isso, o device
+não tem onde aplicar o duty do PID.
+
+> **Campo removido**: `window_seconds` não é mais aceito em `vessels`
+> (era duplicado com `devices.yml` e podia divergir). Se presente, é
+> ignorado e emite `DeprecationWarning` — mova o valor pra
+> `hardware.window_seconds` no `devices.yml` do `heater_device_id`.
 
 ### Comportamento de execução
 
-- **Rampa (`ramping`)**: PID calcula a saída (0-100%) a cada tick;
-  `TimeProportioningController` traduz isso em liga/desliga do
-  atuador dentro da janela configurada (necessário porque a maioria
-  dos relés de automação industrial/agrícola é liga/desliga simples,
-  não PWM analógico). Transição pra `holding` assim que o sensor
-  atinge `target_temp`.
+- **Rampa (`ramping`)**: PID calcula a saída (0-100%) a cada tick e
+  registra em `DeviceRuntime.set_pid_duty()`. Se não houver override
+  manual ativo nem failsafe suspenso, `DeviceRuntime.tick_duty()`
+  aplica esse duty via `TimeProportioningController` (liga/desliga
+  dentro da janela — necessário porque a maioria dos relés de
+  automação industrial/agrícola é liga/desliga simples, não PWM
+  analógico). Transição pra `holding` assim que o sensor atinge
+  `target_temp`.
 - **Patamar (`holding`)**: o tempo só começa a contar a partir do
   instante em que o alvo foi atingido — nunca desde o início da
   etapa. O PID continua ativo durante o patamar, mantendo o alvo.
 - **Atuadores extras (`pumps`)**: ligados/desligados conforme a lista
   de cada etapa, reavaliado a cada tick.
 - **Avanço de etapa**: desliga o atuador principal da vasilha
-  anterior, reseta PID/time-proportioning (evita herdar acúmulo de
-  uma etapa não relacionada), aplica os atuadores extras da nova
-  etapa imediatamente.
+  anterior, zera o duty do PID registrado em `DeviceRuntime` (evita
+  herdar acúmulo de uma etapa não relacionada), aplica os atuadores
+  extras da nova etapa imediatamente. Um override manual eventualmente
+  ativo **não** é afetado pela troca de etapa — continua valendo até
+  ser liberado explicitamente (ver seção abaixo).
+
+### Controle de potência por atuador (override manual)
+
+Qualquer atuador com `hardware.window_seconds` no `devices.yml` ganha,
+além do duty automático de uma receita ativa, um **override manual**
+de potência — via painel (slider no card do atuador) ou via
+`command_topic` individual (`{"value": 40}` = 40%, `{"value": null}`
+limpa o override). Prioridade resolvida a cada tick por
+`DeviceRuntime` (dono único da escrita no GPIO desse atuador — nunca
+duas fontes competindo pelo mesmo pino):
+
+1. **Failsafe suspenso** — sempre vence, força 0%, independente de
+   override ou receita.
+2. **Override manual** — se ativo, vence o duty da receita. Sobrevive
+   a troca de etapa; só some quando explicitamente liberado (painel:
+   botão "Liberar controle"; MQTT: `{"value": null}`) ou quando um
+   failsafe suspende temporariamente.
+3. **Duty da receita** — se não houver override nem failsafe
+   suspenso, e uma receita estiver `ramping`/`holding` naquela
+   vasilha.
+4. **Repouso (0%)** — nenhuma das anteriores.
+
+Quando um failsafe suspende o override (abort/pause/crash/watchdog de
+timeout/status agregado do Tesseract offline), ele só volta sozinho
+quando a retomada é uma ação **explícita** do usuário
+(`POST /api/recipe/resume`) — nunca por reconexão de rede, preservando
+a decisão já registrada de "voltar a `status: online` nunca religa
+nada sozinho" (ver seção de contrato MQTT).
+
+```
+POST /api/devices/<id>/duty     -> {"duty_percent": 40} define; {"duty_percent": null} limpa
+```
 
 ### Controles manuais (API + painel)
 
@@ -357,11 +407,15 @@ sem nenhuma validação automática entre os dois repositórios:
 
 ## Limitações conhecidas
 
-- Sem lock de prioridade entre receita ativa e comando MQTT individual
-  sobre o mesmo device — podem competir pelo mesmo atuador se usados
-  simultaneamente sobre os mesmos devices. Não é problema no uso atual
-  (receita autônoma, MQTT tipicamente desabilitado ou usado só pra
-  devices fora da receita).
+- ~~Sem lock de prioridade entre receita ativa e comando MQTT individual
+  sobre o mesmo device~~ — **resolvido**: para atuadores com
+  `hardware.window_seconds`, `DeviceRuntime` é o dono único da escrita
+  no GPIO (failsafe > override manual > duty da receita > repouso, ver
+  seção "Controle de potência por atuador"). Continua valendo sem
+  prioridade formal para atuadores **sem** `window_seconds` (liga/desliga
+  puro, ex.: bombas) — não é um problema prático porque não faz sentido
+  uma receita e um comando manual disputarem uma bomba booleana do
+  mesmo jeito que disputam um duty de potência.
 - `input_analog` sem driver registrado levanta `NotImplementedError`
   explícito — só `ds18b20` está implementado; outros tipos de sensor
   analógico (útil pra outros domínios — umidade do solo, pH, etc.)

@@ -20,6 +20,7 @@ a rodar.
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List
@@ -41,7 +42,6 @@ class VesselConfig:
     heater_device_id: str
     sensor_device_id: str
     pid: PidGains
-    window_seconds: float = 10.0
     order: int | None = None
 
     @classmethod
@@ -55,13 +55,21 @@ class VesselConfig:
         if pid_missing:
             raise RecipeError(f"vessel '{raw['id']}': pid sem campo(s) {pid_missing}.")
 
+        if "window_seconds" in raw:
+            warnings.warn(
+                f"vessel '{raw['id']}': campo 'window_seconds' no recipe.yml está obsoleto "
+                f"e é ignorado — a janela de time-proportioning agora é declarada em "
+                f"hardware.window_seconds no devices.yml do heater_device_id.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
         return cls(
             id=raw["id"],
             name=raw["name"],
             heater_device_id=raw["heater_device_id"],
             sensor_device_id=raw["sensor_device_id"],
             pid=PidGains(kp=float(pid_raw["kp"]), ki=float(pid_raw["ki"]), kd=float(pid_raw["kd"])),
-            window_seconds=float(raw.get("window_seconds", 10.0)),
             # Sem `order` explícito no YAML, cai na ordem de declaração
             # na lista `vessels:` — explícito sempre tem prioridade,
             # mas nunca é obrigatório escrever.
@@ -74,13 +82,17 @@ class VesselConfig:
             (self.sensor_device_id, "sensor_device_id"),
         ):
             try:
-                bridge_config.get_device(device_id)
+                device = bridge_config.get_device(device_id)
             except KeyError:
                 raise RecipeError(
                     f"vessel '{self.id}': {role_label} '{device_id}' não existe no devices.yml."
                 )
-        if self.window_seconds <= 0:
-            raise RecipeError(f"vessel '{self.id}': window_seconds deve ser > 0.")
+            if role_label == "heater_device_id" and not device.has_duty_control:
+                raise RecipeError(
+                    f"vessel '{self.id}': heater_device_id '{device_id}' precisa declarar "
+                    f"hardware.window_seconds no devices.yml (controle de potência por "
+                    f"time-proportioning) para ser usado como heater de uma vasilha."
+                )
 
 
 @dataclass

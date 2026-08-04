@@ -9,6 +9,12 @@
 #
 # Referências de device_id (heater_device_id, sensor_device_id, pumps)
 # precisam existir no devices.yml carregado — validado no boot.
+#
+# A janela de time-proportioning (antigo campo `window_seconds` aqui)
+# agora é declarada em hardware.window_seconds no devices.yml do
+# heater_device_id — cada actuator com controle de potência tem UM
+# window_seconds só, compartilhado entre receita, override manual e
+# painel, evitando duas fontes de verdade divergentes.
 
 
 name: "Lagers da Casa"
@@ -23,7 +29,6 @@ vessels:
       kp: 5.0
       ki: 0.1
       kd: 0.0
-    window_seconds: 10   # janela de time-proportioning (liga/desliga) — ver README
 
   - id: boil
     name: "Boil"
@@ -34,7 +39,6 @@ vessels:
       kp: 4.0
       ki: 0.05
       kd: 0.0
-    window_seconds: 10
 
 steps:
   - vessel: mash

@@ -1,6 +1,6 @@
 import pytest
 
-from recipe_engine.time_proportioning import TimeProportioningController
+from time_proportioning import TimeProportioningController
 
 
 def test_zero_duty_cycle_always_off():

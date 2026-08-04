@@ -35,7 +35,7 @@ devices:
     role: actuator
     subtype: digital
     command_topic: "actuators/mash_heater/set"
-    hardware: { pin: 17 }
+    hardware: { pin: 17, window_seconds: 10 }
     failsafe_value: false
     is_risk: true
 
@@ -44,7 +44,7 @@ devices:
     role: actuator
     subtype: digital
     command_topic: "actuators/boil_heater/set"
-    hardware: { pin: 27 }
+    hardware: { pin: 27, window_seconds: 10 }
     failsafe_value: false
     is_risk: true
 
@@ -67,7 +67,6 @@ vessels:
     heater_device_id: mash_heater
     sensor_device_id: mash_tun_temp
     pid: { kp: 5.0, ki: 0.1, kd: 0.0 }
-    window_seconds: 10
   - id: boil
     name: "Boil"
     heater_device_id: boil_heater
@@ -102,8 +101,37 @@ def test_load_valid_recipe(tmp_path, bridge_config):
     recipe = Recipe.load(path, bridge_config)
     assert recipe.name == "Pilsen Clássica"
     assert recipe.step_count() == 2
-    assert recipe.get_vessel("mash").window_seconds == 10.0
-    assert recipe.get_vessel("boil").window_seconds == 10.0  # default
+    # window_seconds nao existe mais em VesselConfig -- fonte de verdade
+    # e hardware.window_seconds no devices.yml do heater_device_id.
+    assert bridge_config.get_device("mash_heater").hardware["window_seconds"] == 10
+    assert bridge_config.get_device("boil_heater").hardware["window_seconds"] == 10
+
+
+def test_vessel_config_no_longer_has_window_seconds_field(tmp_path, bridge_config):
+    path = write_recipe(tmp_path, VALID_RECIPE_YAML)
+    recipe = Recipe.load(path, bridge_config)
+    assert not hasattr(recipe.get_vessel("mash"), "window_seconds")
+
+
+def test_recipe_yaml_with_deprecated_window_seconds_warns_and_is_ignored(tmp_path, bridge_config):
+    content = VALID_RECIPE_YAML.replace(
+        'pid: { kp: 5.0, ki: 0.1, kd: 0.0 }',
+        'pid: { kp: 5.0, ki: 0.1, kd: 0.0 }\n    window_seconds: 99',
+    )
+    path = write_recipe(tmp_path, content)
+    with pytest.warns(DeprecationWarning, match="obsoleto"):
+        recipe = Recipe.load(path, bridge_config)
+    assert not hasattr(recipe.get_vessel("mash"), "window_seconds")
+
+
+def test_heater_without_window_seconds_raises(tmp_path, bridge_config):
+    # mash_tun_temp nao tem window_seconds -- usar como heater deve falhar cedo
+    content = VALID_RECIPE_YAML.replace(
+        "heater_device_id: mash_heater", "heater_device_id: mash_tun_temp"
+    )
+    path = write_recipe(tmp_path, content)
+    with pytest.raises(RecipeError, match="hardware.window_seconds"):
+        Recipe.load(path, bridge_config)
 
 
 def test_missing_file_raises_recipe_error(tmp_path, bridge_config):

@@ -70,7 +70,7 @@ class StatusTopicHandler:
             try:
                 device = self._runtime.get_device_config(device_id)
                 value = coerce_value(entry.get("failsafe_value"), device.subtype)
-                self._runtime.set_actuator(device_id, value)
+                self._runtime.apply_failsafe_external(device_id, value)
                 logger.warning(
                     "Failsafe aplicado via status agregado: device=%s valor=%s (Tesseract offline)",
                     device_id, value,

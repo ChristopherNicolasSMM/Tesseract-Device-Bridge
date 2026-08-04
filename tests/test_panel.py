@@ -169,7 +169,14 @@ def client_with_recipe(tmp_path):
     from recipe_engine.models import Recipe
 
     devices_path = tmp_path / "devices.yml"
-    devices_path.write_text(textwrap.dedent(YAML_CONTENT), encoding="utf-8")
+    # heater_device_id de uma vessel precisa de hardware.window_seconds
+    # (controle de potência) — YAML_CONTENT compartilhado com os testes
+    # de /command e /simulate não declara isso de propósito, então
+    # adiciona só aqui, local a esta fixture.
+    devices_yaml = textwrap.dedent(YAML_CONTENT).replace(
+        "    hardware:\n      pin: 18\n", "    hardware:\n      pin: 18\n      window_seconds: 10\n"
+    )
+    devices_path.write_text(devices_yaml, encoding="utf-8")
     config = BridgeConfig.load(devices_path)
     backend = SimulatedGPIOBackend()
     runtime = DeviceRuntime(config, backend)
@@ -182,7 +189,6 @@ def client_with_recipe(tmp_path):
         heater_device_id: mash_heater
         sensor_device_id: mash_tun_temp
         pid: { kp: 50.0, ki: 0.0, kd: 0.0 }
-        window_seconds: 10
     steps:
       - vessel: mash
         target_temp: 35.0
@@ -255,6 +261,56 @@ def test_recipe_definition_returns_vessels_and_steps(client_with_recipe):
 
 def test_recipe_definition_returns_404_when_no_recipe_engine(client):
     res = client.get("/api/recipe/definition")
+    assert res.status_code == 404
+
+
+# ---- endpoint POST /devices/<id>/duty -------------------------------------
+
+
+@pytest.fixture
+def client_with_duty_device(tmp_path):
+    devices_yaml = textwrap.dedent(YAML_CONTENT).replace(
+        "    hardware:\n      pin: 18\n", "    hardware:\n      pin: 18\n      window_seconds: 10\n"
+    )
+    path = tmp_path / "devices.yml"
+    path.write_text(devices_yaml, encoding="utf-8")
+    config = BridgeConfig.load(path)
+    backend = SimulatedGPIOBackend()
+    runtime = DeviceRuntime(config, backend)
+    app = create_panel_app(config, runtime)
+    app.testing = True
+    return app.test_client()
+
+
+def test_set_duty_percent_returns_updated_state(client_with_duty_device):
+    res = client_with_duty_device.post("/api/devices/mash_heater/duty", json={"duty_percent": 40})
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["duty_percent"] == 40.0
+    assert data["duty_source"] == "manual"
+
+
+def test_clear_duty_percent_returns_idle(client_with_duty_device):
+    client_with_duty_device.post("/api/devices/mash_heater/duty", json={"duty_percent": 40})
+    res = client_with_duty_device.post("/api/devices/mash_heater/duty", json={"duty_percent": None})
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["duty_source"] == "idle"
+
+
+def test_set_duty_on_device_without_duty_control_returns_400(client):
+    # "client" (fixture original) usa mash_heater sem window_seconds
+    res = client.post("/api/devices/mash_heater/duty", json={"duty_percent": 40})
+    assert res.status_code == 400
+
+
+def test_set_duty_out_of_range_returns_400(client_with_duty_device):
+    res = client_with_duty_device.post("/api/devices/mash_heater/duty", json={"duty_percent": 200})
+    assert res.status_code == 400
+
+
+def test_set_duty_unknown_device_returns_404(client_with_duty_device):
+    res = client_with_duty_device.post("/api/devices/does_not_exist/duty", json={"duty_percent": 40})
     assert res.status_code == 404
 
 

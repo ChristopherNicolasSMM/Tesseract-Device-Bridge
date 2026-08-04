@@ -80,6 +80,30 @@ def command_device(device_id: str):
     return jsonify(asdict(state))
 
 
+@bp.post("/devices/<device_id>/duty")
+def duty_device(device_id: str):
+    """
+    Define ou limpa o override manual de potência (duty-cycle) de um
+    atuador com controle por time-proportioning (hardware.window_seconds
+    no devices.yml). Sempre vence o duty de uma receita ativa, exceto
+    se o device estiver com failsafe suspenso.
+
+    Corpo: {"duty_percent": 40} define; {"duty_percent": null} (ou
+    campo omitido) limpa o override, devolvendo o controle pra receita
+    ativa (se houver) ou repouso (0%).
+    """
+    payload = request.get_json(silent=True) or {}
+    duty_percent = payload.get("duty_percent")
+
+    try:
+        state = _runtime().set_manual_duty(device_id, duty_percent)
+    except KeyError as exc:
+        return jsonify({"error": str(exc)}), 404
+    except DeviceRuntimeError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(asdict(state))
+
+
 @bp.post("/devices/<device_id>/simulate")
 def simulate_device(device_id: str):
     """
@@ -152,6 +176,7 @@ def recipe_definition():
         return jsonify({"error": "Nenhuma receita carregada neste bridge."}), 404
 
     recipe = engine.recipe
+    runtime = _runtime()
     return jsonify({
         "name": recipe.name,
         "vessel_order": recipe.ordered_vessel_names(),
@@ -160,7 +185,10 @@ def recipe_definition():
                 "label": v.name,  # chave JSON mantida como "label" por retrocompatibilidade com o painel; valor vem de VesselConfig.name
                 "heater_device_id": v.heater_device_id,
                 "sensor_device_id": v.sensor_device_id,
-                "window_seconds": v.window_seconds,
+                # Fonte de verdade é hardware.window_seconds do heater no
+                # devices.yml (VesselConfig.window_seconds foi removido —
+                # era um campo duplicado e obsoleto).
+                "window_seconds": runtime.get_device_config(v.heater_device_id).hardware["window_seconds"],
                 "order": v.order,
             }
             for v in recipe.vessels

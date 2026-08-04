@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Dict, Optional, Set
 
 from device_runtime import DeviceRuntime
-from recipe_engine.models import Recipe
+from recipe_engine.models import Recipe, RecipeError
 from recipe_engine.pid import PidController
 from recipe_engine.state import (
     ACTIVE_STATUSES,
@@ -40,7 +40,6 @@ from recipe_engine.state import (
     AlarmEvent,
     RecipeState,
 )
-from recipe_engine.time_proportioning import TimeProportioningController
 
 
 class RecipeEngineError(RuntimeError):
@@ -63,9 +62,6 @@ class RecipeEngine:
         self._pid: Dict[str, PidController] = {
             v.id: PidController(v.pid) for v in recipe.vessels
         }
-        self._tpc: Dict[str, TimeProportioningController] = {
-            v.id: TimeProportioningController(v.window_seconds) for v in recipe.vessels
-        }
         self._active_pumps: Set[str] = set()
         self._last_tick_time: Optional[float] = None
 
@@ -87,10 +83,18 @@ class RecipeEngine:
         return self._recipe
 
     def current_duty(self, vessel_name: str) -> float:
-        """Potencia atual (0-100%) calculada pelo PID para a vasilha - usado pela UI (medidor)."""
-        if vessel_name not in self._tpc:
+        """
+        Potencia efetiva atual (0-100%) do heater da vasilha - usado
+        pela UI (medidor). Le do DeviceRuntime, entao reflete o duty
+        realmente aplicado (pode ser o do PID, um override manual, ou 0
+        se o failsafe estiver suspenso - nao necessariamente o que o
+        PID calculou por ultimo).
+        """
+        try:
+            vessel = self._recipe.get_vessel(vessel_name)
+        except RecipeError:
             return 0.0
-        return self._tpc[vessel_name].duty_cycle_percent
+        return self._runtime.get_duty_state(vessel.heater_device_id).duty_percent
 
     def total_estimated_minutes(self) -> float:
         """Soma de hold_minutes de todas as etapas - tempo previsto total da receita (sem contar rampa, que nao tem duracao previsivel)."""
@@ -184,6 +188,11 @@ class RecipeEngine:
                 f"resume() so e valido em status pausado ({sorted(PAUSED_STATUSES)}), atual e '{self._state.status}'."
             )
 
+        # resume() e sempre acao explicita do usuario (botao no painel) -
+        # por isso, e so aqui, um override manual suspenso por failsafe
+        # volta a valer sozinho. watchdog/status_handler nunca chamam
+        # isso (decisao registrada: rede voltar nunca religa sozinho).
+        self._runtime.resume_all_suspended_overrides()
         self._reset_controllers_for_current_step()
         self._active_pumps = set()
         self._last_tick_time = None
@@ -272,6 +281,14 @@ class RecipeEngine:
 
         self._apply_pumps(step.pumps)
         self._apply_heater(step, vessel, now, dt)
+        # Aplica o duty imediatamente (reflete o que o PID acabou de
+        # calcular nesta chamada) — o loop do bridge tambem chama
+        # tick_duty() a cada iteracao (necessario pra atuadores sem
+        # vasilha/receita, ex.: override manual isolado); chamar aqui
+        # tambem e idempotente para o mesmo `now`, so garante que quem
+        # chama engine.tick() diretamente (testes, uso isolado) ja ve o
+        # efeito no GPIO sem depender do loop externo.
+        self._runtime.tick_duty(now)
 
         if self._state.status == "ramping":
             current_temp = self._runtime.get_state(vessel.sensor_device_id).value
@@ -291,11 +308,11 @@ class RecipeEngine:
     def _apply_heater(self, step, vessel, now: float, dt: float) -> None:
         current_temp = self._runtime.get_state(vessel.sensor_device_id).value
         pid = self._pid[step.vessel]
-        tpc = self._tpc[step.vessel]
         duty = pid.compute(setpoint=step.target_temp, current_value=current_temp, dt=dt)
-        tpc.set_duty_cycle(duty)
-        heater_on = tpc.should_be_on(now)
-        self._runtime.set_actuator(vessel.heater_device_id, heater_on)
+        # So registra a intencao do PID - quem decide o duty efetivo (e
+        # escreve no GPIO) e o DeviceRuntime.tick_duty(), que da
+        # prioridade a um eventual override manual ou failsafe suspenso.
+        self._runtime.set_pid_duty(vessel.heater_device_id, duty)
 
     def _apply_pumps(self, desired_pump_ids) -> None:
         desired: Set[str] = set(desired_pump_ids)
@@ -312,8 +329,9 @@ class RecipeEngine:
         self._last_tick_time = None
         self._state.fired_hop_alarm_keys = []
         step = self._recipe.steps[self._state.step_index]
+        vessel = self._recipe.get_vessel(step.vessel)
         self._pid[step.vessel].reset()
-        self._tpc[step.vessel].reset()
+        self._runtime.set_pid_duty(vessel.heater_device_id, 0.0)
         self._apply_pumps(step.pumps)
         self._save()
 
@@ -344,8 +362,9 @@ class RecipeEngine:
     def _reset_controllers_for_current_step(self) -> None:
         if self._state.step_index < self._recipe.step_count():
             step = self._recipe.steps[self._state.step_index]
+            vessel = self._recipe.get_vessel(step.vessel)
             self._pid[step.vessel].reset()
-            self._tpc[step.vessel].reset()
+            self._runtime.set_pid_duty(vessel.heater_device_id, 0.0)
 
     def _apply_failsafe_all(self) -> None:
         for device in self._runtime.list_device_configs():

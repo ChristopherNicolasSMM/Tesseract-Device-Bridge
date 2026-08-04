@@ -1,11 +1,18 @@
 """
-Time-proportioning control — traduz uma saída de PID (0-100%, potência
-desejada) em comandos liga/desliga distribuídos dentro de uma janela de
-tempo fixa, para SSRs sem controle de fase analógico (caso real: as
-saídas NPN digital da interface CraftBeerPi/MAZZA).
+Time-proportioning control — traduz um duty cycle desejado (0-100%) em
+comandos liga/desliga distribuídos dentro de uma janela de tempo fixa,
+para SSRs sem controle de fase analógico (caso real: as saídas NPN
+digital da interface CraftBeerPi/MAZZA).
 
 Exemplo: janela de 10s, duty_cycle=65% -> liga nos primeiros 6.5s da
 janela, desliga nos 3.5s restantes, repete a cada nova janela.
+
+Infraestrutura de hardware, não exclusiva de receita — usada por
+`DeviceRuntime` (dono único por atuador, ver `hardware.window_seconds`
+em `devices.yml`) tanto para o duty vindo do PID de uma receita ativa
+quanto para o override manual (painel/comando individual). O
+`RecipeEngine` não instancia mais este controller diretamente; ele só
+pede um duty via `DeviceRuntime.set_pid_duty()`.
 
 `now` é sempre recebido por parâmetro (nunca lido internamente via
 time.time()) — mesma convenção do failsafe_watchdog.py, pra ser

@@ -978,7 +978,27 @@
         `;
       } else {
         // Atuador
-        if (d.subtype === 'pwm') {
+        if (d.window_seconds != null) {
+          // Controle de potência (time-proportioning) — SSR liga/desliga
+          // por ciclos inteiros, potência real vem da % de tempo ligado
+          // dentro da janela (d.window_seconds), não de PWM de hardware.
+          const duty = d.duty_percent ?? 0;
+          const sourceLabels = {
+            manual: '🖐️ Manual',
+            pid: '🌡️ Receita (PID)',
+            failsafe_suspended: '🛑 Failsafe',
+            idle: '⏸️ Repouso',
+          };
+          const sourceLabel = sourceLabels[d.duty_source] || d.duty_source || '';
+          controlsHtml = `
+            <input type="range" min="0" max="100" step="1" value="${duty}"
+                   oninput="dutyPreview('${d.id}', this.value)"
+                   onchange="setDuty('${d.id}', parseFloat(this.value))">
+            <div class="range-labels"><span>0%</span><span id="dutyLabel-${d.id}">${duty}%</span><span>100%</span></div>
+            <small style="color:var(--text-secondary);font-size:11px;">Fonte: ${sourceLabel} · janela ${d.window_seconds}s</small>
+            ${d.duty_source === 'manual' ? `<button class="btn-recipe ghost" style="margin-top:6px;width:100%;" onclick="clearDuty('${d.id}')">Liberar controle</button>` : ''}
+          `;
+        } else if (d.subtype === 'pwm') {
           controlsHtml = `
             <input type="range" min="0" max="100" step="1" value="${d.value}" 
                    oninput="command('${d.id}', parseFloat(this.value))">
@@ -1053,6 +1073,44 @@
     window.toggleActuator = function(id, newState) {
       command(id, newState);
     };
+
+    // Atualiza só o label enquanto o usuário arrasta o slider de duty,
+    // sem bater na API a cada pixel — a chamada de fato só acontece em
+    // onchange (setDuty), quando o usuário solta o slider.
+    window.dutyPreview = function(id, value) {
+      const label = document.getElementById(`dutyLabel-${id}`);
+      if (label) label.textContent = `${value}%`;
+    };
+
+    async function setDuty(id, dutyPercent) {
+      try {
+        const res = await fetch(`/api/devices/${id}/duty`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ duty_percent: dutyPercent })
+        });
+        if (!res.ok) throw new Error('Falha ao definir potência');
+        toast(`✅ Potência de ${id} definida em ${dutyPercent}%`, 'success');
+        refresh();
+      } catch (e) {
+        toast(`❌ Erro: ${e.message}`, 'error');
+      }
+    }
+
+    async function clearDuty(id) {
+      try {
+        const res = await fetch(`/api/devices/${id}/duty`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ duty_percent: null })
+        });
+        if (!res.ok) throw new Error('Falha ao liberar controle');
+        toast(`✅ Controle de ${id} liberado`, 'success');
+        refresh();
+      } catch (e) {
+        toast(`❌ Erro: ${e.message}`, 'error');
+      }
+    }
 
     async function refresh() {
       try {

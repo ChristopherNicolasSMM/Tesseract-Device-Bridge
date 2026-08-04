@@ -176,3 +176,51 @@ def test_multiple_actuators_in_single_payload(setup):
 
     assert runtime.get_state("mash_heater").value == 0.0
     assert runtime.get_state("mash_pump").value is False
+
+
+# ---- suspensão de duty (achado durante a implementação do controle de
+# potência por atuador: status_handler escrevia direto via set_actuator,
+# o que não suspendia um override manual e tornava o failsafe efêmero) ----
+
+YAML_CONTENT_WITH_DUTY = YAML_CONTENT.replace(
+    "    hardware:\n      pin: 18\n", "    hardware:\n      pin: 18\n      window_seconds: 10\n"
+)
+
+
+@pytest.fixture
+def setup_with_duty(tmp_path):
+    path = tmp_path / "devices.yml"
+    path.write_text(textwrap.dedent(YAML_CONTENT_WITH_DUTY), encoding="utf-8")
+    config = BridgeConfig.load(path)
+    backend = SimulatedGPIOBackend()
+    runtime = DeviceRuntime(config, backend)
+    lookup = build_command_topic_lookup(runtime, config.resolve_topic)
+    handler = StatusTopicHandler(runtime, lookup)
+    return runtime, handler, config
+
+
+def test_offline_status_suspends_manual_override_not_just_writes_off(setup_with_duty):
+    """
+    Sem a correção (usar apply_failsafe_external em vez de set_actuator
+    direto), um override manual ativo religaria o atuador no próximo
+    tick_duty(), tornando este failsafe efêmero.
+    """
+    runtime, handler, config = setup_with_duty
+    runtime.set_manual_duty("mash_heater", 80.0)
+    runtime.tick_duty(now=0.0)
+    assert runtime.get_state("mash_heater").value is True
+
+    payload = json.dumps({
+        "status": "offline",
+        "failsafe_actuators": [
+            {"command_topic": "brewery/actuators/mash_heater/set", "failsafe_value": "0"},
+        ],
+    })
+    handler.handle_message(payload)
+    assert runtime.get_state("mash_heater").value == 0.0  # escrita imediata
+
+    # O ponto central deste teste: mesmo com o loop do bridge continuando
+    # a rodar tick_duty(), o atuador NÃO pode religar sozinho.
+    runtime.tick_duty(now=1.0)
+    assert runtime.get_state("mash_heater").value == 0.0
+    assert runtime.get_duty_state("mash_heater").source == "failsafe_suspended"
