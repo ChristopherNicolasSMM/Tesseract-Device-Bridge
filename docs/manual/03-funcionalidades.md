@@ -85,6 +85,12 @@ Abaixo do medidor, cada vasilha tem seu próprio **interruptor Ligado/Desligado 
 
 Um override manual (de heater ou de bomba) continua valendo mesmo se a receita avançar de etapa — só é liberado quando você clica em ↺ (ou desliga o interruptor), nunca sozinho.
 
+### Confirmação de bomba automática
+
+Na primeira vez que a receita quiser ligar uma bomba automaticamente **nesta execução**, ela não liga sozinha — aparece um aviso âmbar no topo da receita, e o subcard da bomba fica pulsando com dois botões: **Confirmar** (deixa a receita controlar essa bomba dali em diante, sem perguntar de novo) ou **Manter manual** (a receita nunca liga essa bomba sozinha; se quiser, você liga na mão pelo próprio subcard).
+
+Isso existe pra evitar ligar uma bomba com a conexão fechada ou errada sem ninguém checar antes. A confirmação vale pro resto da execução (mesmo trocando de etapa) — mas se você pausar/retomar manualmente, continua valendo; já um reinício do processo (queda de energia) pede confirmação de novo, por segurança.
+
 Vasilhas fora da etapa atual ficam acinzentadas com "aguardando" no alvo — mas o medidor de potência e os controles manuais funcionam normalmente em qualquer vasilha, ativa ou não.
 
 ### Timeline de etapas

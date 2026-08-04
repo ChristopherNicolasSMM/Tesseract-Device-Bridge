@@ -465,3 +465,114 @@ def test_acknowledge_unknown_alarm_id_returns_200_noop(client_with_recipe):
     res = client.post("/api/recipe/alarms/99999/ack")
     assert res.status_code == 200
     assert len(res.get_json()["pending_alarms"]) == 1  # alarme real continua pendente
+
+
+# ---- confirmação de acionamento automático de bomba -----------------------
+
+
+@pytest.fixture
+def client_with_recipe_and_pump(tmp_path):
+    from config import BridgeConfig
+    from device_runtime import DeviceRuntime
+    from gpio.simulated_backend import SimulatedGPIOBackend
+    from recipe_engine.engine import RecipeEngine
+    from recipe_engine.models import Recipe
+
+    devices_yaml = textwrap.dedent(YAML_CONTENT).replace(
+        "    hardware:\n      pin: 18\n", "    hardware:\n      pin: 18\n      window_seconds: 10\n"
+    ) + """
+  - id: pump_b1
+    name: "Bomba B1"
+    role: actuator
+    subtype: digital
+    command_topic: "actuators/pump_b1/set"
+    hardware:
+      pin: 20
+    failsafe_value: false
+    is_risk: true
+    failsafe_timeout_seconds: 30
+"""
+    devices_path = tmp_path / "devices.yml"
+    devices_path.write_text(devices_yaml, encoding="utf-8")
+    config = BridgeConfig.load(devices_path)
+    backend = SimulatedGPIOBackend()
+    runtime = DeviceRuntime(config, backend)
+
+    recipe_yaml = """
+    name: "Receita com Bomba"
+    vessels:
+      - id: mash
+        name: "Mash"
+        heater_device_id: mash_heater
+        sensor_device_id: mash_tun_temp
+        pid: { kp: 50.0, ki: 0.0, kd: 0.0 }
+    steps:
+      - vessel: mash
+        target_temp: 35.0
+        hold_minutes: 1
+        pumps: [pump_b1]
+    """
+    recipe_path = tmp_path / "recipe.yml"
+    recipe_path.write_text(textwrap.dedent(recipe_yaml), encoding="utf-8")
+    recipe = Recipe.load(recipe_path, config)
+    state_path = tmp_path / "recipe_state.json"
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+
+    app = create_panel_app(config, runtime, recipe_engine=engine)
+    app.testing = True
+    return app.test_client(), engine, runtime
+
+
+def test_recipe_status_includes_pending_pump_confirmations(client_with_recipe_and_pump):
+    client, engine, runtime = client_with_recipe_and_pump
+    client.post("/api/recipe/start")
+    engine.tick(now=1000.0)
+    engine.tick(now=1001.0)
+
+    res = client.get("/api/recipe/status")
+    assert res.get_json()["pending_pump_confirmations"] == ["pump_b1"]
+    assert runtime.get_state("pump_b1").value is False
+
+
+def test_confirm_pump_endpoint_lets_it_turn_on(client_with_recipe_and_pump):
+    client, engine, runtime = client_with_recipe_and_pump
+    client.post("/api/recipe/start")
+    engine.tick(now=1000.0)
+    engine.tick(now=1001.0)
+
+    res = client.post("/api/recipe/pumps/pump_b1/confirm")
+    assert res.status_code == 200
+    assert res.get_json()["pending_pump_confirmations"] == []
+
+    engine.tick(now=1002.0)
+    assert runtime.get_state("pump_b1").value is True
+
+
+def test_decline_pump_endpoint_registers_manual_override(client_with_recipe_and_pump):
+    client, engine, runtime = client_with_recipe_and_pump
+    client.post("/api/recipe/start")
+    engine.tick(now=1000.0)
+    engine.tick(now=1001.0)
+
+    res = client.post("/api/recipe/pumps/pump_b1/decline")
+    assert res.status_code == 200
+    assert res.get_json()["pending_pump_confirmations"] == []
+    assert runtime.has_manual_override("pump_b1") is True
+    assert runtime.get_state("pump_b1").value is False
+
+
+def test_confirm_pump_returns_404_when_no_recipe_engine(client):
+    res = client.post("/api/recipe/pumps/pump_b1/confirm")
+    assert res.status_code == 404
+
+
+def test_decline_pump_returns_404_when_no_recipe_engine(client):
+    res = client.post("/api/recipe/pumps/pump_b1/decline")
+    assert res.status_code == 404
+
+
+def test_decline_unknown_pump_returns_404(client_with_recipe_and_pump):
+    client, engine, runtime = client_with_recipe_and_pump
+    client.post("/api/recipe/start")
+    res = client.post("/api/recipe/pumps/does_not_exist/decline")
+    assert res.status_code == 404

@@ -546,6 +546,23 @@
     }
     .pump-release-btn:hover { border-color: var(--copper-500); color: var(--copper-300); }
 
+    /* Estado "aguardando confirmação" — a receita quer ligar esta bomba
+       pela primeira vez nesta execução e precisa de aprovação explícita
+       antes (evita energizar bomba com conexão fechada/errada). */
+    .pump-subcard.pending {
+      border-color: rgba(227,162,60,0.6);
+      animation: alarmPulseBorder 1.4s infinite;
+    }
+    .pump-subcard-pending-label { font-size: 12px; font-weight: 600; color: var(--ramp-amber); flex: 1; min-width: 0; }
+    .pump-confirm-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .pump-confirm-btn {
+      font-size: 11px; font-weight: 600; padding: 5px 10px; border-radius: 6px;
+      cursor: pointer; border: 1px solid; transition: filter 0.15s;
+    }
+    .pump-confirm-btn:hover { filter: brightness(1.15); }
+    .pump-confirm-btn.approve { background: var(--ramp-amber); color: #1a1208; border-color: var(--ramp-amber); }
+    .pump-confirm-btn.decline { background: transparent; color: var(--text-secondary); border-color: var(--border-subtle); }
+
     .timeline-wrap {
       background: var(--bg-card);
       border: 1px solid var(--border-subtle);
@@ -721,6 +738,22 @@
     }
     .alarm-banner-btn:hover { filter: brightness(1.1); }
 
+    .pump-confirm-banner {
+      display: none;
+      align-items: center;
+      gap: 16px;
+      background: linear-gradient(90deg, rgba(227,162,60,0.18), rgba(227,162,60,0.05));
+      border: 1px solid rgba(227,162,60,0.45);
+      border-radius: var(--radius);
+      padding: 14px 20px;
+      margin-bottom: 22px;
+      animation: alarmPulseBorder 1.4s infinite;
+    }
+    .pump-confirm-banner.show { display: flex; }
+    .pump-confirm-banner-icon { font-size: 24px; flex-shrink: 0; }
+    .pump-confirm-banner-text { font-size: 13.5px; color: var(--ink-warm-400); }
+    .pump-confirm-banner-text strong { color: var(--ramp-amber); }
+
     .alarm-settings-popover {
       position: absolute;
       top: 100%;
@@ -830,6 +863,11 @@
             <div class="alarm-banner-extra" id="alarmBannerExtra"></div>
           </div>
           <button class="alarm-banner-btn" onclick="acknowledgeCurrentAlarm()">OK</button>
+        </div>
+
+        <div id="pumpConfirmBanner" class="pump-confirm-banner">
+          <div class="pump-confirm-banner-icon">⚠️</div>
+          <div class="pump-confirm-banner-text" id="pumpConfirmBannerText"></div>
         </div>
 
         <div id="crashBanner" class="crash-banner">
@@ -1435,7 +1473,27 @@
 
       const pumpsEl = $('vpumps-' + vesselName);
       const pumpIds = vesselPumpIds(vesselName);
+      const pendingPumps = window.pendingPumpConfirmations || [];
       pumpsEl.innerHTML = pumpIds.map(pid => {
+        // Estado "aguardando confirmação" tem prioridade sobre tudo —
+        // a receita quer ligar essa bomba pela primeira vez nesta
+        // execução e precisa de aprovação explícita antes (evita
+        // energizar bomba com conexão fechada/errada sem checar).
+        if (pendingPumps.includes(pid)) {
+          return `
+            <div class="pump-subcard pending">
+              <div class="pump-subcard-info">
+                <span class="pump-subcard-name">${pid}</span>
+                <span class="pump-subcard-pending-label">⚠️ Ligar automaticamente?</span>
+              </div>
+              <div class="pump-confirm-actions">
+                <button type="button" class="pump-confirm-btn approve" onclick="confirmPumpAuto('${pid}')">Confirmar</button>
+                <button type="button" class="pump-confirm-btn decline" onclick="declinePumpAuto('${pid}')">Manter manual</button>
+              </div>
+            </div>
+          `;
+        }
+
         // Estado físico real do pump (window.lastDevices), não mais
         // condicionado a "pertence à etapa atual" — um override manual
         // pode ligar/desligar um pump independente da receita, e o
@@ -1532,6 +1590,9 @@
         updateCountdownAnchor(status);
         updateTotalTimeDisplay(status);
         updateAlarmUI(status);
+
+        window.pendingPumpConfirmations = status.pending_pump_confirmations || [];
+        updatePumpConfirmBanner(window.pendingPumpConfirmations);
 
         renderTimeline(status);
 
@@ -1871,6 +1932,48 @@
       alarmBannerCurrentId = null;
       hideAlarmBanner();
       pollRecipeStatus();
+    }
+
+    // Banner de bombas aguardando confirmação — só informativo (sem
+    // botão de ação, diferente do banner de alarme): a ação em si
+    // acontece no subcard da bomba, que mostra os botões Confirmar/
+    // Manter manual. O banner some sozinho assim que a lista de
+    // pendências fica vazia, sem precisar de nenhum "OK" manual.
+    function updatePumpConfirmBanner(pending) {
+      const banner = $('pumpConfirmBanner');
+      if (!pending || pending.length === 0) {
+        banner.classList.remove('show');
+        return;
+      }
+      const text = pending.length === 1
+        ? `Bomba <strong>${pending[0]}</strong> aguardando confirmação para ligar automaticamente`
+        : `<strong>${pending.length} bombas</strong> aguardando confirmação para ligar automaticamente: ${pending.join(', ')}`;
+      $('pumpConfirmBannerText').innerHTML = text;
+      banner.classList.add('show');
+    }
+
+    async function confirmPumpAuto(pumpId) {
+      try {
+        const res = await fetch(`/api/recipe/pumps/${pumpId}/confirm`, { method: 'POST' });
+        if (!res.ok) throw new Error('Falha ao confirmar');
+        toast(`✅ ${pumpId} confirmada — receita vai controlar automaticamente`, 'success');
+        pollRecipeStatus();
+        refresh();
+      } catch (e) {
+        toast(`❌ Erro: ${e.message}`, 'error');
+      }
+    }
+
+    async function declinePumpAuto(pumpId) {
+      try {
+        const res = await fetch(`/api/recipe/pumps/${pumpId}/decline`, { method: 'POST' });
+        if (!res.ok) throw new Error('Falha ao manter manual');
+        toast(`✅ ${pumpId} mantida em controle manual`, 'success');
+        pollRecipeStatus();
+        refresh();
+      } catch (e) {
+        toast(`❌ Erro: ${e.message}`, 'error');
+      }
     }
 
     async function startRecipe() {

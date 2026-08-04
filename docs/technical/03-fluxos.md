@@ -243,3 +243,44 @@ flowchart TD
 Retomada **nunca** acontece por reconexão de rede (watchdog de timeout,
 status agregado do Tesseract voltando a `online`) — só por
 `POST /api/recipe/resume`, ação explícita do operador.
+
+## Fluxo 9 — Confirmação de acionamento automático de bomba (só bombas, não heaters)
+
+Camada extra de segurança **só pra bombas**, entre "sem override" e
+"aplica o valor da receita" do Fluxo 8: mesmo sem override manual, a
+receita nunca liga uma bomba pela **primeira vez nesta execução** sem
+aprovação explícita — evita energizar uma bomba com conexão fechada ou
+errada sem ninguém checar. Heaters não têm essa camada (o operador já
+vê o % antes de armar o interruptor manual, e a receita nunca liga um
+heater "do nada" sem estar em `ramping`/`holding`).
+
+```mermaid
+flowchart TD
+    A(["_apply_pumps() quer ligar\numa bomba (off -> on)"]) --> B{Tem override\nmanual?}
+    B -- Sim --> C["Não mexe\n(override sempre vence, Fluxo 8)"]
+    B -- Não --> D{Já foi confirmada\nnesta execução?}
+    D -- Sim --> E["Liga normalmente\n(set_actuator + entra em _active_pumps)"]
+    D -- Não --> F["Fica pendente\nNÃO liga sozinha"]
+    F --> G{Operador decide\nno painel}
+    G -- Confirmar --> H["confirm_pump_auto()\nvale pro resto desta execução"]
+    G -- "Manter manual" --> I["decline_pump_auto()\n= set_manual_override(id, False)"]
+    H --> E
+```
+
+**Escopo da confirmação** (`RecipeEngine._confirmed_pumps`/`_pending_confirmation`):
+
+| Evento | Confirmação é mantida? |
+|---|---|
+| Troca de etapa (mesma execução) | Sim — não pergunta de novo |
+| `pause()` → `resume()` manual | Sim — é a mesma execução continuando |
+| `start()` (nova execução) | **Não** — reseta, nova checagem de segurança |
+| Crash do processo (nova instância de `RecipeEngine`) | **Não** — mais seguro reconfirmar do que assumir que nada mudou fisicamente |
+
+Deliberadamente **não persistido** em `recipe_state.json` — é o único
+jeito de garantir a linha "crash reseta" sem precisar de um caso
+especial na recuperação.
+
+`RecipeEngine.pending_pump_confirmations` (exposto em
+`GET /api/recipe/status`) alimenta o banner de aviso e o subcard da
+bomba (estado visual "aguardando confirmação", com os botões
+Confirmar/Manter manual) no painel.

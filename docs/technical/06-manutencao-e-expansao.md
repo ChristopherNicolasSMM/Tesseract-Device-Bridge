@@ -24,6 +24,19 @@ exposto ao painel: **nunca escrever direto via `backend.write()`** —
 sempre passar por `DeviceRuntime` e checar/registrar override, ou o
 mesmo tipo de dessincronização volta a acontecer.
 
+**Confirmação de acionamento automático de bomba** (camada extra, só
+pra bombas): a receita nunca liga uma bomba pela primeira vez nesta
+execução sem aprovação explícita do operador — ver
+[Fluxo 9](03-fluxos.md#fluxo-9--confirmação-de-acionamento-automático-de-bomba-só-bombas-não-heaters).
+Deliberadamente implementado com bookkeeping próprio
+(`_confirmed_pumps`/`_pending_confirmation`, `RecipeEngine`) em vez de
+estender `has_manual_override()` — são conceitos diferentes: override
+é "a receita nunca controla isto", confirmação pendente é "a receita
+vai controlar, só ainda não teve aprovação pra começar". Se algum dia
+o mesmo padrão fizer sentido pra heater (ex.: primeira vez ligando uma
+resistência nova instalada), o lugar certo é generalizar esse
+mecanismo em `DeviceRuntime`, não duplicar em `RecipeEngine`.
+
 ## Adicionar um novo tipo de sensor analógico
 
 O único driver analógico implementado é o DS18B20 (temperatura 1-Wire). Para suportar outro tipo (umidade do solo, pH, CO2, pressão, etc.):
@@ -203,6 +216,7 @@ Mesma sequência, com `recipe_engine/models.py` + `tests/test_recipe_models.py`.
 | `AlarmEvent.type` | `recipe_engine/state.py` | String livre — adicionar novos tipos sem mudar UI |
 | Polling 2.5s | `panel/templates/index.html` | `setInterval(pollRecipeStatus, 2500)` — ajustável |
 | `has_manual_override(id)` / `set_manual_override(id, valor)` | `device_runtime.py` | Registra override manual pra qualquer atuador sem controle de potência — `RecipeEngine._apply_pumps()` já respeita |
+| `confirm_pump_auto(id)` / `decline_pump_auto(id)` | `recipe_engine/engine.py` | Resolve uma bomba pendente de confirmação — usado pelo painel, mas chamável direto em teste/script |
 | `hardware.poll_interval_seconds` / `stale_after_seconds` | `devices.yml` (por sensor `ds18b20`) | Ajusta o intervalo da thread de fundo e o limite de "sensor desconectado" — ver [Ds18b20Reader](../../gpio/ds18b20_driver.py) |
 
 ---
@@ -218,7 +232,7 @@ Mesma sequência, com `recipe_engine/models.py` + `tests/test_recipe_models.py`.
 
 ### Antes de usar na brassagem
 
-- [ ] `python -m pytest tests/ -v` → 356+ testes passando
+- [ ] `python -m pytest tests/ -v` → 370+ testes passando
 - [ ] `devices.yml` com `backend: real` (não `simulated`)
 - [ ] `mqtt.host` correto (ou `mqtt.enabled: false`)
 - [ ] Receita validada: `python3 -c "from config import BridgeConfig; from recipe_engine.models import Recipe; config=BridgeConfig.load('devices.yml'); recipe=Recipe.load('recipe.yml', config); print('OK:', recipe.name, recipe.step_count(), 'etapas')"`

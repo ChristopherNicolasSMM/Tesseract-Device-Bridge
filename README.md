@@ -361,6 +361,27 @@ diferente do controle de potência, a reaplicação precisa reescrever o
 GPIO explicitamente, já que atuadores booleanos não têm um loop
 contínuo como o `tick_duty()`).
 
+### Confirmação de acionamento automático de bomba
+
+Camada extra, só pra bombas: mesmo sem override manual, a receita
+**nunca liga uma bomba pela primeira vez numa execução** sem aprovação
+explícita do operador — evita energizar uma bomba com conexão fechada
+ou errada sem ninguém checar antes. `RecipeEngine` mantém
+`_confirmed_pumps`/`_pending_confirmation` (em memória, deliberadamente
+**não** persistido em `recipe_state.json` — um crash real do processo
+exige reconfirmação, por segurança; pause/resume manual, sendo a
+mesma execução continuando, preserva a confirmação normalmente).
+
+```
+GET  /api/recipe/status                  -> inclui "pending_pump_confirmations": ["pump_b1", ...]
+POST /api/recipe/pumps/<id>/confirm      -> deixa a receita controlar essa bomba pro resto da execução
+POST /api/recipe/pumps/<id>/decline      -> mantém manual (= set_manual_override(id, False))
+```
+
+Ver [Fluxo 9](docs/technical/03-fluxos.md#fluxo-9--confirmação-de-acionamento-automático-de-bomba-só-bombas-não-heaters)
+pro diagrama completo e a tabela de quando a confirmação é preservada
+vs. resetada.
+
 ### Controles manuais (API + painel)
 
 ```

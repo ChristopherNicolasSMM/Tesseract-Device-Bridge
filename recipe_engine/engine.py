@@ -65,6 +65,18 @@ class RecipeEngine:
         self._active_pumps: Set[str] = set()
         self._last_tick_time: Optional[float] = None
 
+        # Confirmação de acionamento automático de bomba (decisão
+        # registrada): a receita nunca liga uma bomba pela primeira vez
+        # sozinha sem confirmação explícita — evita danificar equipamento
+        # se a conexão estiver fechada/errada. Escopo: dura a EXECUÇÃO
+        # inteira (sobrevive a pause/resume manual), mas é
+        # deliberadamente NÃO persistido em RecipeState/recipe_state.json
+        # — depois de um crash real (processo reiniciou), é mais seguro
+        # reconfirmar do que assumir que nada mudou fisicamente. Só
+        # start() reseta (nova execução de verdade).
+        self._confirmed_pumps: Set[str] = set()
+        self._pending_confirmation: Set[str] = set()
+
         if self._state.status in ACTIVE_STATUSES:
             self._recover_from_crash(now)
 
@@ -118,6 +130,41 @@ class RecipeEngine:
         """Alarmes disparados e ainda nao confirmados (popup + som no painel)."""
         return list(self._state.pending_alarms)
 
+    @property
+    def pending_pump_confirmations(self) -> list:
+        """
+        Bombas que a receita quer ligar automaticamente pela primeira
+        vez nesta execução, mas ainda não foram confirmadas pelo
+        operador — usado pelo painel pra mostrar o banner + destacar o
+        subcard da bomba. Ordenado pra resposta HTTP ser estável.
+        """
+        return sorted(self._pending_confirmation)
+
+    def confirm_pump_auto(self, pump_id: str) -> None:
+        """
+        Operador confirmou que é seguro a receita ligar esta bomba
+        automaticamente. Vale pro resto desta execução (não pergunta de
+        novo, mesmo que a bomba desligue e ligue de novo em etapas
+        futuras) — só a escrita física em si acontece no próximo tick
+        de _apply_pumps(), não aqui (mantém o padrão de "engine só pede,
+        nunca escreve fora de tick()").
+        """
+        self._pending_confirmation.discard(pump_id)
+        self._confirmed_pumps.add(pump_id)
+
+    def decline_pump_auto(self, pump_id: str) -> None:
+        """
+        Operador optou por manter esta bomba manual — registra um
+        override manual desligado (mesmo mecanismo do botão de liga/
+        desliga do painel), então a receita nunca mais tenta ligá-la
+        sozinha. Se o operador depois liberar esse override
+        manualmente, a próxima tentativa da receita de ligar essa bomba
+        volta a pedir confirmação (decisão consciente foi "não", não
+        "ainda não decidi").
+        """
+        self._pending_confirmation.discard(pump_id)
+        self._runtime.set_manual_override(pump_id, False)
+
     def acknowledge_alarm(self, alarm_id: int) -> None:
         """Confirma (dispensa) um alarme pendente pelo id - remove da lista."""
         self._state.pending_alarms = [a for a in self._state.pending_alarms if a.id != alarm_id]
@@ -137,6 +184,10 @@ class RecipeEngine:
         self._reset_controllers_for_current_step()
         self._active_pumps = set()
         self._last_tick_time = None
+        # Nova execução = nova checagem de segurança. Confirmações de
+        # uma execução anterior (finalizada/cancelada) não valem pra esta.
+        self._confirmed_pumps = set()
+        self._pending_confirmation = set()
         first_step = self._recipe.steps[0]
         first_vessel = self._recipe.get_vessel(first_step.vessel)
         self._fire_alarm(ALARM_TYPE_VESSEL_START, f"Início {first_vessel.name}", now)
@@ -316,21 +367,48 @@ class RecipeEngine:
 
     def _apply_pumps(self, desired_pump_ids) -> None:
         """
-        Aciona/desliga bombas conforme a lista da etapa atual — mas nunca
-        num pump sob override manual (ver DeviceRuntime.has_manual_override,
-        painel: card da vasilha ou grade de Atuadores). Sem essa checagem,
-        um comando manual seria desfeito silenciosamente na próxima troca
-        de etapa, já que este método só compara contra o bookkeeping
-        interno (self._active_pumps), que não sabe de escritas manuais.
+        Aciona/desliga bombas conforme a lista da etapa atual — mas
+        nunca num pump sob override manual (ver DeviceRuntime.has_manual_override,
+        painel: card da vasilha ou grade de Atuadores), e nunca liga uma
+        bomba pela PRIMEIRA vez nesta execução sem confirmação explícita
+        do operador (ver confirm_pump_auto/decline_pump_auto e
+        pending_pump_confirmations) — proteção contra energizar uma
+        bomba com conexão fechada/errada sem ninguém checar antes.
+
+        Diferente da versão original: usa um bookkeeping "next_active"
+        construído do zero a cada chamada, em vez de só diffar contra
+        self._active_pumps — necessário porque uma bomba pendente de
+        confirmação NUNCA pode entrar em self._active_pumps (senão o
+        diff próximo tick ia achar que ela "já está ligada" e parar de
+        tentar de novo, mesmo depois de confirmada).
         """
         desired: Set[str] = set(desired_pump_ids)
-        for pump_id in desired - self._active_pumps:
-            if not self._runtime.has_manual_override(pump_id):
-                self._runtime.set_actuator(pump_id, True)
+        next_active: Set[str] = set()
+
+        for pump_id in desired:
+            if self._runtime.has_manual_override(pump_id):
+                # Override manual sempre vence — receita nem tenta mexer,
+                # nem conta como "ativo" pro bookkeeping da receita.
+                continue
+            if pump_id in self._active_pumps:
+                next_active.add(pump_id)  # já estava ligada por esta receita, continua
+                continue
+            # Transição off -> on: precisa ter sido confirmada nesta execução.
+            if pump_id not in self._confirmed_pumps:
+                self._pending_confirmation.add(pump_id)
+                continue  # fica pendente — não liga sozinha
+            self._runtime.set_actuator(pump_id, True)
+            next_active.add(pump_id)
+
         for pump_id in self._active_pumps - desired:
             if not self._runtime.has_manual_override(pump_id):
                 self._runtime.set_actuator(pump_id, False)
-        self._active_pumps = desired
+
+        # Bombas que deixaram de ser desejadas (mudou de etapa antes de
+        # alguém decidir) não devem continuar aparecendo como pendentes.
+        self._pending_confirmation &= desired
+
+        self._active_pumps = next_active
 
     def _restart_current_step(self, now: float) -> None:
         self._state.status = "ramping"

@@ -63,49 +63,44 @@ mais bloqueia. Resiliente a glitch de CRC (comum em 1-Wire); só
 levanta erro de verdade depois de `stale_after_seconds` (default 10s)
 sem nenhuma leitura boa.
 
+**7. Confirmação de acionamento automático de bomba (item 1 do backlog, versão simplificada)**
+Discutido e decidido em sessão de arquitetura própria: em vez da
+configuração fina originalmente cogitada (timing de start/stop,
+direto/pulsado), a versão simples resolve o mesmo medo raiz — a
+receita nunca liga uma bomba pela **primeira vez numa execução** sem
+aprovação explícita do operador. `RecipeEngine` ganhou
+`_confirmed_pumps`/`_pending_confirmation` (em memória, não
+persistido — crash real exige reconfirmar; pause/resume manual
+preserva) e `confirm_pump_auto()`/`decline_pump_auto()` (o segundo
+reaproveita 100% o `set_manual_override` que já existia). Painel:
+banner de aviso no topo (sem botão, some sozinho) + subcard da bomba
+com borda âmbar pulsante e os botões Confirmar/Manter manual. Ver
+[Fluxo 9](docs/technical/03-fluxos.md#fluxo-9--confirmação-de-acionamento-automático-de-bomba-só-bombas-não-heaters).
+
 ### Suíte de testes
 
-291 → 356 testes ao longo da sessão (65 novos/reescritos). Todos os
+291 → 370 testes ao longo da sessão (79 novos/reescritos). Todos os
 patches validados em clone limpo do HEAD real via `git am` antes da
 entrega.
 
 ### Documentação atualizada nesta sessão
 
-- `README.md` — endpoints novos, seção de override de bombas, DS18B20.
-- `docs/technical/03-fluxos.md` — Fluxo 8 (prioridade de controle).
+- `README.md` — endpoints novos, seção de override de bombas, DS18B20,
+  confirmação de acionamento automático.
+- `docs/technical/03-fluxos.md` — Fluxo 8 (prioridade de controle) e
+  Fluxo 9 (confirmação de bomba).
 - `docs/technical/06-manutencao-e-expansao.md` — mecanismo de override,
   padrão de thread de fundo pra sensor lento, tabela de extensão.
 - `docs/manual/03-funcionalidades.md` — removido aviso obsoleto de
   conflito manual/receita (resolvido nesta sessão); documentado o
-  toggle+slider e o subcard de bomba.
+  toggle+slider, o subcard de bomba e a confirmação automática.
 - Este arquivo (`BACKLOG.md`), criado agora.
 
 ---
 
 ## Pendente (próximos patches)
 
-### 1. Configuração fina de bomba: manual vs. automático, tempo de start/stop
-
-Hoje uma bomba é só liga/desliga puro (manual ou automático, via
-`_apply_pumps`). Falta poder configurar, por bomba:
-
-- Se o acionamento manual é **direto** (liga/desliga instantâneo) ou
-  **pulsado** (fica ligada por X segundos e desliga sozinha — útil pra
-  bombas que não devem rodar a seco por muito tempo se o operador
-  esquecer).
-- Tempo de "start" e tempo de "stop" separados, se fizer sentido pro
-  caso de uso (ex.: prime da bomba antes de entrar em regime).
-- Se isso deve ser configurável só no acionamento manual, ou também
-  quando a receita aciona a bomba automaticamente.
-
-**Não decidido ainda**: se isso é uma extensão do mesmo mecanismo de
-`window_seconds`/time-proportioning (reaproveitando `TimeProportioningController`
-com um "duty" que na prática é 100% por N segundos), ou um mecanismo
-novo e mais simples (timer direto, sem duty-cycle). Precisa de uma
-sessão de decisão de arquitetura antes de implementar — mesmo processo
-das sessões anteriores.
-
-### 2. Nova aba — cadastro e seleção de receitas
+### 1. Nova aba — cadastro e seleção de receitas
 
 Hoje o bridge carrega **um único `recipe.yml`** no boot; trocar de
 receita exige editar o arquivo manualmente e reiniciar o processo (ver
@@ -116,12 +111,23 @@ Pedido: uma aba nova, depois de "Receitas", pra cadastrar múltiplas
 receitas pelo próprio painel e escolher qual usar em cada brassagem,
 sem editar arquivo nem reiniciar o serviço.
 
+**Direção já discutida (não fechada, retomar quando chegar a vez)**:
+manter YAML (sem banco) — uma pasta `dados/` com um arquivo por
+receita, e um `receita_base.yaml` como fallback: se `dados/` estiver
+vazia, o sistema usa ela pra já funcionar sem cadastro nenhum (mesmo
+comportamento de hoje). Se o painel (JS) precisar listar as receitas
+cadastradas, um índice leve em JSON (`dados/index.json`, só
+nome+arquivo) evita precisar de um parser YAML no navegador — o
+conteúdo de cada receita continua YAML, parseado só no lado Python.
+
 **Perguntas em aberto pra próxima sessão de decisão**:
-- Onde as receitas ficam persistidas — arquivos `.yml` numerados numa
-  pasta nova, ou outro formato de storage?
 - Trocar de receita exige reiniciar o processo (limitação atual,
   `Recipe` é carregada uma vez no boot) ou precisa suportar troca a
   quente, sem restart?
 - Interação com o Tesseract Core: essas receitas cadastradas aqui
   deveriam sincronizar com receitas do lado do Tesseract (fora de
   escopo da Fase F ainda pendente na skill 05), ou são independentes?
+- Validação de receita cadastrada pelo painel: mesma validação de
+  `Recipe.load()` (falha cedo, mensagem clara) precisa rodar no
+  momento do cadastro, não só ao carregar — senão um erro de digitação
+  só aparece na hora de tentar usar a receita numa brassagem real.

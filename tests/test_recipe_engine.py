@@ -161,6 +161,7 @@ def test_tick_activates_step_pumps(setup):
     runtime, recipe, state_path = setup
     engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
     engine.start(now=1000.0)
+    engine.confirm_pump_auto("pump_b1")  # confirmação prévia -- comportamento de pendência tem testes dedicados abaixo
     engine.tick(now=1000.0)
     engine.tick(now=1001.0)
     assert runtime.get_state("pump_b1").value is True
@@ -194,6 +195,7 @@ def test_apply_pumps_respects_manual_override_preventing_auto_off_on_transition(
     runtime, recipe, state_path = setup
     engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
     engine.start(now=1000.0)
+    engine.confirm_pump_auto("pump_b1")
     engine.tick(now=1000.0)
     engine.tick(now=1001.0)
     assert runtime.get_state("pump_b1").value is True  # ligado normalmente pela receita
@@ -203,6 +205,162 @@ def test_apply_pumps_respects_manual_override_preventing_auto_off_on_transition(
     engine.skip_next(now=1002.0)  # avança pra "boil", que não usa pump_b1
 
     assert runtime.get_state("pump_b1").value is True  # override impediu o desligamento automático
+
+
+# ---- confirmação de acionamento automático de bomba -----------------------
+
+
+def test_pump_stays_off_and_pending_until_confirmed(setup):
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.tick(now=1000.0)
+    engine.tick(now=1001.0)  # step0 quer pump_b1 ligado -- primeira vez, sem confirmação
+
+    assert runtime.get_state("pump_b1").value is False
+    assert engine.pending_pump_confirmations == ["pump_b1"]
+
+
+def test_confirm_pump_auto_lets_it_turn_on_next_tick(setup):
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.tick(now=1000.0)
+    engine.tick(now=1001.0)
+    assert runtime.get_state("pump_b1").value is False  # ainda pendente
+
+    engine.confirm_pump_auto("pump_b1")
+    engine.tick(now=1002.0)  # próximo tick aplica de fato
+
+    assert runtime.get_state("pump_b1").value is True
+    assert engine.pending_pump_confirmations == []
+
+
+def test_confirmation_lasts_the_whole_execution_across_step_transitions(setup):
+    """
+    Confirmar uma vez vale pro resto da execução -- mesmo que a bomba
+    desligue (troca de etapa) e ligue de novo depois, não pergunta de novo.
+    """
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.confirm_pump_auto("pump_b1")
+    engine.tick(now=1000.0)
+    engine.tick(now=1001.0)
+    assert runtime.get_state("pump_b1").value is True
+
+    engine.skip_next(now=1002.0)  # avança pra "boil" (não usa pump_b1) -- desliga
+    assert runtime.get_state("pump_b1").value is False
+
+    engine.skip_previous(now=1003.0)  # volta pra "mash" -- religa sem pedir de novo
+    engine.tick(now=1004.0)
+    assert runtime.get_state("pump_b1").value is True
+    assert engine.pending_pump_confirmations == []
+
+
+def test_decline_pump_auto_registers_manual_override_off(setup):
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.tick(now=1000.0)
+    engine.tick(now=1001.0)
+    assert engine.pending_pump_confirmations == ["pump_b1"]
+
+    engine.decline_pump_auto("pump_b1")
+
+    assert engine.pending_pump_confirmations == []
+    assert runtime.has_manual_override("pump_b1") is True
+    assert runtime.get_state("pump_b1").value is False
+
+    # A receita não tenta mais ligar essa bomba sozinha nos próximos ticks.
+    engine.tick(now=1002.0)
+    assert runtime.get_state("pump_b1").value is False
+    assert engine.pending_pump_confirmations == []
+
+
+def test_pending_confirmation_clears_when_step_stops_wanting_the_pump(setup):
+    """
+    Se a receita mudar de etapa antes de alguém decidir, a pendência
+    some sozinha -- não fica "presa" pedindo confirmação de algo que
+    a receita nem quer mais.
+    """
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.tick(now=1000.0)
+    engine.tick(now=1001.0)
+    assert engine.pending_pump_confirmations == ["pump_b1"]
+
+    engine.skip_next(now=1002.0)  # "boil" não usa pump_b1
+
+    assert engine.pending_pump_confirmations == []
+
+
+def test_new_start_resets_confirmations_from_previous_execution(setup):
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.confirm_pump_auto("pump_b1")
+    engine.tick(now=1000.0)
+    engine.tick(now=1001.0)
+    assert runtime.get_state("pump_b1").value is True
+
+    engine.abort(now=1005.0)
+    engine.start(now=1006.0)  # nova execução -- confirmação anterior não vale mais
+    engine.tick(now=1006.0)
+    engine.tick(now=1007.0)
+
+    assert runtime.get_state("pump_b1").value is False
+    assert engine.pending_pump_confirmations == ["pump_b1"]
+
+
+def test_confirmation_survives_manual_pause_and_resume(setup):
+    """
+    Pausa/retomada manual é a MESMA execução continuando -- confirmação
+    não deve ser perdida (diferente de um crash real do processo).
+    """
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.confirm_pump_auto("pump_b1")
+    engine.tick(now=1000.0)
+    engine.tick(now=1001.0)
+    assert runtime.get_state("pump_b1").value is True
+
+    engine.pause(now=1002.0)
+    engine.resume(now=1003.0)
+    engine.tick(now=1003.0)
+    engine.tick(now=1004.0)
+
+    assert runtime.get_state("pump_b1").value is True
+    assert engine.pending_pump_confirmations == []
+
+
+def test_crash_recovery_resets_confirmations(setup):
+    """
+    Diferente de pause/resume manual: um crash real (processo
+    reiniciado, nova instância de RecipeEngine) exige reconfirmação --
+    é mais seguro assumir que algo pode ter mudado fisicamente.
+    """
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.confirm_pump_auto("pump_b1")
+    engine.tick(now=1000.0)
+    engine.tick(now=1001.0)
+    assert runtime.get_state("pump_b1").value is True
+
+    # Simula crash: nova instância de RecipeEngine sobre o mesmo estado
+    # persistido (sem passar por start() de novo).
+    new_engine = RecipeEngine(runtime, recipe, state_path, now=1010.0)
+    assert new_engine.state.status == "paused_after_crash"
+
+    new_engine.resume(now=1011.0)
+    new_engine.tick(now=1011.0)
+    new_engine.tick(now=1012.0)
+
+    assert runtime.get_state("pump_b1").value is False  # precisa reconfirmar
+    assert new_engine.pending_pump_confirmations == ["pump_b1"]
 
 
 def test_ramping_transitions_to_holding_when_target_reached(setup):

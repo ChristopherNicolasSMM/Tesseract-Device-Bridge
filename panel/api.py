@@ -189,6 +189,7 @@ def _recipe_status_payload(engine: RecipeEngine) -> dict:
         "total_estimated_minutes": engine.total_estimated_minutes(),
         "total_elapsed_seconds": engine.total_elapsed_seconds(now),
         "pending_alarms": [asdict(a) for a in engine.pending_alarms],
+        "pending_pump_confirmations": engine.pending_pump_confirmations,
     }
 
 
@@ -332,4 +333,35 @@ def recipe_acknowledge_alarm(alarm_id: int):
     if engine is None:
         return jsonify({"error": "Nenhuma receita carregada neste bridge."}), 404
     engine.acknowledge_alarm(alarm_id)
+    return jsonify(_recipe_status_payload(engine))
+
+
+@bp.post("/recipe/pumps/<pump_id>/confirm")
+def recipe_confirm_pump(pump_id: str):
+    """
+    Confirma que é seguro a receita ligar esta bomba automaticamente —
+    vale pro resto da execução atual (não pergunta de novo).
+    """
+    engine = _recipe_engine()
+    if engine is None:
+        return jsonify({"error": "Nenhuma receita carregada neste bridge."}), 404
+    engine.confirm_pump_auto(pump_id)
+    return jsonify(_recipe_status_payload(engine))
+
+
+@bp.post("/recipe/pumps/<pump_id>/decline")
+def recipe_decline_pump(pump_id: str):
+    """
+    Mantém esta bomba sob controle manual — a receita nunca mais tenta
+    ligá-la sozinha (mesmo mecanismo do toggle manual do painel).
+    """
+    engine = _recipe_engine()
+    if engine is None:
+        return jsonify({"error": "Nenhuma receita carregada neste bridge."}), 404
+    try:
+        engine.decline_pump_auto(pump_id)
+    except KeyError as exc:
+        return jsonify({"error": str(exc)}), 404
+    except DeviceRuntimeError as exc:
+        return jsonify({"error": str(exc)}), 400
     return jsonify(_recipe_status_payload(engine))
