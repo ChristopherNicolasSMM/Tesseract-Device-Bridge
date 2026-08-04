@@ -645,9 +645,16 @@
       padding: 20px;
       margin-bottom: 22px;
     }
-    .transport-buttons { display: flex; align-items: center; }
-    .transport-buttons > * { margin-right: 18px; }
-    .transport-buttons > *:last-child { margin-right: 0; }
+    .transport-buttons {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 18px;
+      align-self: stretch;
+    }
+    .transport-buttons-side { display: flex; align-items: center; gap: 18px; }
+    .transport-buttons-side.left { justify-content: flex-end; }
+    .transport-buttons-side.right { justify-content: flex-start; }
     .transport-btn {
       width: 44px; height: 44px;
       border-radius: 50%;
@@ -1013,10 +1020,14 @@
 
 <div class="transport-bar">
           <div class="transport-buttons">
-            <button class="transport-btn" id="btnSkipPrevious" onclick="skipPreviousRecipe()" disabled title="Etapa anterior">⏮</button>
-            <button class="transport-btn" id="btnResetStep" onclick="resetStepRecipe()" disabled title="Reiniciar etapa atual">↺</button>
+            <div class="transport-buttons-side left">
+              <button class="transport-btn" id="btnSkipPrevious" onclick="skipPreviousRecipe()" disabled title="Etapa anterior">⏮</button>
+              <button class="transport-btn" id="btnResetStep" onclick="resetStepRecipe()" disabled title="Reiniciar etapa atual">↺</button>
+            </div>
             <button class="transport-btn play" id="btnPlayPause" onclick="togglePlayPauseRecipe()" title="Iniciar/Pausar">▶</button>
-            <button class="transport-btn" id="btnSkipNext" onclick="skipNextRecipe()" disabled title="Proxima etapa">⏭</button>
+            <div class="transport-buttons-side right">
+              <button class="transport-btn" id="btnSkipNext" onclick="skipNextRecipe()" disabled title="Proxima etapa">⏭</button>
+            </div>
           </div>
           <div class="countdown-display">
             <div class="countdown-time" id="countdownTime">--:--</div>
