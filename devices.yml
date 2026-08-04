@@ -84,9 +84,9 @@ devices:
     state_topic: "actuators/mash_heater/state"
     hardware:
       pin: 12
+      window_seconds: 10 
     failsafe_value: false
     is_risk: true
-    window_seconds: 10 
     failsafe_timeout_seconds: 30
 
 
@@ -98,9 +98,9 @@ devices:
     state_topic: "actuators/boil_heater/state"
     hardware:
       pin: 24
+      window_seconds: 10 
     failsafe_value: false
     is_risk: true
-    window_seconds: 10 
     failsafe_timeout_seconds: 30
 
   - id: pump_b1

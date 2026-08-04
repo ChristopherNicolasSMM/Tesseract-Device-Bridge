@@ -1,0 +1,5 @@
+sudo apt install fonts-noto-color-emoji
+fc-cache -f -v
+
+
+curl -fsSL https://tailscale.com/install.sh | sh
