@@ -376,11 +376,86 @@ def recipe_decline_pump(pump_id: str):
 @bp.get("/recipes")
 def list_recipes():
     """
-    Lista as receitas disponíveis (data/publico/receita_base.yaml +
-    data/publico/receita.json + data/privado/receita.json), já
-    validadas contra o devices.yml carregado neste bridge.
+    Lista as receitas disponíveis (data/public/receita_base.yaml +
+    data/public/receita.json + data/private/receita.json), já
+    validadas contra o devices.yml carregado neste bridge — mais o id
+    da receita marcada pra rodar no próximo boot e o nome da que está
+    rodando agora de fato (podem divergir se alguém acabou de marcar
+    outra como ativa sem reiniciar ainda).
     """
-    return jsonify(data.list_recipes(bridge_config=_bridge_config()))
+    engine = _recipe_engine()
+    return jsonify({
+        "recipes": data.list_recipes(bridge_config=_bridge_config()),
+        "active_recipe_id": data.get_effective_active_recipe_id(),
+        "running_recipe_name": engine.recipe_name if engine is not None else None,
+    })
+
+
+@bp.get("/recipes/<recipe_id>")
+def get_recipe(recipe_id: str):
+    """
+    Devolve o conteúdo cru (não validado) de uma receita — usado pelo
+    formulário de edição/duplicação no painel, que precisa dos valores
+    originais pra pré-preencher os campos.
+    """
+    try:
+        recipe_dict = data.get_recipe_dict_by_id(recipe_id)
+    except RecipeError as exc:
+        return jsonify({"error": str(exc)}), 404
+    editable = recipe_id != data.BASE_RECIPE_ID
+    return jsonify({"id": recipe_id, "editable": editable, "recipe": recipe_dict})
+
+
+@bp.post("/recipes")
+def create_recipe():
+    """
+    Cadastra uma receita nova. Corpo: {"source": "public"|"private",
+    "recipe": {...}} — validada (mesma checagem de Recipe.load()) antes
+    de gravar; id gerado automaticamente a partir do nome.
+    """
+    payload = request.get_json(silent=True) or {}
+    source = payload.get("source")
+    recipe_dict = payload.get("recipe")
+    if not source or not isinstance(recipe_dict, dict):
+        return jsonify({"error": "corpo da requisição deve conter 'source' e 'recipe' (objeto)."}), 400
+
+    try:
+        new_id = data.create_recipe(source, recipe_dict, _bridge_config())
+    except RecipeError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    return jsonify({"id": new_id}), 201
+
+
+@bp.put("/recipes/<recipe_id>")
+def update_recipe(recipe_id: str):
+    """Substitui o conteúdo de uma receita já cadastrada. Corpo: {"recipe": {...}}."""
+    payload = request.get_json(silent=True) or {}
+    recipe_dict = payload.get("recipe")
+    if not isinstance(recipe_dict, dict):
+        return jsonify({"error": "corpo da requisição deve conter 'recipe' (objeto)."}), 400
+
+    try:
+        data.update_recipe(recipe_id, recipe_dict, _bridge_config())
+    except RecipeError as exc:
+        message = str(exc)
+        status = 404 if "não encontrada" in message else 400
+        return jsonify({"error": message}), status
+
+    return jsonify({"id": recipe_id})
+
+
+@bp.delete("/recipes/<recipe_id>")
+def delete_recipe(recipe_id: str):
+    """Remove uma receita cadastrada. receita_base nunca pode ser removida por aqui."""
+    try:
+        data.delete_recipe(recipe_id)
+    except RecipeError as exc:
+        message = str(exc)
+        status = 404 if "não encontrada" in message else 400
+        return jsonify({"error": message}), status
+
+    return jsonify({"deleted": recipe_id})
 
 
 @bp.post("/recipes/active")

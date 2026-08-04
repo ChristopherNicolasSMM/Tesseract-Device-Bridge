@@ -286,3 +286,146 @@ def test_load_active_recipe_falls_through_when_pointer_is_stale(data_dirs, bridg
 
     recipe = data.load_active_recipe(bridge_config)
     assert recipe.name == "Base"
+
+
+# ---- get_effective_active_recipe_id ------------------------------------------
+
+
+def test_effective_active_id_none_when_nothing_configured(data_dirs):
+    assert data.get_effective_active_recipe_id() is None
+
+
+def test_effective_active_id_falls_back_to_base(data_dirs):
+    data.BASE_RECIPE_PATH.write_text(yaml.safe_dump(_recipe_dict("Base"), allow_unicode=True), encoding="utf-8")
+    assert data.get_effective_active_recipe_id() == data.BASE_RECIPE_ID
+
+
+def test_effective_active_id_prefers_explicit_pointer(data_dirs):
+    data.BASE_RECIPE_PATH.write_text(yaml.safe_dump(_recipe_dict("Base"), allow_unicode=True), encoding="utf-8")
+    data.set_active_recipe_id("private:v1")
+    assert data.get_effective_active_recipe_id() == "private:v1"
+
+
+# ---- get_recipe_dict_by_id ----------------------------------------------------
+
+
+def test_get_recipe_dict_by_id_base(data_dirs):
+    raw = _recipe_dict("Base")
+    data.BASE_RECIPE_PATH.write_text(yaml.safe_dump(raw, allow_unicode=True), encoding="utf-8")
+    assert data.get_recipe_dict_by_id(data.BASE_RECIPE_ID)["name"] == "Base"
+
+
+def test_get_recipe_dict_by_id_json_entry(data_dirs):
+    data.write_entities("private", "receita", [{"id": "v1", "recipe": _recipe_dict("Da Privada")}])
+    assert data.get_recipe_dict_by_id("private:v1")["name"] == "Da Privada"
+
+
+def test_get_recipe_dict_by_id_unknown_raises(data_dirs):
+    with pytest.raises(RecipeError, match="não encontrada"):
+        data.get_recipe_dict_by_id("public:nao-existe")
+
+
+# ---- create_recipe -------------------------------------------------------------
+
+
+def test_create_recipe_generates_slug_id(data_dirs, bridge_config):
+    global_id = data.create_recipe("public", _recipe_dict("IPA Tropical!"), bridge_config)
+    assert global_id == "public:ipa-tropical"
+
+    entries = data.read_entities("public", "receita")
+    assert len(entries) == 1
+    assert entries[0]["id"] == "ipa-tropical"
+
+
+def test_create_recipe_handles_slug_collision(data_dirs, bridge_config):
+    id1 = data.create_recipe("public", _recipe_dict("Pilsen"), bridge_config)
+    id2 = data.create_recipe("public", _recipe_dict("Pilsen"), bridge_config)
+    assert id1 == "public:pilsen"
+    assert id2 == "public:pilsen-2"
+
+
+def test_create_recipe_invalid_raises_and_does_not_write(data_dirs, bridge_config):
+    bad_recipe = _recipe_dict()
+    bad_recipe["vessels"][0]["heater_device_id"] = "nao_existe"
+    with pytest.raises(RecipeError):
+        data.create_recipe("public", bad_recipe, bridge_config)
+    assert data.read_entities("public", "receita") == []
+
+
+def test_create_recipe_rejects_invalid_source(data_dirs, bridge_config):
+    with pytest.raises(RecipeError, match="source inválido"):
+        data.create_recipe("outro", _recipe_dict(), bridge_config)
+
+
+# ---- update_recipe --------------------------------------------------------------
+
+
+def test_update_recipe_replaces_content(data_dirs, bridge_config):
+    global_id = data.create_recipe("private", _recipe_dict("Original"), bridge_config)
+    data.update_recipe(global_id, _recipe_dict("Atualizada"), bridge_config)
+
+    recipe = data.load_recipe_by_id(global_id, bridge_config)
+    assert recipe.name == "Atualizada"
+
+
+def test_update_recipe_base_raises(data_dirs, bridge_config):
+    data.BASE_RECIPE_PATH.write_text(yaml.safe_dump(_recipe_dict("Base"), allow_unicode=True), encoding="utf-8")
+    with pytest.raises(RecipeError, match="não é editável"):
+        data.update_recipe(data.BASE_RECIPE_ID, _recipe_dict("Tentativa"), bridge_config)
+
+
+def test_update_recipe_unknown_raises(data_dirs, bridge_config):
+    with pytest.raises(RecipeError, match="não encontrada"):
+        data.update_recipe("public:nao-existe", _recipe_dict(), bridge_config)
+
+
+def test_update_recipe_invalid_raises_and_does_not_overwrite(data_dirs, bridge_config):
+    global_id = data.create_recipe("public", _recipe_dict("Original"), bridge_config)
+    bad_recipe = _recipe_dict("Ruim")
+    bad_recipe["vessels"][0]["heater_device_id"] = "nao_existe"
+
+    with pytest.raises(RecipeError):
+        data.update_recipe(global_id, bad_recipe, bridge_config)
+
+    recipe = data.load_recipe_by_id(global_id, bridge_config)
+    assert recipe.name == "Original"  # não sobrescreveu
+
+
+# ---- delete_recipe --------------------------------------------------------------
+
+
+def test_delete_recipe_removes_entry(data_dirs, bridge_config):
+    global_id = data.create_recipe("public", _recipe_dict("Descartável"), bridge_config)
+    data.delete_recipe(global_id)
+    assert data.read_entities("public", "receita") == []
+
+
+def test_delete_recipe_base_raises(data_dirs):
+    data.BASE_RECIPE_PATH.write_text(yaml.safe_dump(_recipe_dict("Base"), allow_unicode=True), encoding="utf-8")
+    with pytest.raises(RecipeError, match="não pode ser removida"):
+        data.delete_recipe(data.BASE_RECIPE_ID)
+
+
+def test_delete_recipe_unknown_raises(data_dirs):
+    with pytest.raises(RecipeError, match="não encontrada"):
+        data.delete_recipe("public:nao-existe")
+
+
+def test_delete_active_recipe_clears_pointer(data_dirs, bridge_config):
+    global_id = data.create_recipe("private", _recipe_dict("Vai Sumir"), bridge_config)
+    data.set_active_recipe_id(global_id)
+    assert data.get_active_recipe_id() == global_id
+
+    data.delete_recipe(global_id)
+
+    assert data.get_active_recipe_id() is None
+
+
+def test_delete_recipe_does_not_clear_pointer_of_other_recipe(data_dirs, bridge_config):
+    id1 = data.create_recipe("private", _recipe_dict("Fica"), bridge_config)
+    id2 = data.create_recipe("private", _recipe_dict("Vai Sumir"), bridge_config)
+    data.set_active_recipe_id(id1)
+
+    data.delete_recipe(id2)
+
+    assert data.get_active_recipe_id() == id1

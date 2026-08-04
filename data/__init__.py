@@ -31,6 +31,8 @@ from __future__ import annotations
 
 import json
 import logging
+import re
+import unicodedata
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -217,6 +219,149 @@ def set_active_recipe_id(recipe_id: str) -> None:
     """
     ACTIVE_RECIPE_POINTER_PATH.parent.mkdir(parents=True, exist_ok=True)
     ACTIVE_RECIPE_POINTER_PATH.write_text(recipe_id.strip() + "\n", encoding="utf-8")
+
+
+def get_effective_active_recipe_id() -> Optional[str]:
+    """
+    Como load_active_recipe(), mas devolve só o id resolvido — sem
+    carregar nem validar a receita. Usado pela UI pra saber qual
+    receita vai rodar no próximo boot mesmo quando o ponteiro não foi
+    definido explicitamente (cai pra receita_base por convenção, mesma
+    ordem de load_active_recipe — exceto o fallback legado, que não
+    tem id nesse sistema novo).
+    """
+    active_id = get_active_recipe_id()
+    if active_id is not None:
+        return active_id
+    if BASE_RECIPE_PATH.exists():
+        return BASE_RECIPE_ID
+    return None
+
+
+def get_recipe_dict_by_id(recipe_id: str) -> Dict[str, Any]:
+    """
+    Devolve o dict CRU (sem validar) de uma receita — usado pelo
+    formulário de edição/duplicação, que precisa dos valores originais
+    mesmo que a receita esteja momentaneamente inválida (ex.: um
+    device foi removido do devices.yml depois que a receita foi salva
+    — o usuário ainda precisa conseguir ver/corrigir o conteúdo).
+    """
+    if recipe_id == BASE_RECIPE_ID:
+        if not BASE_RECIPE_PATH.exists():
+            raise RecipeError(f"Receita '{recipe_id}' não encontrada (receita_base.yaml ausente).")
+        return yaml.safe_load(BASE_RECIPE_PATH.read_text(encoding="utf-8")) or {}
+
+    if ":" not in recipe_id:
+        raise RecipeError(f"id de receita inválido: '{recipe_id}'.")
+    source, raw_id = recipe_id.split(":", 1)
+    if source not in _VALID_SOURCES:
+        raise RecipeError(f"id de receita inválido: '{recipe_id}' (source desconhecido).")
+
+    entries = read_entities(source, RECIPE_ENTITY)
+    entry = next((e for e in entries if e.get("id") == raw_id), None)
+    if entry is None:
+        raise RecipeError(f"Receita '{recipe_id}' não encontrada em data/{source}/receita.json.")
+    return entry.get("recipe", {})
+
+
+def _slugify(name: str) -> str:
+    """
+    Converte um nome livre em slug seguro pra id (minúsculo, hífens,
+    sem acento/espaço/símbolo) — "IPA Tropical!" -> "ipa-tropical".
+    Nunca pede pro usuário inventar um id manualmente.
+    """
+    normalized = unicodedata.normalize("NFKD", name)
+    ascii_only = normalized.encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^a-z0-9]+", "-", ascii_only.lower()).strip("-")
+    return slug or "receita"
+
+
+def _generate_unique_id(source: str, name: str) -> str:
+    """Slug do nome, com sufixo numérico se colidir com um id já existente na mesma fonte."""
+    base_slug = _slugify(name)
+    existing_ids = {e.get("id") for e in read_entities(source, RECIPE_ENTITY)}
+    candidate = base_slug
+    counter = 2
+    while candidate in existing_ids:
+        candidate = f"{base_slug}-{counter}"
+        counter += 1
+    return candidate
+
+
+def create_recipe(source: str, recipe_dict: Dict[str, Any], bridge_config: BridgeConfig) -> str:
+    """
+    Valida (Recipe.from_dict + validate) e grava uma receita nova em
+    data/{source}/receita.json. Id gerado automaticamente a partir do
+    nome (slug único dentro da fonte). Devolve o id GLOBAL
+    ("source:id") da receita recém-criada.
+    """
+    if source not in _VALID_SOURCES:
+        raise RecipeError(f"source inválido: '{source}' (esperado {_VALID_SOURCES}).")
+
+    recipe = Recipe.from_dict(recipe_dict)
+    recipe.validate(bridge_config)
+
+    raw_id = _generate_unique_id(source, recipe.name)
+    entries = read_entities(source, RECIPE_ENTITY)
+    entries.append({"id": raw_id, "recipe": recipe_dict})
+    write_entities(source, RECIPE_ENTITY, entries)
+
+    return f"{source}:{raw_id}"
+
+
+def update_recipe(recipe_id: str, recipe_dict: Dict[str, Any], bridge_config: BridgeConfig) -> None:
+    """
+    Substitui o conteúdo de uma receita já cadastrada — valida antes
+    de gravar. receita_base nunca é editável por aqui.
+    """
+    if recipe_id == BASE_RECIPE_ID:
+        raise RecipeError(
+            f"'{BASE_RECIPE_ID}' não é editável pelo sistema de cadastro — "
+            f"edite data/public/receita_base.yaml diretamente, ou duplique-a "
+            f"pra criar uma cópia editável."
+        )
+    if ":" not in recipe_id:
+        raise RecipeError(f"id de receita inválido: '{recipe_id}'.")
+    source, raw_id = recipe_id.split(":", 1)
+    if source not in _VALID_SOURCES:
+        raise RecipeError(f"id de receita inválido: '{recipe_id}' (source desconhecido).")
+
+    recipe = Recipe.from_dict(recipe_dict)
+    recipe.validate(bridge_config)
+
+    entries = read_entities(source, RECIPE_ENTITY)
+    for entry in entries:
+        if entry.get("id") == raw_id:
+            entry["recipe"] = recipe_dict
+            write_entities(source, RECIPE_ENTITY, entries)
+            return
+    raise RecipeError(f"Receita '{recipe_id}' não encontrada em data/{source}/receita.json.")
+
+
+def delete_recipe(recipe_id: str) -> None:
+    """
+    Remove uma receita cadastrada. receita_base nunca é removível por
+    aqui (é o fallback de segurança do sistema). Se a receita apagada
+    era a marcada como ativa, limpa o ponteiro em vez de deixar órfão
+    (load_active_recipe() já trata ponteiro órfão com segurança, mas é
+    mais limpo já resolver aqui, na hora da remoção).
+    """
+    if recipe_id == BASE_RECIPE_ID:
+        raise RecipeError(f"'{BASE_RECIPE_ID}' não pode ser removida pelo sistema de cadastro.")
+    if ":" not in recipe_id:
+        raise RecipeError(f"id de receita inválido: '{recipe_id}'.")
+    source, raw_id = recipe_id.split(":", 1)
+    if source not in _VALID_SOURCES:
+        raise RecipeError(f"id de receita inválido: '{recipe_id}' (source desconhecido).")
+
+    entries = read_entities(source, RECIPE_ENTITY)
+    new_entries = [e for e in entries if e.get("id") != raw_id]
+    if len(new_entries) == len(entries):
+        raise RecipeError(f"Receita '{recipe_id}' não encontrada em data/{source}/receita.json.")
+    write_entities(source, RECIPE_ENTITY, new_entries)
+
+    if get_active_recipe_id() == recipe_id and ACTIVE_RECIPE_POINTER_PATH.exists():
+        ACTIVE_RECIPE_POINTER_PATH.unlink()
 
 
 def load_active_recipe(bridge_config: BridgeConfig) -> Optional[Recipe]:

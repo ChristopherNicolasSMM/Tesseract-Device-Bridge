@@ -151,11 +151,13 @@ Navegadores bloqueiam áudio automático até o usuário interagir com a página
 
 ## Como adiciono uma nova receita?
 
-Suas receitas ficam em `data/`, não mais direto em `recipe.yml` na raiz. Duas formas:
+**Pelo painel** (jeito recomendado): aba **📖 Cadastro** → clique em **🧬 Duplicar** em qualquer receita existente (inclusive a base) → ajuste o nome e as etapas → escolha se salva como 🔒 privada (só nesta máquina) ou 🌐 pública (vai pro repositório) → **💾 Salvar**. Depois, clique em **▶ Usar esta** e reinicie o bridge — ver [Funcionalidades — Aba Cadastro](03-funcionalidades.md#aba-cadastro) pra detalhes.
+
+**Editando o arquivo diretamente** (avançado): suas receitas ficam em `data/`, não mais em `recipe.yml` na raiz.
 
 **Receita-base** (`data/public/receita_base.yaml`): é a que já vem migrada, sempre disponível como padrão — não editável pelo sistema de cadastro (edite o YAML na mão se quiser mudar ela mesma).
 
-**Receitas cadastradas**: vivem em `data/public/receita.json` (versionadas, vão pro repositório) ou `data/private/receita.json` (só na sua máquina, nunca versionadas) — cada arquivo é uma **lista** com todas as receitas daquela pasta. A tela de cadastro pelo painel ainda não existe (fica pra um próximo patch); por enquanto, edite o JSON manualmente, no formato:
+**Receitas cadastradas**: vivem em `data/public/receita.json` (versionadas, vão pro repositório) ou `data/private/receita.json` (só na sua máquina, nunca versionadas) — cada arquivo é uma **lista** com todas as receitas daquela pasta. Formato:
 
 ```json
 [

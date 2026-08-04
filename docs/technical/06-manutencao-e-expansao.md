@@ -59,9 +59,17 @@ que permite ler uma receita de dentro de um registro de
 `receita.json` (JSON, não YAML) sem duplicar nenhuma validação —
 `data.load_recipe_by_id()` chama exatamente esses dois métodos.
 
-**Tela de cadastro pelo painel ainda não existe** — este trabalho foi
-só a fundação (armazenamento + descoberta + resolução + `GET /api/recipes`
-+ `POST /api/recipes/active`). Editar `receita.json` hoje é manual.
+**Aba de cadastro** (📖 Cadastro, painel): fluxo "duplicar e ajustar" —
+toda receita nova parte de uma existente (nunca começa em branco);
+vasilhas (hardware — heater/sensor/PID) vêm herdadas e ficam num bloco
+avançado recolhido, só os ganhos do PID são editáveis por ali; o foco
+do formulário é a lista de etapas (alvo, patamar, bombas, alarmes de
+lúpulo). Id gerado automaticamente por slug do nome
+(`data._slugify()`/`_generate_unique_id()`), nunca pedido ao usuário.
+Endpoints: `GET/POST /api/recipes`, `GET/PUT/DELETE /api/recipes/<id>`.
+JS não usa nenhum framework — mesmo padrão de render manual via
+template strings já usado no resto do painel (`renderCard`,
+`updateGauge`, etc.).
 
 ## Prioridade de controle: dono único do GPIO por atuador
 

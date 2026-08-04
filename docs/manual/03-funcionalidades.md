@@ -10,6 +10,7 @@ flowchart LR
     B -->|"Painel"| C["Lista de sensores e atuadores\nValores ao vivo\nControle manual de cada device"]
     B -->|"Gerenciamento"| D["Inventário de devices\nconfigurados no devices.yml"]
     B -->|"Receitas"| E["Motor de automação\nControles, medidores, timeline\nAlarmes"]
+    B -->|"Cadastro"| F["Cadastrar/duplicar receitas\nEscolher qual usar na próxima brassagem"]
 ```
 
 ---
@@ -100,6 +101,36 @@ Barra horizontal com uma bolinha por etapa. Etapas concluídas ficam em cobre s�
 ### Gráfico ao vivo
 
 Temperatura real (linha cobre sólida) vs. setpoint (linha tracejada cinza) dos últimos ~6 minutos. Reinicia quando avança para uma nova vasilha.
+
+---
+
+## Aba Cadastro
+
+Onde você cadastra receitas novas e escolhe qual vai rodar na próxima brassagem — sem editar arquivo na mão.
+
+### Toda receita nova parte de uma existente
+
+Não existe "começar do zero". Cada receita cadastrada tem um botão **🧬 Duplicar** — clique nele, o sistema copia tudo (inclusive as vasilhas, que são configuração de equipamento físico, não do processo) e abre um formulário já pronto pra você editar só o que muda de fato entre receitas: as **etapas** (temperatura alvo, tempo de patamar, quais bombas ligam, alarmes de lúpulo).
+
+As vasilhas ficam escondidas num bloco recolhido **⚙️ Vasilhas (avançado)** — a maioria das pessoas nunca precisa abrir isso. Se abrir, só os ganhos do PID (Kp/Ki/Kd) são editáveis por ali; trocar qual sensor/aquecedor uma vasilha usa é tarefa rara o bastante pra exigir editar o arquivo diretamente.
+
+### Público ou privado
+
+Ao salvar, você escolhe:
+- **🔒 Privada** — fica só nesta máquina, nunca é compartilhada.
+- **🌐 Pública** — vai pro repositório do projeto (se você usa Git pra sincronizar entre máquinas ou compartilhar com outras pessoas).
+
+### Cada card de receita mostra
+
+| Badge | Significado |
+|---|---|
+| 🌐 Pública / 🔒 Privada | Onde está salva |
+| 🔐 Base (não editável) | É a `receita_base.yaml` — pode ser selecionada e duplicada, mas não editada nem apagada por aqui |
+| 🟢 Rodando agora | É a receita que o bridge está executando neste momento |
+| ⏳ Vai rodar no próximo restart | Foi marcada como ativa, mas o bridge ainda não foi reiniciado pra aplicar |
+| ⚠️ Inválida | Referencia um device que não existe mais no `devices.yml` — o erro exato aparece no card |
+
+Botão **▶ Usar esta** marca a receita como ativa pro próximo boot do bridge — **não troca a receita rodando agora**, precisa reiniciar o processo pra valer (mesma regra de sempre: `sudo systemctl restart tesseract-bridge`).
 
 ---
 

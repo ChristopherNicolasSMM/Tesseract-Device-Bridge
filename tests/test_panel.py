@@ -2,6 +2,7 @@ import textwrap
 
 import pytest
 
+import data
 from config import BridgeConfig
 from device_runtime import DeviceRuntime
 from gpio.simulated_backend import SimulatedGPIOBackend
@@ -576,3 +577,163 @@ def test_decline_unknown_pump_returns_404(client_with_recipe_and_pump):
     client.post("/api/recipe/start")
     res = client.post("/api/recipe/pumps/does_not_exist/decline")
     assert res.status_code == 404
+
+
+# ---- cadastro de receita (GET/POST/PUT/DELETE /api/recipes) --------------------
+
+
+def _recipe_payload(name="Receita Teste"):
+    return {
+        "name": name,
+        "vessels": [
+            {
+                "id": "mash", "name": "Mash",
+                "heater_device_id": "mash_heater", "sensor_device_id": "mash_tun_temp",
+                "pid": {"kp": 5.0, "ki": 0.1, "kd": 0.0},
+            },
+        ],
+        "steps": [
+            {"vessel": "mash", "target_temp": 67, "hold_minutes": 10},
+        ],
+    }
+
+
+@pytest.fixture
+def client_with_data_dirs(tmp_path, monkeypatch):
+    """
+    Mesma fixture `client`, mas com os caminhos do módulo data/
+    isolados em tmp_path — sem isso, qualquer teste batendo em
+    /api/recipes leria/escreveria no data/ REAL do repositório.
+    """
+    devices_path = tmp_path / "devices.yml"
+    devices_yaml = textwrap.dedent(YAML_CONTENT).replace(
+        "    hardware:\n      pin: 18\n", "    hardware:\n      pin: 18\n      window_seconds: 10\n"
+    )
+    devices_path.write_text(devices_yaml, encoding="utf-8")
+    config = BridgeConfig.load(devices_path)
+    backend = SimulatedGPIOBackend()
+    runtime = DeviceRuntime(config, backend)
+
+    public_dir = tmp_path / "data" / "public"
+    private_dir = tmp_path / "data" / "private"
+    public_dir.mkdir(parents=True)
+    private_dir.mkdir(parents=True)
+    monkeypatch.setattr(data, "PUBLIC_DIR", public_dir)
+    monkeypatch.setattr(data, "PRIVATE_DIR", private_dir)
+    monkeypatch.setattr(data, "BASE_RECIPE_PATH", public_dir / "receita_base.yaml")
+    monkeypatch.setattr(data, "ACTIVE_RECIPE_POINTER_PATH", tmp_path / "data" / "active_recipe.txt")
+    monkeypatch.setattr(data, "LEGACY_RECIPE_PATH", tmp_path / "recipe.yml")
+
+    app = create_panel_app(config, runtime)
+    app.testing = True
+    return app.test_client()
+
+
+def test_list_recipes_empty_by_default(client_with_data_dirs):
+    res = client_with_data_dirs.get("/api/recipes")
+    assert res.status_code == 200
+    data_json = res.get_json()
+    assert data_json["recipes"] == []
+    assert data_json["active_recipe_id"] is None
+    assert data_json["running_recipe_name"] is None
+
+
+def test_create_recipe_returns_201_and_id(client_with_data_dirs):
+    res = client_with_data_dirs.post("/api/recipes", json={
+        "source": "public", "recipe": _recipe_payload("IPA Tropical"),
+    })
+    assert res.status_code == 201
+    assert res.get_json()["id"] == "public:ipa-tropical"
+
+
+def test_create_recipe_then_list_shows_it(client_with_data_dirs):
+    client_with_data_dirs.post("/api/recipes", json={
+        "source": "private", "recipe": _recipe_payload("Minha Receita"),
+    })
+    res = client_with_data_dirs.get("/api/recipes")
+    recipes = res.get_json()["recipes"]
+    assert len(recipes) == 1
+    assert recipes[0]["id"] == "private:minha-receita"
+    assert recipes[0]["editable"] is True
+
+
+def test_create_recipe_missing_fields_returns_400(client_with_data_dirs):
+    res = client_with_data_dirs.post("/api/recipes", json={"source": "public"})
+    assert res.status_code == 400
+
+
+def test_create_recipe_invalid_returns_400(client_with_data_dirs):
+    bad = _recipe_payload()
+    bad["vessels"][0]["heater_device_id"] = "nao_existe"
+    res = client_with_data_dirs.post("/api/recipes", json={"source": "public", "recipe": bad})
+    assert res.status_code == 400
+
+
+def test_get_recipe_returns_raw_dict(client_with_data_dirs):
+    client_with_data_dirs.post("/api/recipes", json={
+        "source": "public", "recipe": _recipe_payload("Consultável"),
+    })
+    res = client_with_data_dirs.get("/api/recipes/public:consultavel")
+    assert res.status_code == 200
+    data_json = res.get_json()
+    assert data_json["recipe"]["name"] == "Consultável"
+    assert data_json["editable"] is True
+
+
+def test_get_recipe_unknown_returns_404(client_with_data_dirs):
+    res = client_with_data_dirs.get("/api/recipes/public:nao-existe")
+    assert res.status_code == 404
+
+
+def test_update_recipe_replaces_content(client_with_data_dirs):
+    create_res = client_with_data_dirs.post("/api/recipes", json={
+        "source": "public", "recipe": _recipe_payload("Original"),
+    })
+    recipe_id = create_res.get_json()["id"]
+
+    res = client_with_data_dirs.put(f"/api/recipes/{recipe_id}", json={
+        "recipe": _recipe_payload("Editada"),
+    })
+    assert res.status_code == 200
+
+    get_res = client_with_data_dirs.get(f"/api/recipes/{recipe_id}")
+    assert get_res.get_json()["recipe"]["name"] == "Editada"
+
+
+def test_update_recipe_missing_body_returns_400(client_with_data_dirs):
+    res = client_with_data_dirs.put("/api/recipes/public:qualquer", json={})
+    assert res.status_code == 400
+
+
+def test_delete_recipe_removes_it(client_with_data_dirs):
+    create_res = client_with_data_dirs.post("/api/recipes", json={
+        "source": "public", "recipe": _recipe_payload("Descartável"),
+    })
+    recipe_id = create_res.get_json()["id"]
+
+    res = client_with_data_dirs.delete(f"/api/recipes/{recipe_id}")
+    assert res.status_code == 200
+
+    get_res = client_with_data_dirs.get(f"/api/recipes/{recipe_id}")
+    assert get_res.status_code == 404
+
+
+def test_delete_recipe_unknown_returns_404(client_with_data_dirs):
+    res = client_with_data_dirs.delete("/api/recipes/public:nao-existe")
+    assert res.status_code == 404
+
+
+def test_active_recipe_id_reflects_effective_default(client_with_data_dirs):
+    """
+    Sem nenhum ponteiro definido, active_recipe_id deve refletir o
+    fallback efetivo (receita_base, se existir) -- não ficar sempre
+    null só porque ninguém clicou em nada ainda.
+    """
+    data.BASE_RECIPE_PATH.write_text(
+        "name: Base\nvessels: [{id: mash, name: Mash, heater_device_id: mash_heater, "
+        "sensor_device_id: mash_tun_temp, pid: {kp: 1.0, ki: 0.0, kd: 0.0}}]\n"
+        "steps: [{vessel: mash, target_temp: 60, hold_minutes: 5}]\n",
+        encoding="utf-8",
+    )
+    res = client_with_data_dirs.get("/api/recipes")
+    assert res.get_json()["active_recipe_id"] == data.BASE_RECIPE_ID

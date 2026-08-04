@@ -135,9 +135,30 @@ pontos operacionais/acionáveis — alguns diagramas ER/C4 conceituais
 citam `devices.yml`/`recipe_state.json` sem o caminho completo
 (schema não mudou, só a localização — baixo risco de confundir).
 
+**10. Aba de cadastro de receitas (📖 Cadastro) — item pendente fechado**
+Fluxo "duplicar e ajustar" (decidido em sessão própria): toda receita
+nova parte de uma existente — nunca em branco. Vasilhas (hardware:
+heater/sensor/PID) vêm herdadas, ficam num bloco avançado recolhido
+(só PID é editável ali); o formulário foca só no que muda de receita
+pra receita — etapas (alvo, patamar, bombas, alarmes de lúpulo). Id
+gerado automaticamente por slug do nome (`ipa-tropical`, sufixo `-2`
+etc. em colisão) — nunca pedido ao usuário. Backend:
+`create_recipe()`/`update_recipe()`/`delete_recipe()` +
+`get_recipe_dict_by_id()`/`get_effective_active_recipe_id()` em
+`data/__init__.py`; endpoints `GET/POST /api/recipes`,
+`GET/PUT/DELETE /api/recipes/<id>`; `GET /api/recipes` agora também
+devolve `active_recipe_id` (vai rodar no próximo boot) e
+`running_recipe_name` (rodando agora) — cards do painel mostram os
+dois estados separados (podem divergir até reiniciar). `receita_base`
+protegida: nunca editável/removível pelo cadastro, sempre
+selecionável. 76 testes novos (42 em `data`, 34 na API — achado no
+caminho: a fixture de teste do painel precisava isolar os caminhos do
+módulo `data` com `monkeypatch`, senão os testes leriam/escreveriam no
+`data/` real do repositório).
+
 ### Suíte de testes
 
-291 → 393 testes ao longo de toda a sessão (102 novos/reescritos no
+291 → 424 testes ao longo de toda a sessão (178 novos/reescritos no
 total). Todos os patches validados em clone limpo do HEAD real via
 `git am` antes da entrega.
 
@@ -145,29 +166,18 @@ total). Todos os patches validados em clone limpo do HEAD real via
 
 ## Pendente (próximos patches)
 
-### 1. Tela de cadastro de receitas pelo painel (UI em cima da fundação já pronta)
+### 1. Configuração fina de bomba: manual vs. automático, tempo de start/stop
 
-A fundação (item 8 acima) já resolve armazenamento, descoberta,
-validação e resolução de qual receita usar no boot. Falta só a
-**interface** — uma aba nova, depois de "Receitas", pra:
-- Cadastrar uma receita nova (formulário, não editar JSON na mão) —
-  grava em `data/public/receita.json` ou `data/private/receita.json`
-  via `write_entities()` (já existe, só falta a rota da API que
-  monta o registro e chama).
-- Listar as disponíveis (já tem `GET /api/recipes`) e escolher qual
-  fica ativa (já tem `POST /api/recipes/active`) — só falta o HTML/JS.
-- Validar no momento do cadastro (reaproveitar `Recipe.from_dict()` +
-  `recipe.validate()`, mesma validação que `list_recipes()` já faz),
-  com mensagem de erro clara antes de salvar — não só ao carregar.
+Simplificado pra "confirmação de acionamento automático" (item 7 acima,
+já concluído) — a configuração de timing fina (start/stop, direto/
+pulsado) continua não implementada, mas o medo raiz (energizar bomba
+sem checar antes) já está resolvido pela confirmação. Retomar só se
+surgir uma necessidade real de timing além da confirmação simples.
 
-**Perguntas em aberto pra próxima sessão de decisão**:
-- Troca de receita ativa **exige restart** (já decidido, ver item 8)
-  — a UI precisa deixar isso claro pro operador (ex.: aviso "só
-  efetivo no próximo restart", já retornado pela API hoje).
-- Interação com o Tesseract Core: essas receitas cadastradas aqui
-  deveriam sincronizar com receitas do lado do Tesseract (fora de
-  escopo da Fase F ainda pendente na skill 05), ou são independentes?
-- Formulário de cadastro replica a estrutura toda de `vessels`/`steps`/
-  `hop_alarms` (mais flexível, mais trabalho de UI) ou começa mais
-  simples (ex.: só duplicar uma receita existente e editar campos
-  específicos)?
+### 2. Sincronização com o Tesseract Core (pergunta em aberto, não bloqueante)
+
+As receitas cadastradas aqui (`data/`) deveriam sincronizar com
+receitas do lado do Tesseract Core, ou continuam sendo independentes
+(cada bridge com seu próprio catálogo)? Fora de escopo da Fase F ainda
+pendente na skill 05 do Tesseract principal — só retomar quando essa
+fase for aberta lá.

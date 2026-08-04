@@ -781,6 +781,102 @@
     }
     .alarm-settings-hint { font-size: 11px; color: var(--ink-warm-400); margin-top: 6px; line-height: 1.4; }
 
+    /* ===== ABA CADASTRO ===== */
+    .cadastro-hint { font-size: 12.5px; color: var(--text-secondary); line-height: 1.6; margin: 4px 0 18px; }
+
+    .recipe-catalog-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 14px;
+    }
+    .recipe-catalog-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius);
+      padding: 16px;
+      display: flex; flex-direction: column; gap: 10px;
+      transition: border-color 0.2s;
+    }
+    .recipe-catalog-card.running { border-color: var(--hold-green); }
+    .recipe-catalog-card.pending-restart { border-color: var(--copper-300); }
+    .recipe-catalog-card.invalid { border-color: rgba(224,90,90,0.5); }
+
+    .recipe-catalog-name { font-size: 14.5px; font-weight: 700; color: var(--ink-warm-0); }
+    .recipe-catalog-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+    .recipe-badge {
+      font-size: 10.5px; padding: 3px 9px; border-radius: 20px;
+      background: var(--bg-primary); border: 1px solid var(--border-subtle); color: var(--text-secondary);
+    }
+    .recipe-badge.source-public { color: var(--accent-blue); border-color: rgba(55,138,221,0.4); }
+    .recipe-badge.source-private { color: var(--copper-300); border-color: rgba(201,118,63,0.4); }
+    .recipe-badge.locked { color: var(--text-secondary); }
+    .recipe-badge.running { color: var(--hold-green); border-color: var(--hold-green); }
+    .recipe-badge.pending { color: var(--copper-300); border-color: var(--copper-300); }
+    .recipe-badge.invalid { color: var(--fault-red); border-color: rgba(224,90,90,0.5); }
+
+    .recipe-catalog-error { font-size: 11.5px; color: var(--fault-red); line-height: 1.4; }
+
+    .recipe-catalog-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+    .recipe-catalog-actions .btn-recipe { padding: 7px 12px; font-size: 12px; }
+
+    .cadastro-source-choice { display: flex; flex-direction: column; gap: 8px; }
+    .cadastro-radio {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; color: var(--text-primary);
+      background: var(--bg-primary); border: 1px solid var(--border-subtle);
+      border-radius: 8px; padding: 10px 12px; cursor: pointer;
+    }
+    .cadastro-radio-hint { font-size: 11px; color: var(--text-secondary); margin-left: auto; }
+
+    .cadastro-vessels-details {
+      margin-top: 16px; background: var(--bg-primary);
+      border: 1px solid var(--border-subtle); border-radius: var(--radius);
+      padding: 12px 14px;
+    }
+    .cadastro-vessels-details summary { cursor: pointer; font-size: 13px; color: var(--text-secondary); }
+    .cadastro-vessels-details[open] summary { margin-bottom: 10px; color: var(--ink-warm-0); }
+    .cadastro-vessel-row {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      padding: 8px 0; border-top: 1px solid var(--border-subtle);
+    }
+    .cadastro-vessel-row:first-of-type { border-top: none; }
+    .cadastro-vessel-name { font-size: 12.5px; font-weight: 600; color: var(--ink-warm-0); min-width: 90px; }
+    .cadastro-vessel-devices { font-size: 11px; color: var(--text-secondary); flex: 1; min-width: 160px; }
+    .cadastro-pid-input {
+      width: 64px; background: var(--bg-card); border: 1px solid var(--border-subtle);
+      color: var(--text-primary); border-radius: 6px; padding: 5px 6px; font-size: 12px; text-align: center;
+    }
+
+    .cadastro-step-card {
+      background: var(--bg-primary); border: 1px solid var(--border-subtle);
+      border-radius: var(--radius); padding: 14px; margin-bottom: 10px;
+    }
+    .cadastro-step-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .cadastro-step-number {
+      width: 24px; height: 24px; border-radius: 50%; background: var(--copper-500);
+      color: #1a1208; font-size: 12px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .cadastro-step-remove { margin-left: auto; }
+    .cadastro-step-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+    .cadastro-pumps-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .cadastro-pump-check {
+      display: flex; align-items: center; gap: 6px; font-size: 12px;
+      background: var(--bg-card); border: 1px solid var(--border-subtle);
+      border-radius: 20px; padding: 5px 10px; cursor: pointer;
+    }
+    .cadastro-hop-alarms { margin-top: 12px; border-top: 1px solid var(--border-subtle); padding-top: 10px; }
+    .cadastro-hop-alarm-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .cadastro-hop-alarm-row input[type="number"] { width: 70px; }
+    .cadastro-hop-alarm-row input[type="text"] { flex: 1; }
+
+    .cadastro-error {
+      background: rgba(224,90,90,0.12); border: 1px solid rgba(224,90,90,0.4);
+      color: var(--fault-red); border-radius: 8px; padding: 10px 14px;
+      font-size: 12.5px; margin-top: 14px;
+    }
+    .cadastro-form-actions { display: flex; justify-content: flex-end; margin-top: 20px; }
+
   </style>
 </head>
 <body>
@@ -804,6 +900,7 @@
     <button class="nav-tab active" data-tab="dashboard">📊 Painel</button>
     <button class="nav-tab" data-tab="management">⚙️ Gerenciamento</button>
     <button class="nav-tab" data-tab="recipes">🍺 Receitas</button>
+    <button class="nav-tab" data-tab="cadastro">📖 Cadastro</button>
   </nav>
 
   <!-- ===== CONTEÚDO ===== -->
@@ -852,7 +949,7 @@
     <section id="recipes" class="tab-pane">
       <div id="recipeEmpty" class="recipe-empty" style="display:none;">
         <div class="icon">🧪</div>
-        <p>Nenhuma receita carregada neste bridge. Copie <code>recipe.yml.example</code> para <code>recipe.yml</code> na raiz do projeto e reinicie o bridge para habilitar o motor de execução autonomo.</p>
+        <p>Nenhuma receita carregada neste bridge. Vá na aba <strong>📖 Cadastro</strong> e marque uma receita como ativa (depois reinicie o bridge), ou edite <code>data/public/receita_base.yaml</code> diretamente.</p>
       </div>
 
 <div id="recipeContent" style="display:none;">
@@ -946,6 +1043,49 @@
         </div>
       </div>
     </section>
+
+    <!-- CADASTRO DE RECEITAS -->
+    <section id="cadastro" class="tab-pane">
+      <div id="cadastroListView">
+        <div class="section-title">📖 Minhas Receitas <span class="badge" id="recipeCatalogCount">0</span></div>
+        <p class="cadastro-hint">
+          Toda receita nova parte de uma existente — clique em <strong>🧬 Duplicar</strong> e ajuste só o que muda (etapas, temperaturas, bombas). As vasilhas (equipamento físico) vêm prontas.
+          <br>🌐 <strong>Pública</strong> vai pro repositório (compartilhada) · 🔒 <strong>Privada</strong> fica só nesta máquina.
+        </p>
+        <div id="recipeCatalogGrid" class="recipe-catalog-grid"></div>
+      </div>
+
+      <div id="cadastroFormView" style="display:none;">
+        <button type="button" class="btn-recipe ghost" onclick="closeCadastroForm()">← Voltar pra lista</button>
+        <div class="section-title" id="cadastroFormTitle" style="margin-top:14px;">Nova receita</div>
+        <p class="cadastro-hint" id="cadastroBasedOnHint"></p>
+
+        <label class="alarm-settings-label">Nome da receita</label>
+        <input type="text" id="cadastroName" class="alarm-settings-input" placeholder="Ex.: IPA Tropical" oninput="onCadastroFieldChange()">
+
+        <label class="alarm-settings-label" style="margin-top:14px;">Salvar como</label>
+        <div class="cadastro-source-choice">
+          <label class="cadastro-radio"><input type="radio" name="cadastroSource" value="private" checked> 🔒 Privada <span class="cadastro-radio-hint">só nesta máquina</span></label>
+          <label class="cadastro-radio"><input type="radio" name="cadastroSource" value="public"> 🌐 Pública <span class="cadastro-radio-hint">vai pro repositório</span></label>
+        </div>
+
+        <details id="cadastroVesselsDetails" class="cadastro-vessels-details">
+          <summary>⚙️ Vasilhas (avançado) — <span id="cadastroVesselsSummary">herdadas da receita base</span></summary>
+          <p class="cadastro-hint">Isso é configuração de <strong>equipamento físico</strong> (qual sensor, qual aquecedor, ajuste fino do PID) — normalmente não precisa mexer aqui. Só o ganho do PID é editável; pra trocar o device em si, edite o JSON/YAML diretamente.</p>
+          <div id="cadastroVesselsEditor"></div>
+        </details>
+
+        <div class="section-title" style="margin-top:20px;">Etapas</div>
+        <div id="cadastroStepsList"></div>
+        <button type="button" class="btn-recipe ghost" style="width:100%; margin-top:8px;" onclick="addCadastroStep()">+ Nova etapa</button>
+
+        <div id="cadastroError" class="cadastro-error" style="display:none;"></div>
+
+        <div class="cadastro-form-actions">
+          <button type="button" class="btn-recipe primary" onclick="saveCadastroRecipe()">💾 Salvar receita</button>
+        </div>
+      </div>
+    </section>
   </main>
 
   <!-- ===== TOAST CONTAINER ===== -->
@@ -978,8 +1118,332 @@
         tab.classList.add('active');
         document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
         $(tab.dataset.tab).classList.add('active');
+        if (tab.dataset.tab === 'cadastro') loadCadastroTab();
       });
     });
+
+    // ===== ABA CADASTRO DE RECEITAS =====
+    let cadastroRecipes = [];
+    let cadastroActiveId = null;
+    let cadastroRunningName = null;
+    let cadastroEditingId = null;   // null = criando nova (via duplicar); string = editando existente
+    let cadastroDraft = null;       // { name, vessels: [...], steps: [...] }
+
+    async function loadCadastroTab() {
+      try {
+        const res = await fetch('/api/recipes');
+        if (!res.ok) throw new Error('Falha ao carregar receitas');
+        const payload = await res.json();
+        cadastroRecipes = payload.recipes || [];
+        cadastroActiveId = payload.active_recipe_id;
+        cadastroRunningName = payload.running_recipe_name;
+        renderRecipeCatalog();
+      } catch (e) {
+        toast(`❌ Erro ao carregar receitas: ${e.message}`, 'error');
+      }
+    }
+
+    function renderRecipeCatalog() {
+      $('recipeCatalogCount').textContent = cadastroRecipes.length;
+      const grid = $('recipeCatalogGrid');
+      if (cadastroRecipes.length === 0) {
+        grid.innerHTML = `<p class="cadastro-hint">Nenhuma receita disponível ainda.</p>`;
+        return;
+      }
+      grid.innerHTML = cadastroRecipes.map(r => {
+        const isRunning = cadastroRunningName !== null && r.name === cadastroRunningName;
+        const isPendingActive = r.id === cadastroActiveId && !isRunning;
+        const cardClass = !r.valid ? 'invalid' : (isRunning ? 'running' : (isPendingActive ? 'pending-restart' : ''));
+
+        const badges = [];
+        badges.push(`<span class="recipe-badge source-${r.source}">${r.source === 'public' ? '🌐 Pública' : '🔒 Privada'}</span>`);
+        if (!r.editable) badges.push(`<span class="recipe-badge locked">🔐 Base (não editável)</span>`);
+        if (isRunning) badges.push(`<span class="recipe-badge running">🟢 Rodando agora</span>`);
+        else if (isPendingActive) badges.push(`<span class="recipe-badge pending">⏳ Vai rodar no próximo restart</span>`);
+        if (!r.valid) badges.push(`<span class="recipe-badge invalid">⚠️ Inválida</span>`);
+
+        const actions = [];
+        if (r.valid && r.id !== cadastroActiveId) {
+          actions.push(`<button type="button" class="btn-recipe ghost" onclick="useRecipeAsActive('${r.id}')">▶ Usar esta</button>`);
+        }
+        actions.push(`<button type="button" class="btn-recipe ghost" onclick="duplicateRecipe('${r.id}')">🧬 Duplicar</button>`);
+        if (r.editable) {
+          actions.push(`<button type="button" class="btn-recipe ghost" onclick="editRecipe('${r.id}')">✏️ Editar</button>`);
+          actions.push(`<button type="button" class="btn-recipe ghost" onclick="deleteRecipeConfirm('${r.id}')">🗑 Excluir</button>`);
+        }
+
+        const errorHtml = (!r.valid && r.error) ? `<div class="recipe-catalog-error">${r.error}</div>` : '';
+
+        return `
+          <div class="recipe-catalog-card ${cardClass}">
+            <div class="recipe-catalog-name">${r.name || '(sem nome)'}</div>
+            <div class="recipe-catalog-badges">${badges.join('')}</div>
+            ${errorHtml}
+            <div class="recipe-catalog-actions">${actions.join('')}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function useRecipeAsActive(id) {
+      try {
+        const res = await fetch('/api/recipes/active', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id })
+        });
+        const payload = await res.json();
+        if (!res.ok) throw new Error(payload.error || 'Falha ao marcar receita ativa');
+        toast(`✅ Marcada como ativa — ${payload.note}`, 'success');
+        loadCadastroTab();
+      } catch (e) {
+        toast(`❌ Erro: ${e.message}`, 'error');
+      }
+    }
+
+    async function deleteRecipeConfirm(id) {
+      const recipe = cadastroRecipes.find(r => r.id === id);
+      if (!confirm(`Excluir a receita "${recipe ? recipe.name : id}"? Essa ação não pode ser desfeita.`)) return;
+      try {
+        const res = await fetch(`/api/recipes/${id}`, { method: 'DELETE' });
+        const payload = await res.json();
+        if (!res.ok) throw new Error(payload.error || 'Falha ao excluir');
+        toast(`✅ Receita excluída`, 'success');
+        loadCadastroTab();
+      } catch (e) {
+        toast(`❌ Erro: ${e.message}`, 'error');
+      }
+    }
+
+    async function duplicateRecipe(id) {
+      try {
+        const res = await fetch(`/api/recipes/${id}`);
+        const payload = await res.json();
+        if (!res.ok) throw new Error(payload.error || 'Falha ao carregar receita');
+        const draft = JSON.parse(JSON.stringify(payload.recipe));
+        draft.name = `${draft.name || 'Receita'} (cópia)`;
+        openCadastroForm(draft, null, id);
+      } catch (e) {
+        toast(`❌ Erro: ${e.message}`, 'error');
+      }
+    }
+
+    async function editRecipe(id) {
+      try {
+        const res = await fetch(`/api/recipes/${id}`);
+        const payload = await res.json();
+        if (!res.ok) throw new Error(payload.error || 'Falha ao carregar receita');
+        openCadastroForm(JSON.parse(JSON.stringify(payload.recipe)), id, null);
+      } catch (e) {
+        toast(`❌ Erro: ${e.message}`, 'error');
+      }
+    }
+
+    function openCadastroForm(draft, editingId, basedOnId) {
+      cadastroDraft = draft;
+      cadastroEditingId = editingId;
+      if (!cadastroDraft.steps) cadastroDraft.steps = [];
+      if (!cadastroDraft.vessels) cadastroDraft.vessels = [];
+
+      $('cadastroFormTitle').textContent = editingId ? 'Editar receita' : 'Nova receita';
+      $('cadastroBasedOnHint').textContent = editingId
+        ? 'Editando uma receita já cadastrada.'
+        : (basedOnId ? `Baseada em: ${basedOnId} — ajuste o nome e as etapas abaixo.` : '');
+      $('cadastroName').value = draft.name || '';
+
+      document.querySelectorAll('input[name="cadastroSource"]').forEach(r => { r.checked = (r.value === 'private'); });
+
+      renderCadastroVessels();
+      renderCadastroSteps();
+      $('cadastroError').style.display = 'none';
+
+      $('cadastroListView').style.display = 'none';
+      $('cadastroFormView').style.display = 'block';
+    }
+
+    function closeCadastroForm() {
+      $('cadastroFormView').style.display = 'none';
+      $('cadastroListView').style.display = 'block';
+      cadastroDraft = null;
+      cadastroEditingId = null;
+    }
+
+    function onCadastroFieldChange() {
+      if (!cadastroDraft) return;
+      cadastroDraft.name = $('cadastroName').value;
+    }
+
+    function renderCadastroVessels() {
+      const vessels = cadastroDraft.vessels || [];
+      $('cadastroVesselsSummary').textContent = vessels.map(v => v.name || v.id).join(', ') || 'nenhuma';
+      $('cadastroVesselsEditor').innerHTML = vessels.map((v, i) => `
+        <div class="cadastro-vessel-row">
+          <span class="cadastro-vessel-name">${v.name || v.id}</span>
+          <span class="cadastro-vessel-devices">${v.heater_device_id} + ${v.sensor_device_id}</span>
+          <label style="font-size:11px; color:var(--text-secondary);">Kp <input type="number" step="0.1" class="cadastro-pid-input" value="${(v.pid && v.pid.kp) || 0}" onchange="updateVesselPid(${i}, 'kp', this.value)"></label>
+          <label style="font-size:11px; color:var(--text-secondary);">Ki <input type="number" step="0.01" class="cadastro-pid-input" value="${(v.pid && v.pid.ki) || 0}" onchange="updateVesselPid(${i}, 'ki', this.value)"></label>
+          <label style="font-size:11px; color:var(--text-secondary);">Kd <input type="number" step="0.01" class="cadastro-pid-input" value="${(v.pid && v.pid.kd) || 0}" onchange="updateVesselPid(${i}, 'kd', this.value)"></label>
+        </div>
+      `).join('');
+    }
+
+    function updateVesselPid(index, field, value) {
+      cadastroDraft.vessels[index].pid[field] = parseFloat(value) || 0;
+    }
+
+    function availablePumpDevices() {
+      const heaterIds = new Set((cadastroDraft.vessels || []).map(v => v.heater_device_id));
+      return (window.lastDevices || []).filter(d => d.role === 'actuator' && !heaterIds.has(d.id));
+    }
+
+    function renderCadastroSteps() {
+      const steps = cadastroDraft.steps || [];
+      const vessels = cadastroDraft.vessels || [];
+      const pumps = availablePumpDevices();
+
+      $('cadastroStepsList').innerHTML = steps.map((step, i) => {
+        const vesselOptions = vessels.map(v =>
+          `<option value="${v.id}" ${step.vessel === v.id ? 'selected' : ''}>${v.name || v.id}</option>`
+        ).join('');
+
+        const selectedPumps = new Set(step.pumps || []);
+        const pumpChecks = pumps.map(p => `
+          <label class="cadastro-pump-check">
+            <input type="checkbox" ${selectedPumps.has(p.id) ? 'checked' : ''} onchange="toggleStepPump(${i}, '${p.id}', this.checked)">
+            ${p.name || p.id}
+          </label>
+        `).join('') || '<span style="font-size:11px; color:var(--text-secondary);">Nenhuma bomba disponível no devices.yml</span>';
+
+        const hopAlarms = step.hop_alarms || [];
+        const hopAlarmRows = hopAlarms.map((h, j) => `
+          <div class="cadastro-hop-alarm-row">
+            <input type="number" class="alarm-settings-input" value="${h.minutes_remaining}" placeholder="min restantes" onchange="updateHopAlarm(${i}, ${j}, 'minutes_remaining', this.value)">
+            <input type="text" class="alarm-settings-input" value="${h.label || ''}" placeholder="Ex.: Lúpulo Amargor - 30g" onchange="updateHopAlarm(${i}, ${j}, 'label', this.value)">
+            <button type="button" class="btn-recipe ghost" onclick="removeHopAlarm(${i}, ${j})" title="Remover">✕</button>
+          </div>
+        `).join('');
+
+        return `
+          <div class="cadastro-step-card">
+            <div class="cadastro-step-header">
+              <span class="cadastro-step-number">${i + 1}</span>
+              <select class="alarm-settings-select" style="width:auto; flex:1;" onchange="updateStepField(${i}, 'vessel', this.value)">${vesselOptions}</select>
+              <button type="button" class="btn-recipe ghost cadastro-step-remove" onclick="removeCadastroStep(${i})" title="Remover etapa">🗑</button>
+            </div>
+            <div class="cadastro-step-grid">
+              <label>
+                <span class="alarm-settings-label">Rótulo (opcional)</span>
+                <input type="text" class="alarm-settings-input" value="${step.label || ''}" placeholder="Ex.: Sacarificação" onchange="updateStepField(${i}, 'label', this.value)">
+              </label>
+              <label>
+                <span class="alarm-settings-label">Temperatura alvo (°C)</span>
+                <input type="number" step="0.1" class="alarm-settings-input" value="${step.target_temp}" onchange="updateStepField(${i}, 'target_temp', this.value)">
+              </label>
+              <label>
+                <span class="alarm-settings-label">Tempo de patamar (min)</span>
+                <input type="number" class="alarm-settings-input" value="${step.hold_minutes}" onchange="updateStepField(${i}, 'hold_minutes', this.value)">
+              </label>
+            </div>
+            <div class="cadastro-pumps-row">${pumpChecks}</div>
+            <div class="cadastro-hop-alarms">
+              <span class="alarm-settings-label">Alarmes de lúpulo (opcional)</span>
+              ${hopAlarmRows}
+              <button type="button" class="btn-recipe ghost" style="margin-top:6px;" onclick="addHopAlarm(${i})">+ Alarme</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateStepField(index, field, value) {
+      const step = cadastroDraft.steps[index];
+      if (field === 'target_temp' || field === 'hold_minutes') {
+        step[field] = parseFloat(value) || 0;
+      } else {
+        step[field] = value;
+      }
+    }
+
+    function toggleStepPump(index, pumpId, checked) {
+      const step = cadastroDraft.steps[index];
+      const pumps = new Set(step.pumps || []);
+      if (checked) pumps.add(pumpId); else pumps.delete(pumpId);
+      step.pumps = Array.from(pumps);
+    }
+
+    function addCadastroStep() {
+      const vessels = cadastroDraft.vessels || [];
+      cadastroDraft.steps.push({
+        vessel: vessels[0] ? vessels[0].id : '',
+        label: '',
+        target_temp: 65,
+        hold_minutes: 30,
+        pumps: [],
+      });
+      renderCadastroSteps();
+    }
+
+    function removeCadastroStep(index) {
+      cadastroDraft.steps.splice(index, 1);
+      renderCadastroSteps();
+    }
+
+    function addHopAlarm(stepIndex) {
+      const step = cadastroDraft.steps[stepIndex];
+      if (!step.hop_alarms) step.hop_alarms = [];
+      step.hop_alarms.push({ minutes_remaining: 0, label: '' });
+      renderCadastroSteps();
+    }
+
+    function removeHopAlarm(stepIndex, alarmIndex) {
+      cadastroDraft.steps[stepIndex].hop_alarms.splice(alarmIndex, 1);
+      renderCadastroSteps();
+    }
+
+    function updateHopAlarm(stepIndex, alarmIndex, field, value) {
+      const alarm = cadastroDraft.steps[stepIndex].hop_alarms[alarmIndex];
+      alarm[field] = field === 'minutes_remaining' ? (parseFloat(value) || 0) : value;
+    }
+
+    async function saveCadastroRecipe() {
+      const errorEl = $('cadastroError');
+      errorEl.style.display = 'none';
+
+      if (!cadastroDraft.name || !cadastroDraft.name.trim()) {
+        errorEl.textContent = 'Dê um nome pra receita antes de salvar.';
+        errorEl.style.display = 'block';
+        return;
+      }
+      if (!cadastroDraft.steps || cadastroDraft.steps.length === 0) {
+        errorEl.textContent = 'Adicione ao menos uma etapa antes de salvar.';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      try {
+        let res;
+        if (cadastroEditingId) {
+          res = await fetch(`/api/recipes/${cadastroEditingId}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ recipe: cadastroDraft })
+          });
+        } else {
+          const source = document.querySelector('input[name="cadastroSource"]:checked').value;
+          res = await fetch('/api/recipes', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ source, recipe: cadastroDraft })
+          });
+        }
+        const payload = await res.json();
+        if (!res.ok) throw new Error(payload.error || 'Falha ao salvar receita');
+
+        toast(`✅ Receita salva`, 'success');
+        closeCadastroForm();
+        loadCadastroTab();
+      } catch (e) {
+        errorEl.textContent = e.message;
+        errorEl.style.display = 'block';
+      }
+    }
 
     // ===== STATUS MQTT =====
     async function fetchStatus() {
