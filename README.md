@@ -291,8 +291,43 @@ a decisão já registrada de "voltar a `status: online` nunca religa
 nada sozinho" (ver seção de contrato MQTT).
 
 ```
-POST /api/devices/<id>/duty     -> {"duty_percent": 40} define; {"duty_percent": null} limpa
+POST /api/devices/<id>/duty          -> {"duty_percent": 40} só define o valor — NÃO liga sozinho
+POST /api/devices/<id>/duty/enabled  -> {"enabled": true|false} liga/desliga o interruptor mestre
 ```
+
+### Override manual de bombas e outros atuadores simples (sem controle de potência)
+
+Atuadores liga/desliga puro que uma receita também gerencia automaticamente
+(bombas, via `step.pumps`) têm o mesmo problema de prioridade que os
+atuadores de potência tinham antes da seção acima — só que mais sutil:
+`RecipeEngine._apply_pumps()` decide ligar/desligar comparando a lista
+de pumps da etapa atual contra o **bookkeeping interno do próprio
+motor** (`self._active_pumps`), nunca contra o estado físico real. Sem
+um jeito de marcar "isto está sob controle manual", um comando manual
+aplicado enquanto a receita está rodando pode ser desfeito
+silenciosamente na próxima troca de etapa — o motor não sabe que a
+realidade mudou.
+
+`DeviceRuntime.set_manual_override()`/`has_manual_override()` resolvem
+isso pra qualquer atuador sem `hardware.window_seconds`: definir um
+override registra a intenção e escreve no GPIO imediatamente (exceto
+se o device estiver com failsafe suspenso); `_apply_pumps()` consulta
+`has_manual_override()` e nunca escreve num device sob override,
+mesmo que ele apareça na lista de pumps de uma etapa. O endpoint
+`POST /api/devices/<id>/command` (painel/API) passou a registrar o
+override em vez de escrever cru — usado tanto pela grade "Atuadores"
+quanto pelo controle de bomba dentro do card da vasilha da receita.
+
+```
+POST /api/devices/<id>/command  -> {"value": true} define e liga; {"value": null} libera pro automático
+```
+
+Mesma regra de segurança da seção anterior: failsafe sempre suspende
+(e `resume_all_suspended_overrides()`, chamado só por
+`RecipeEngine.resume()`, reaplica o valor manual armazenado — aqui,
+diferente do controle de potência, a reaplicação precisa reescrever o
+GPIO explicitamente, já que atuadores booleanos não têm um loop
+contínuo como o `tick_duty()`).
 
 ### Controles manuais (API + painel)
 

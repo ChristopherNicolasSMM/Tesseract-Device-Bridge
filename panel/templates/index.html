@@ -496,8 +496,17 @@
     .pump-chip {
       font-size: 11px; padding: 3px 9px; border-radius: 20px;
       background: var(--bg-primary); border: 1px solid var(--border-subtle); color: var(--text-secondary);
+      cursor: pointer; user-select: none; display: inline-flex; align-items: center; gap: 4px;
+      transition: border-color 0.2s, color 0.2s;
     }
+    .pump-chip:hover { border-color: var(--copper-300); }
     .pump-chip.on { color: var(--hold-green); border-color: rgba(76,174,110,0.4); }
+    .pump-chip.manual { border-style: dashed; border-color: var(--copper-300); color: var(--copper-300); }
+    .pump-chip.manual.on { color: var(--hold-green); border-color: var(--hold-green); }
+    .pump-chip-release {
+      font-size: 12px; line-height: 1; opacity: 0.75; padding-left: 2px;
+    }
+    .pump-chip-release:hover { opacity: 1; }
 
     .timeline-wrap {
       background: var(--bg-card);
@@ -1152,6 +1161,33 @@
       if (label) label.textContent = `${value}%`;
     };
 
+    // Bomba (ou qualquer atuador simples liga/desliga) dentro do card da
+    // vasilha — toque alterna o valor físico atual E assume controle
+    // manual (o RecipeEngine para de mexer nesse device até ser
+    // liberado). Reaproveita o mesmo endpoint /command já usado pela
+    // grade de Atuadores — o registro de override acontece no backend
+    // (command_device -> set_manual_override), não aqui.
+    window.togglePumpManual = function(pumpId) {
+      const device = deviceById(pumpId);
+      const currentlyOn = !!(device && device.value === true);
+      command(pumpId, !currentlyOn);
+    };
+
+    window.releasePumpManual = async function(pumpId) {
+      try {
+        const res = await fetch(`/api/devices/${pumpId}/command`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: null })
+        });
+        if (!res.ok) throw new Error('Falha ao liberar controle');
+        toast(`✅ ${pumpId} devolvida pro controle automático da receita`, 'success');
+        refresh();
+      } catch (e) {
+        toast(`❌ Erro: ${e.message}`, 'error');
+      }
+    };
+
     async function refresh() {
       try {
         const res = await fetch('/api/devices');
@@ -1361,10 +1397,21 @@
 
       const pumpsEl = $('vpumps-' + vesselName);
       const pumpIds = vesselPumpIds(vesselName);
-      const activePumps = active ? new Set(recipeDefinition.steps[currentStepIndexCache]?.pumps || []) : new Set();
       pumpsEl.innerHTML = pumpIds.map(pid => {
-        const isOn = activePumps.has(pid) && deviceValue(pid) === true;
-        return `<span class="pump-chip ${isOn ? 'on' : ''}">${pid}</span>`;
+        // Estado físico real do pump (window.lastDevices), não mais
+        // condicionado a "pertence à etapa atual" — um override manual
+        // pode ligar/desligar um pump independente da receita, e o chip
+        // precisa refletir isso corretamente em qualquer etapa.
+        const pumpDevice = deviceById(pid);
+        const isOn = pumpDevice ? pumpDevice.value === true : false;
+        const isManual = !!(pumpDevice && pumpDevice.manual_override !== null && pumpDevice.manual_override !== undefined);
+        const releaseBtn = isManual
+          ? `<span class="pump-chip-release" onclick="event.stopPropagation(); releasePumpManual('${pid}')" title="Devolver pro controle automático da receita">\u21ba</span>`
+          : '';
+        const title = isManual
+          ? 'Sob controle manual \u2014 toque pra alternar'
+          : 'Sob controle da receita \u2014 toque pra assumir manualmente';
+        return `<span class="pump-chip ${isOn ? 'on' : ''} ${isManual ? 'manual' : ''}" onclick="togglePumpManual('${pid}')" title="${title}">${pid}${releaseBtn}</span>`;
       }).join('');
     }
 

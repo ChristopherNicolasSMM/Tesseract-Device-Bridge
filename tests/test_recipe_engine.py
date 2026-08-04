@@ -166,6 +166,45 @@ def test_tick_activates_step_pumps(setup):
     assert runtime.get_state("pump_b1").value is True
 
 
+def test_apply_pumps_respects_manual_override_preventing_auto_on(setup):
+    """
+    Achado real: _apply_pumps() decide liga/desliga comparando com seu
+    próprio bookkeeping (self._active_pumps), nunca com o estado físico.
+    Sem checar has_manual_override(), um override manual seria ignorado
+    silenciosamente assim que a etapa pedisse o pump ligado.
+    """
+    runtime, recipe, state_path = setup
+    runtime.set_manual_override("pump_b1", False)  # override antes de iniciar
+
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.tick(now=1000.0)
+    engine.tick(now=1001.0)  # step0 pede pump_b1 ligado -- mas está sob override
+
+    assert runtime.get_state("pump_b1").value is False
+
+
+def test_apply_pumps_respects_manual_override_preventing_auto_off_on_transition(setup):
+    """
+    Cenário central do bug: pump ligado normalmente pela receita, usuário
+    assume controle manual, receita avança de etapa (etapa nova não usa
+    esse pump) -- sem o guard, o diff interno desligaria o pump sozinho,
+    desfazendo o comando manual sem nenhum aviso.
+    """
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    engine.start(now=1000.0)
+    engine.tick(now=1000.0)
+    engine.tick(now=1001.0)
+    assert runtime.get_state("pump_b1").value is True  # ligado normalmente pela receita
+
+    runtime.set_manual_override("pump_b1", True)  # usuário assume controle
+
+    engine.skip_next(now=1002.0)  # avança pra "boil", que não usa pump_b1
+
+    assert runtime.get_state("pump_b1").value is True  # override impediu o desligamento automático
+
+
 def test_ramping_transitions_to_holding_when_target_reached(setup):
     runtime, recipe, state_path = setup
     engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)

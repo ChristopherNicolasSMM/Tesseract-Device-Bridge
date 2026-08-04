@@ -315,11 +315,21 @@ class RecipeEngine:
         self._runtime.set_pid_duty(vessel.heater_device_id, duty)
 
     def _apply_pumps(self, desired_pump_ids) -> None:
+        """
+        Aciona/desliga bombas conforme a lista da etapa atual — mas nunca
+        num pump sob override manual (ver DeviceRuntime.has_manual_override,
+        painel: card da vasilha ou grade de Atuadores). Sem essa checagem,
+        um comando manual seria desfeito silenciosamente na próxima troca
+        de etapa, já que este método só compara contra o bookkeeping
+        interno (self._active_pumps), que não sabe de escritas manuais.
+        """
         desired: Set[str] = set(desired_pump_ids)
         for pump_id in desired - self._active_pumps:
-            self._runtime.set_actuator(pump_id, True)
+            if not self._runtime.has_manual_override(pump_id):
+                self._runtime.set_actuator(pump_id, True)
         for pump_id in self._active_pumps - desired:
-            self._runtime.set_actuator(pump_id, False)
+            if not self._runtime.has_manual_override(pump_id):
+                self._runtime.set_actuator(pump_id, False)
         self._active_pumps = desired
 
     def _restart_current_step(self, now: float) -> None:

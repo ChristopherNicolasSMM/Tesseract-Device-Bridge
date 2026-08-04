@@ -82,6 +82,10 @@ class DeviceState:
     duty_source: str | None = None  # "manual" | "pid" | "failsafe_suspended" | "idle"
     duty_enabled: bool | None = None  # override manual armado? (interruptor mestre do painel)
     manual_duty_percent: float | None = None  # valor configurado pro override manual, mesmo desarmado
+    # Override manual genérico (atuadores SEM controle de potência, ex.:
+    # bombas) — None quando nunca foi definido explicitamente; caso
+    # contrário, o último valor definido via set_manual_override().
+    manual_override: Any | None = None
 
 
 @dataclass
@@ -123,6 +127,16 @@ class DeviceRuntime:
         self._manual_enabled: Set[str] = set()
         self._pid_duty: Dict[str, float] = {}
         self._failsafe_suspended: Set[str] = set()
+        # Override manual genérico pra atuadores SEM controle de potência
+        # (ex.: bombas) — separado de _manual_duty/_manual_enabled, que só
+        # existem pra atuadores com hardware.window_seconds. Guarda o
+        # último valor que um humano/API definiu explicitamente; o
+        # RecipeEngine consulta has_manual_override() em _apply_pumps()
+        # pra nunca sobrescrever um atuador sob controle manual — sem
+        # isso, o diff interno do RecipeEngine (self._active_pumps) pode
+        # dessincronizar da realidade e "desfazer" o comando manual
+        # silenciosamente na próxima troca de etapa.
+        self._manual_override: Dict[str, Any] = {}
 
         self._setup_all()
 
@@ -195,7 +209,8 @@ class DeviceRuntime:
         Se o device tiver controle de potência (has_duty_control), além
         da escrita imediata isso SUSPENDE qualquer duty manual ou vindo
         de receita — sem isso, o próximo tick_duty() religaria o
-        atuador usando o duty antigo, tornando o failsafe efêmero. A
+        atuador usando o duty antigo, tornando o failsafe efêmero. Mesma
+        suspensão vale pra override manual booleano (ex.: bomba). A
         suspensão só é revertida por resume_all_suspended_overrides().
         """
         device = self._config.get_device(device_id)
@@ -203,7 +218,7 @@ class DeviceRuntime:
             raise DeviceRuntimeError(
                 f"apply_failsafe chamado em '{device_id}', que não é is_risk=true."
             )
-        if device.id in self._tpc:
+        if device.id in self._tpc or device.id in self._manual_override:
             self._failsafe_suspended.add(device.id)
         return self.set_actuator(device_id, device.failsafe_value)
 
@@ -215,22 +230,65 @@ class DeviceRuntime:
         pra manter um único caminho de "failsafe sempre vence".
         """
         device = self._config.get_device(device_id)
-        if device.id in self._tpc:
+        if device.id in self._tpc or device.id in self._manual_override:
             self._failsafe_suspended.add(device.id)
         return self.set_actuator(device_id, value)
 
     def resume_all_suspended_overrides(self) -> None:
         """
-        Limpa toda suspensão de failsafe, devolvendo cada atuador ao seu
-        duty armazenado (manual, se houver; senão o da receita) no
-        próximo tick_duty(). Chamado SÓ por RecipeEngine.resume() —
-        nunca pelo watchdog/status_handler, que nunca devem religar um
+        Limpa toda suspensão de failsafe. Atuadores com controle de
+        potência se resolvem sozinhos no próximo tick_duty() (loop
+        contínuo). Overrides booleanos (bombas) NÃO têm esse loop —
+        precisam ser reescritos explicitamente aqui, senão ficam parados
+        no failsafe_value até algum evento futuro reescrever por acaso.
+        Chamado SÓ por RecipeEngine.resume() (ação explícita do usuário)
+        — nunca pelo watchdog/status_handler, que nunca devem religar um
         atuador de risco sozinhos por causa de reconexão de rede.
         """
+        suspended_bool_overrides = [
+            device_id for device_id in self._failsafe_suspended
+            if device_id in self._manual_override
+        ]
         self._failsafe_suspended.clear()
+        for device_id in suspended_bool_overrides:
+            self.set_actuator(device_id, self._manual_override[device_id])
 
     def has_duty_control(self, device_id: str) -> bool:
         return device_id in self._tpc
+
+    def has_manual_override(self, device_id: str) -> bool:
+        """
+        True quando um humano/API definiu um valor manual explícito pra
+        este atuador (fora do sistema de duty-cycle) — usado pelo
+        RecipeEngine._apply_pumps() pra nunca sobrescrever silenciosamente
+        um atuador sob controle manual.
+        """
+        return device_id in self._manual_override
+
+    def set_manual_override(self, device_id: str, value: Optional[Any]) -> DeviceState:
+        """
+        Define (value não-None) ou limpa (None) um override manual pra um
+        atuador SEM controle de potência (ex.: bomba, ou qualquer digital
+        simples) — enquanto definido, o RecipeEngine._apply_pumps() nunca
+        escreve nesse device, mesmo que ele apareça na lista de pumps de
+        uma etapa ativa. Escreve no GPIO imediatamente, exceto se o
+        device estiver com failsafe suspenso (segurança sempre vence).
+        """
+        device = self._config.get_device(device_id)
+        if device.role != "actuator":
+            raise DeviceRuntimeError(
+                f"set_manual_override chamado em '{device_id}', que não é actuator (role='{device.role}')."
+            )
+        if value is None:
+            self._manual_override.pop(device.id, None)
+            return self._state_of(device)
+        self._manual_override[device.id] = value
+        if device.id in self._failsafe_suspended:
+            # Guarda a intenção, mas não escreve fisicamente enquanto o
+            # failsafe estiver suspenso — mesma regra de segurança do
+            # controle de potência (failsafe sempre vence).
+            return self._state_of(device)
+        return self.set_actuator(device_id, value)
 
     def set_manual_duty_percent(self, device_id: str, duty_percent: float) -> DeviceState:
         """
@@ -372,6 +430,8 @@ class DeviceRuntime:
             duty_enabled = device.id in self._manual_enabled
             manual_duty_percent = self._manual_duty.get(device.id)
 
+        manual_override = self._manual_override.get(device.id) if device.role == "actuator" else None
+
         return DeviceState(
             id=device.id,
             name=device.name,
@@ -388,4 +448,5 @@ class DeviceRuntime:
             duty_source=duty_source,
             duty_enabled=duty_enabled,
             manual_duty_percent=manual_duty_percent,
+            manual_override=manual_override,
         )

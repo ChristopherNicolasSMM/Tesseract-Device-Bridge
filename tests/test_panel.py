@@ -114,6 +114,24 @@ def test_command_actuator_updates_value(client):
     assert res2.get_json()["value"] == 75.0
 
 
+def test_command_registers_manual_override(client):
+    res = client.post("/api/devices/mash_heater/command", json={"value": 75.0})
+    assert res.status_code == 200
+    assert res.get_json()["manual_override"] == 75.0
+
+
+def test_command_with_null_value_clears_manual_override(client):
+    client.post("/api/devices/mash_heater/command", json={"value": 75.0})
+    res = client.post("/api/devices/mash_heater/command", json={"value": None})
+    assert res.status_code == 200
+    assert res.get_json()["manual_override"] is None
+
+
+def test_command_on_duty_controlled_device_returns_400(client_with_duty_device):
+    res = client_with_duty_device.post("/api/devices/mash_heater/command", json={"value": True})
+    assert res.status_code == 400
+
+
 def test_command_without_value_returns_400(client):
     res = client.post("/api/devices/mash_heater/command", json={})
     assert res.status_code == 400

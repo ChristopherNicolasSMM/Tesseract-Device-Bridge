@@ -66,13 +66,25 @@ def command_device(device_id: str):
     """
     Aciona um atuador diretamente — equivalente ao que aconteceria se um
     comando chegasse via command_topic, mas sem depender do MQTT.
+
+    Registra o valor como override manual (DeviceRuntime.set_manual_override)
+    em vez de escrever cru — assim, se este device for uma bomba usada
+    por uma receita ativa (pumps de um step), o RecipeEngine nunca
+    sobrescreve o comando manual silenciosamente na próxima troca de
+    etapa (ver _apply_pumps). Sem efeito colateral para atuadores fora
+    de qualquer receita — a checagem só é consultada por _apply_pumps.
     """
     payload = request.get_json(silent=True) or {}
     if "value" not in payload:
         return jsonify({"error": "corpo da requisição deve conter 'value'."}), 400
 
     try:
-        state = _runtime().set_actuator(device_id, payload["value"])
+        device = _runtime().get_device_config(device_id)
+        if device.has_duty_control:
+            return jsonify({
+                "error": "device com controle de potência — use POST .../duty e .../duty/enabled."
+            }), 400
+        state = _runtime().set_manual_override(device_id, payload["value"])
     except KeyError as exc:
         return jsonify({"error": str(exc)}), 404
     except DeviceRuntimeError as exc:
