@@ -32,7 +32,7 @@ steps:
 
   - vessel: mash
     label: "Mostura - Alfa-Amilase"
-    target_temp: 67
+    target_temp: 72
     hold_minutes: 20
     pumps: [pump_b1]   # recirculação durante a mostura
 
@@ -46,7 +46,7 @@ steps:
     label: "Fervura"
     target_temp: 100
     hold_minutes: 60
-    pumps: [pump_b2]   # whirlpool/chiller na fervura
+#    pumps: [pump_b2]   # whirlpool/chiller na fervura
     hop_alarms:
           - minutes_remaining: 60   # alerta quando faltam 60min para o fim da fervura
             label: "Lúpulo Amargor - 30g Magnum"
