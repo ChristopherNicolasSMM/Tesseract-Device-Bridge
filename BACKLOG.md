@@ -97,13 +97,13 @@ com borda âmbar pulsante e os botões Confirmar/Manter manual. Ver
 
 **8. Fundação de armazenamento de receitas (`data/`) — primeira metade do item 2 original**
 Decisão de sessão própria: `recipe.yml` fixo na raiz virou
-`data/publico/receita_base.yaml` (migração real, `git mv`) — YAML,
+`data/public/receita_base.yaml` (migração real, `git mv`) — YAML,
 não editável pelo sistema de cadastro, mas sempre selecionável.
 Receitas cadastradas (ainda sem UI) ficam em
-`data/{publico,privado}/receita.json` — **um arquivo por pasta,
+`data/{public,private}/receita.json` — **um arquivo por pasta,
 contendo uma lista** (convenção de "entidade"), não um arquivo por
-receita. `publico`/`privado` só diferem em versionamento
-(`.gitignore`: `data/privado/*`). Módulo `data/__init__.py` (lógica
+receita. `public`/`private` só diferem em versionamento
+(`.gitignore`: `data/private/*`). Módulo `data/__init__.py` (lógica
 direto no `__init__.py`, decisão explícita, foge do padrão do resto
 do projeto de propósito) expõe `list_recipes()`, `load_recipe_by_id()`,
 `get_active_recipe_id()`/`set_active_recipe_id()`,
@@ -115,6 +115,25 @@ validar receitas em JSON sem duplicar nada. Novos endpoints
 ativa **exige reiniciar o processo** (decisão tomada — endpoint só
 grava o ponteiro pro próximo boot). 23 testes novos
 (`tests/test_data_store.py`).
+
+**9. `publico`/`privado` → `public`/`private`, e `devices.yml`/`recipe_state.json` movidos pra dentro de `data/`**
+Ajuste feito por você direto no repositório (rename de pasta + updates
+em `data/__init__.py`) — só precisei corrigir os testes
+(`tests/test_data_store.py`) que ainda usavam os nomes antigos.
+Completado nesta sessão: `devices.yml` → `data/public/devices.yml`
+(`git mv`, continua versionado — "public" = compartilhado);
+`devices.yml.example` → `data/public/devices.yml.example`;
+`recipe.yml.example` **removido** (receita_base.yaml já cobre esse
+papel, decisão confirmada); `recipe_state.json` → `data/private/recipe_state.json`
+(`git rm --cached` + mv — nunca mais versionado, é estado de execução,
+não config). `run_panel.py`/`run_bridge.py` atualizados
+(`DEFAULT_CONFIG_PATH`, `EXAMPLE_CONFIG_PATH`, `DEFAULT_RECIPE_STATE_PATH`);
+`tools/install_service.sh`/`uninstall_service.sh` corrigidos (checagem
+de `devices.yml`, comentários do unit file systemd). Documentação
+(`README.md`, docs técnicos/manual, este arquivo) atualizada nos
+pontos operacionais/acionáveis — alguns diagramas ER/C4 conceituais
+citam `devices.yml`/`recipe_state.json` sem o caminho completo
+(schema não mudou, só a localização — baixo risco de confundir).
 
 ### Suíte de testes
 
@@ -132,7 +151,7 @@ A fundação (item 8 acima) já resolve armazenamento, descoberta,
 validação e resolução de qual receita usar no boot. Falta só a
 **interface** — uma aba nova, depois de "Receitas", pra:
 - Cadastrar uma receita nova (formulário, não editar JSON na mão) —
-  grava em `data/publico/receita.json` ou `data/privado/receita.json`
+  grava em `data/public/receita.json` ou `data/private/receita.json`
   via `write_entities()` (já existe, só falta a rota da API que
   monta o registro e chama).
 - Listar as disponíveis (já tem `GET /api/recipes`) e escolher qual

@@ -15,15 +15,15 @@
 ```mermaid
 flowchart TD
     A([Começar]) --> B[1. Instalar o sistema]
-    B --> C[2. Configurar o hardware\ndevices.yml]
+    B --> C[2. Configurar o hardware\ndata/public/devices.yml]
     C --> D[3. Testar o hardware\ncom gpio_test.py]
     D --> E{Hardware\nrespondeu?}
     E -- Não --> F[Ver FAQ:\nGPIO não responde]
     F --> D
-    E -- Sim --> G[4. Configurar a receita\ndata/publico/receita_base.yaml]
+    E -- Sim --> G[4. Configurar a receita\ndata/public/receita_base.yaml]
     G --> H[5. Testar no modo simulado\nrun_bridge.py]
     H --> I{Receita e painel\nok?}
-    I -- Não --> J[Ajustar a receita em data/\nou devices.yml]
+    I -- Não --> J[Ajustar a receita em data/\nou data/public/devices.yml]
     J --> H
     I -- Sim --> K[6. Trocar para backend real\nbackend: real]
     K --> L[7. Instalar como serviço\ninstall_service.sh]
@@ -42,10 +42,10 @@ pip install -r requirements.txt
 
 ---
 
-## 2. Configurar o hardware (`devices.yml`)
+## 2. Configurar o hardware (`data/public/devices.yml`)
 
 ```bash
-cp devices.yml.example devices.yml
+cp data/public/devices.yml.example data/public/devices.yml
 ```
 
 **Descobrir os endereços dos sensores DS18B20** (você precisa dessas informações para preencher o `devices.yml`):
@@ -60,7 +60,7 @@ Vai aparecer algo como:
 28-0000059876cd  ->  GPIO 4
 ```
 
-Abra o `devices.yml` e substitua os valores de `address` pelos que o scan mostrou.
+Abra o `data/public/devices.yml` e substitua os valores de `address` pelos que o scan mostrou.
 
 **Dica**: durante os primeiros testes, deixe `backend: simulated` — assim você pode usar o painel sem a placa ligada para verificar se a receita está configurada do jeito certo.
 
@@ -68,7 +68,7 @@ Abra o `devices.yml` e substitua os valores de `address` pelos que o scan mostro
 
 ## 3. Testar o hardware antes de usar na brassagem
 
-Este passo é importante e evita descobrir problemas no meio de uma brassagem. Troque para `backend: real` no `devices.yml` e rode a ferramenta de diagnóstico:
+Este passo é importante e evita descobrir problemas no meio de uma brassagem. Troque para `backend: real` no `data/public/devices.yml` e rode a ferramenta de diagnóstico:
 
 ```bash
 python tools/gpio_test.py
@@ -82,12 +82,12 @@ Se os relés não responderem, veja a seção [FAQ — GPIO não responde](04-pe
 
 ---
 
-## 4. Configurar a receita (`data/publico/receita_base.yaml`)
+## 4. Configurar a receita (`data/public/receita_base.yaml`)
 
-A receita "de fábrica" já vem em `data/publico/receita_base.yaml` — edite ela direto (é a única receita que **não** passa pelo sistema de cadastro, mas continua 100% selecionável pra brassar):
+A receita "de fábrica" já vem em `data/public/receita_base.yaml` — edite ela direto (é a única receita que **não** passa pelo sistema de cadastro, mas continua 100% selecionável pra brassar):
 
 ```bash
-nano data/publico/receita_base.yaml
+nano data/public/receita_base.yaml
 ```
 
 Os campos principais para editar:
@@ -122,8 +122,8 @@ Para validar se a receita está correta:
 python3 -c "
 from config import BridgeConfig
 import data
-config = BridgeConfig.load('devices.yml')
-recipe = data.load_recipe_by_id('publico:base', config)
+config = BridgeConfig.load('data/public/devices.yml')
+recipe = data.load_recipe_by_id('public:base', config)
 print('OK:', recipe.name, recipe.step_count(), 'etapas')
 "
 ```

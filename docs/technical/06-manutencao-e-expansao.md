@@ -13,13 +13,13 @@ em outro lugar sem o mesmo motivo).
 
 ```
 data/
-├── publico/
+├── public/
 │   ├── receita_base.yaml   # migração do antigo recipe.yml — YAML, não passa pelo
 │   │                       # sistema de cadastro (não editável via API), mas
 │   │                       # sempre selecionável pra brassar
 │   └── receita.json        # lista de receitas cadastradas via painel — versionado
-└── privado/
-    └── receita.json        # mesma estrutura, gitignored (.gitignore: data/privado/*)
+└── private/
+    └── receita.json        # mesma estrutura, gitignored (.gitignore: data/private/*)
 ```
 
 **Convenção de "entidade"**: um arquivo JSON por pasta, contendo uma
@@ -28,8 +28,8 @@ primeira entidade; o par `read_entities(source, entity)` /
 `write_entities(source, entity, entries)` é genérico o bastante pra
 outros tipos cadastráveis reaproveitarem sem duplicar a parte de I/O.
 
-**Id global de uma receita**: `"{source}:{id}"` (ex.: `"publico:base"`
-pra receita_base, `"privado:3fa85f64-..."` pra uma entrada de
+**Id global de uma receita**: `"{source}:{id}"` (ex.: `"public:base"`
+pra receita_base, `"private:3fa85f64-..."` pra uma entrada de
 `receita.json`) — evita colisão entre uma receita pública e uma
 privada com o mesmo id local, sem precisar de nenhum registro central.
 
@@ -41,7 +41,7 @@ via CLI), nesta ordem:
    operação local, não configuração do projeto). Se apontar pra algo
    que sumiu ou ficou inválido, loga aviso e cai pro próximo nível —
    nunca derruba o motor de receita por causa de um ponteiro velho.
-2. `data/publico/receita_base.yaml`, se existir.
+2. `data/public/receita_base.yaml`, se existir.
 3. `recipe.yml` na raiz do projeto — **fallback legado**, preservado
    só pra quem ainda não migrou pra `data/` não quebrar.
 4. `None` — motor de receita desabilitado (mesmo comportamento de
@@ -230,7 +230,7 @@ sudo bash tools/install_service.sh
 sudo systemctl status tesseract-bridge    # status atual
 sudo systemctl start  tesseract-bridge    # iniciar
 sudo systemctl stop   tesseract-bridge    # parar
-sudo systemctl restart tesseract-bridge   # reiniciar (após mudar devices.yml/recipe.yml)
+sudo systemctl restart tesseract-bridge   # reiniciar (após mudar devices.yml ou uma receita em data/)
 sudo systemctl enable  tesseract-bridge   # habilitar no boot
 sudo systemctl disable tesseract-bridge   # desabilitar do boot
 
@@ -244,7 +244,7 @@ sudo journalctl -fu tesseract-bridge      # equivalente direto
 sudo bash tools/uninstall_service.sh
 ```
 
-Após editar `devices.yml` ou `recipe.yml`, é necessário reiniciar o serviço — o bridge carrega as configurações apenas no boot do processo.
+Após editar `devices.yml` ou uma receita em `data/`, é necessário reiniciar o serviço — o bridge carrega as configurações apenas no boot do processo.
 
 ---
 
@@ -289,14 +289,14 @@ Mesma sequência, com `recipe_engine/models.py` + `tests/test_recipe_models.py`.
 - [ ] `python tools/gpio_test.py` → opção `[4]` confirma qual backend GPIO está ativo
 - [ ] `python tools/gpio_test.py` → opção `[2]` testa cada pino da MAZZA (17, 27, 22, 26) — cada relé deve responder visualmente
 - [ ] `python -m gpio.ds18b20_scan` → endereços dos sensores encontrados e anotados
-- [ ] `devices.yml` com os endereços reais (`28-xxxxxx`) nos campos `address`
+- [ ] `data/public/devices.yml` com os endereços reais (`28-xxxxxx`) nos campos `address`
 
 ### Antes de usar na brassagem
 
 - [ ] `python -m pytest tests/ -v` → 393+ testes passando
-- [ ] `devices.yml` com `backend: real` (não `simulated`)
+- [ ] `data/public/devices.yml` com `backend: real` (não `simulated`)
 - [ ] `mqtt.host` correto (ou `mqtt.enabled: false`)
-- [ ] Receita validada: `python3 -c "from config import BridgeConfig; from recipe_engine.models import Recipe; config=BridgeConfig.load('devices.yml'); recipe=Recipe.load('recipe.yml', config); print('OK:', recipe.name, recipe.step_count(), 'etapas')"`
+- [ ] Receita validada: `python3 -c "from config import BridgeConfig; import data; config=BridgeConfig.load('data/public/devices.yml'); recipe=data.load_active_recipe(config); print('OK:', recipe.name, recipe.step_count(), 'etapas')"`
 - [ ] Testar failsafe: `kill -9 <pid>` durante execução → confirmar que relés desligam ao reiniciar
 - [ ] Serviço instalado e auto-start verificado: `sudo systemctl enable tesseract-bridge`
 - [ ] Autostart LXDE verificado: lxterminal abre com logs no boot do desktop

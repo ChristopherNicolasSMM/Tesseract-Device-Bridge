@@ -121,7 +121,7 @@ bash tools/logs.sh --boot
 ```
 
 Erros comuns:
-- `devices.yml` não encontrado → o `WorkingDirectory` do serviço precisa ser o diretório do projeto. Reinstale com `sudo bash tools/install_service.sh`.
+- `data/public/devices.yml` não encontrado → o `WorkingDirectory` do serviço precisa ser o diretório do projeto. Reinstale com `sudo bash tools/install_service.sh`.
 - `ModuleNotFoundError` → o Python do serviço não tem os pacotes instalados. Se usar virtualenv, o script detecta `.venv/` automaticamente. Senão, garanta que o `pip install -r requirements.txt` foi feito com o mesmo Python que o serviço usa.
 
 ---
@@ -153,9 +153,9 @@ Navegadores bloqueiam áudio automático até o usuário interagir com a página
 
 Suas receitas ficam em `data/`, não mais direto em `recipe.yml` na raiz. Duas formas:
 
-**Receita-base** (`data/publico/receita_base.yaml`): é a que já vem migrada, sempre disponível como padrão — não editável pelo sistema de cadastro (edite o YAML na mão se quiser mudar ela mesma).
+**Receita-base** (`data/public/receita_base.yaml`): é a que já vem migrada, sempre disponível como padrão — não editável pelo sistema de cadastro (edite o YAML na mão se quiser mudar ela mesma).
 
-**Receitas cadastradas**: vivem em `data/publico/receita.json` (versionadas, vão pro repositório) ou `data/privado/receita.json` (só na sua máquina, nunca versionadas) — cada arquivo é uma **lista** com todas as receitas daquela pasta. A tela de cadastro pelo painel ainda não existe (fica pra um próximo patch); por enquanto, edite o JSON manualmente, no formato:
+**Receitas cadastradas**: vivem em `data/public/receita.json` (versionadas, vão pro repositório) ou `data/private/receita.json` (só na sua máquina, nunca versionadas) — cada arquivo é uma **lista** com todas as receitas daquela pasta. A tela de cadastro pelo painel ainda não existe (fica pra um próximo patch); por enquanto, edite o JSON manualmente, no formato:
 
 ```json
 [
@@ -171,7 +171,7 @@ Suas receitas ficam em `data/`, não mais direto em `recipe.yml` na raiz. Duas f
 **Trocar qual receita fica ativa** exige reiniciar o processo (o bridge carrega a receita ativa só uma vez, no boot):
 
 ```bash
-curl -X POST http://localhost:8088/api/recipes/active -H "Content-Type: application/json" -d '{"id": "privado:minha-receita"}'
+curl -X POST http://localhost:8088/api/recipes/active -H "Content-Type: application/json" -d '{"id": "private:minha-receita"}'
 sudo systemctl restart tesseract-bridge
 ```
 
@@ -187,8 +187,8 @@ Ou valide manualmente antes de marcar como ativa:
 python3 -c "
 from config import BridgeConfig
 import data
-config = BridgeConfig.load('devices.yml')
-recipe = data.load_recipe_by_id('privado:minha-receita', config)
+config = BridgeConfig.load('data/public/devices.yml')
+recipe = data.load_recipe_by_id('private:minha-receita', config)
 print('OK:', recipe.name, recipe.step_count(), 'etapas')
 "
 ```

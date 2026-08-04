@@ -11,7 +11,7 @@
 #   - ~/.config/autostart/tesseract-bridge-logs.desktop (do usuário correto)
 #
 # O que NÃO remove (dados do usuário):
-#   - devices.yml, recipe.yml, recipe_state.json
+#   - data/ inteira (devices.yml, receitas, estado de execução)
 #   - O código do projeto em si
 # =============================================================================
 
@@ -78,5 +78,5 @@ fi
 
 echo ""
 info "Desinstalação concluída."
-info "Os arquivos de dados (devices.yml, recipe.yml, etc.) foram preservados."
+info "Os arquivos de dados (pasta data/) foram preservados."
 echo ""

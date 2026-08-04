@@ -351,7 +351,7 @@ def test_example_yaml_in_repo_is_valid():
     pela validação — senão a documentação do projeto está mentindo sobre
     o próprio schema que ela define.
     """
-    config = BridgeConfig.load("devices.yml.example")
+    config = BridgeConfig.load("data/public/devices.yml.example")
     assert config.backend == "simulated"
     assert len(config.devices) == 7
 

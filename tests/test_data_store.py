@@ -93,8 +93,8 @@ def data_dirs(tmp_path, monkeypatch):
     código, não um serviço parametrizável), então o jeito certo de
     testar isolado é monkeypatch nas constantes do módulo.
     """
-    public_dir = tmp_path / "data" / "publico"
-    private_dir = tmp_path / "data" / "privado"
+    public_dir = tmp_path / "data" / "public"
+    private_dir = tmp_path / "data" / "private"
     public_dir.mkdir(parents=True)
     private_dir.mkdir(parents=True)
 
@@ -111,27 +111,27 @@ def data_dirs(tmp_path, monkeypatch):
 
 
 def test_read_entities_missing_file_returns_empty_list(data_dirs):
-    assert data.read_entities("publico", "receita") == []
+    assert data.read_entities("public", "receita") == []
 
 
 def test_write_then_read_entities_roundtrip(data_dirs):
     entries = [{"id": "abc", "recipe": _recipe_dict()}]
-    data.write_entities("publico", "receita", entries)
-    assert data.read_entities("publico", "receita") == entries
+    data.write_entities("public", "receita", entries)
+    assert data.read_entities("public", "receita") == entries
 
 
 def test_read_entities_invalid_json_raises(data_dirs):
     path = data_dirs["public"] / "receita.json"
     path.write_text("isto não é json {{{", encoding="utf-8")
     with pytest.raises(data.DataStoreError, match="não é um JSON válido"):
-        data.read_entities("publico", "receita")
+        data.read_entities("public", "receita")
 
 
 def test_read_entities_non_list_root_raises(data_dirs):
     path = data_dirs["public"] / "receita.json"
     path.write_text('{"não": "é uma lista"}', encoding="utf-8")
     with pytest.raises(data.DataStoreError, match="lista de registros"):
-        data.read_entities("publico", "receita")
+        data.read_entities("public", "receita")
 
 
 def test_source_dir_rejects_invalid_source(data_dirs):
@@ -152,20 +152,20 @@ def test_list_recipes_includes_base_when_present(data_dirs):
 
     recipes = data.list_recipes()
     assert len(recipes) == 1
-    assert recipes[0]["id"] == "publico:base"
+    assert recipes[0]["id"] == "public:base"
     assert recipes[0]["editable"] is False
     assert recipes[0]["name"] == "Receita Base"
 
 
 def test_list_recipes_includes_json_entries_from_both_sources(data_dirs):
-    data.write_entities("publico", "receita", [{"id": "p1", "recipe": _recipe_dict("Pública 1")}])
-    data.write_entities("privado", "receita", [{"id": "v1", "recipe": _recipe_dict("Privada 1")}])
+    data.write_entities("public", "receita", [{"id": "p1", "recipe": _recipe_dict("Pública 1")}])
+    data.write_entities("private", "receita", [{"id": "v1", "recipe": _recipe_dict("Privada 1")}])
 
     recipes = {r["id"]: r for r in data.list_recipes()}
-    assert recipes["publico:p1"]["name"] == "Pública 1"
-    assert recipes["publico:p1"]["editable"] is True
-    assert recipes["privado:v1"]["name"] == "Privada 1"
-    assert recipes["privado:v1"]["source"] == "privado"
+    assert recipes["public:p1"]["name"] == "Pública 1"
+    assert recipes["public:p1"]["editable"] is True
+    assert recipes["private:v1"]["name"] == "Privada 1"
+    assert recipes["private:v1"]["source"] == "private"
 
 
 def test_list_recipes_without_bridge_config_does_not_validate(data_dirs):
@@ -173,7 +173,7 @@ def test_list_recipes_without_bridge_config_does_not_validate(data_dirs):
     # sem bridge_config, list_recipes não tenta validar, só lê o nome.
     bad_recipe = _recipe_dict()
     bad_recipe["vessels"][0]["heater_device_id"] = "nao_existe"
-    data.write_entities("publico", "receita", [{"id": "p1", "recipe": bad_recipe}])
+    data.write_entities("public", "receita", [{"id": "p1", "recipe": bad_recipe}])
 
     recipes = data.list_recipes()
     assert recipes[0]["valid"] is True  # não validado, então não marca inválido
@@ -182,7 +182,7 @@ def test_list_recipes_without_bridge_config_does_not_validate(data_dirs):
 def test_list_recipes_with_bridge_config_validates_and_flags_invalid(data_dirs, bridge_config):
     bad_recipe = _recipe_dict()
     bad_recipe["vessels"][0]["heater_device_id"] = "nao_existe"
-    data.write_entities("publico", "receita", [{"id": "p1", "recipe": bad_recipe}])
+    data.write_entities("public", "receita", [{"id": "p1", "recipe": bad_recipe}])
 
     recipes = data.list_recipes(bridge_config=bridge_config)
     assert recipes[0]["valid"] is False
@@ -190,7 +190,7 @@ def test_list_recipes_with_bridge_config_validates_and_flags_invalid(data_dirs, 
 
 
 def test_list_recipes_skips_entry_without_id(data_dirs):
-    data.write_entities("publico", "receita", [{"recipe": _recipe_dict()}])  # sem "id"
+    data.write_entities("public", "receita", [{"recipe": _recipe_dict()}])  # sem "id"
     assert data.list_recipes() == []
 
 
@@ -201,20 +201,20 @@ def test_load_recipe_by_id_base(data_dirs, bridge_config):
     yaml_content = yaml.safe_dump(_recipe_dict("Receita Base"), allow_unicode=True)
     data.BASE_RECIPE_PATH.write_text(yaml_content, encoding="utf-8")
 
-    recipe = data.load_recipe_by_id("publico:base", bridge_config)
+    recipe = data.load_recipe_by_id("public:base", bridge_config)
     assert recipe.name == "Receita Base"
 
 
 def test_load_recipe_by_id_from_json(data_dirs, bridge_config):
-    data.write_entities("privado", "receita", [{"id": "v1", "recipe": _recipe_dict("Da Privada")}])
+    data.write_entities("private", "receita", [{"id": "v1", "recipe": _recipe_dict("Da Privada")}])
 
-    recipe = data.load_recipe_by_id("privado:v1", bridge_config)
+    recipe = data.load_recipe_by_id("private:v1", bridge_config)
     assert recipe.name == "Da Privada"
 
 
 def test_load_recipe_by_id_unknown_raises(data_dirs, bridge_config):
     with pytest.raises(RecipeError, match="não encontrada"):
-        data.load_recipe_by_id("publico:nao-existe", bridge_config)
+        data.load_recipe_by_id("public:nao-existe", bridge_config)
 
 
 def test_load_recipe_by_id_malformed_id_raises(data_dirs, bridge_config):
@@ -225,10 +225,10 @@ def test_load_recipe_by_id_malformed_id_raises(data_dirs, bridge_config):
 def test_load_recipe_by_id_invalid_recipe_raises(data_dirs, bridge_config):
     bad_recipe = _recipe_dict()
     bad_recipe["vessels"][0]["heater_device_id"] = "nao_existe"
-    data.write_entities("publico", "receita", [{"id": "p1", "recipe": bad_recipe}])
+    data.write_entities("public", "receita", [{"id": "p1", "recipe": bad_recipe}])
 
     with pytest.raises(RecipeError):
-        data.load_recipe_by_id("publico:p1", bridge_config)
+        data.load_recipe_by_id("public:p1", bridge_config)
 
 
 # ---- ponteiro de receita ativa ------------------------------------------------
@@ -239,8 +239,8 @@ def test_get_active_recipe_id_none_by_default(data_dirs):
 
 
 def test_set_then_get_active_recipe_id_roundtrip(data_dirs):
-    data.set_active_recipe_id("privado:v1")
-    assert data.get_active_recipe_id() == "privado:v1"
+    data.set_active_recipe_id("private:v1")
+    assert data.get_active_recipe_id() == "private:v1"
 
 
 # ---- load_active_recipe (resolução de fallback) -------------------------------
@@ -268,8 +268,8 @@ def test_load_active_recipe_prefers_base_over_legacy(data_dirs, bridge_config):
 
 def test_load_active_recipe_prefers_pointer_over_base(data_dirs, bridge_config):
     data.BASE_RECIPE_PATH.write_text(yaml.safe_dump(_recipe_dict("Base"), allow_unicode=True), encoding="utf-8")
-    data.write_entities("privado", "receita", [{"id": "v1", "recipe": _recipe_dict("Escolhida")}])
-    data.set_active_recipe_id("privado:v1")
+    data.write_entities("private", "receita", [{"id": "v1", "recipe": _recipe_dict("Escolhida")}])
+    data.set_active_recipe_id("private:v1")
 
     recipe = data.load_active_recipe(bridge_config)
     assert recipe.name == "Escolhida"
@@ -282,7 +282,7 @@ def test_load_active_recipe_falls_through_when_pointer_is_stale(data_dirs, bridg
     do fallback (aqui, receita_base).
     """
     data.BASE_RECIPE_PATH.write_text(yaml.safe_dump(_recipe_dict("Base"), allow_unicode=True), encoding="utf-8")
-    data.set_active_recipe_id("privado:nao-existe-mais")
+    data.set_active_recipe_id("private:nao-existe-mais")
 
     recipe = data.load_active_recipe(bridge_config)
     assert recipe.name == "Base"

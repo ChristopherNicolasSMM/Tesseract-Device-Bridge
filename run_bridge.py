@@ -112,11 +112,11 @@ from gpio.simulated_backend import SimulatedGPIOBackend
 from panel.app import create_panel_app
 from recipe_engine.engine import RecipeEngine
 from recipe_engine.models import Recipe, RecipeError
-from run_panel import ensure_config_file
+from run_panel import DEFAULT_CONFIG_PATH, ensure_config_file
 
 logger = logging.getLogger("tesseract_bridge.run_bridge")
 
-DEFAULT_RECIPE_STATE_PATH = "recipe_state.json"
+DEFAULT_RECIPE_STATE_PATH = "data/private/recipe_state.json"
 
 
 def mqtt_status_provider(bridge: Bridge, config: BridgeConfig):
@@ -170,7 +170,7 @@ def load_recipe_engine(runtime: DeviceRuntime, config: BridgeConfig, recipe_path
 def main() -> None:
     # Filtrar args que não são caminhos de arquivo (ex.: --debug)
     file_args = [a for a in sys.argv[1:] if not a.startswith("-")]
-    config_path = file_args[0] if len(file_args) > 0 else "devices.yml"
+    config_path = file_args[0] if len(file_args) > 0 else DEFAULT_CONFIG_PATH
     # Sem argumento explícito na CLI, recipe_path fica None -- resolvido
     # por data.load_active_recipe() dentro de load_recipe_engine(), não
     # mais um caminho fixo "recipe.yml".

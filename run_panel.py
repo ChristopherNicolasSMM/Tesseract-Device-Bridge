@@ -6,8 +6,8 @@ Uso:
     python run_panel.py [caminho/para/devices.yml]
     python run_panel.py --debug   # ativa logs de nível DEBUG
 
-Se omitido, usa `devices.yml` na raiz do projeto. Se o arquivo não
-existir, é criado automaticamente a partir de `devices.yml.example`
+Se omitido, usa `data/public/devices.yml`. Se o arquivo não existir, é
+criado automaticamente a partir de `data/public/devices.yml.example`
 (cópia, nunca symlink) — assim o primeiro `python run_panel.py` depois
 de um clone novo já funciona, sem passo manual de "copie o exemplo".
 """
@@ -25,7 +25,8 @@ from device_runtime import DeviceRuntime
 from gpio.simulated_backend import SimulatedGPIOBackend
 from panel.app import create_panel_app
 
-EXAMPLE_CONFIG_PATH = "devices.yml.example"
+DEFAULT_CONFIG_PATH = "data/public/devices.yml"
+EXAMPLE_CONFIG_PATH = "data/public/devices.yml.example"
 
 
 def ensure_config_file(path: str) -> None:
@@ -52,7 +53,7 @@ def ensure_config_file(path: str) -> None:
 
 
 def main() -> None:
-    config_path = sys.argv[1] if len(sys.argv) > 1 else "devices.yml"
+    config_path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_CONFIG_PATH
     ensure_config_file(config_path)
     config = BridgeConfig.load(config_path)
 

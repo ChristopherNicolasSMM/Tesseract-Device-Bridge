@@ -22,7 +22,7 @@
 | Fluxo de execução de receita | [Fluxos §3](docs/technical/03-fluxos.md#fluxo-3--execução-de-receita-caminho-feliz) |
 | Crash recovery / queda de energia | [Fluxos §4](docs/technical/03-fluxos.md#fluxo-4--recuperação-de-crash-queda-de-energia--kill--9) · [UC06](docs/technical/05-casos-de-uso.md#uc06--recuperação-após-queda-de-energia) |
 | Schema do devices.yml e recipe.yml | [Modelo de dados](docs/technical/04-modelo-de-dados.md) |
-| Onde ficam as receitas (data/, público/privado) | [Visão geral rápida](#modelagem-do-processo-data) · [Manutenção](docs/technical/06-manutencao-e-expansao.md#armazenamento-de-receitas-data) |
+| Onde ficam as receitas (data/, public/private) | [Visão geral rápida](#modelagem-do-processo-data) · [Manutenção](docs/technical/06-manutencao-e-expansao.md#armazenamento-de-receitas-data) |
 | Adaptar para irrigação / outro domínio | [Manutenção](docs/technical/06-manutencao-e-expansao.md#adaptar-para-um-novo-domínio-de-automação) |
 | Logs coloridos | [Visão geral](docs/technical/01-visao-geral.md#logs-coloridos) · [Funcionalidades](docs/manual/03-funcionalidades.md#logs-do-sistema) |
 
@@ -82,10 +82,11 @@ nenhum**, em modo só-painel-local). A compatibilidade com o
 ## Visão geral rápida
 
 ```
-devices.yml   -> o que está ligado em qual pino (hardware real)
-data/         -> o processo a automatizar (opcional — sem nenhuma receita
-                 disponível, o bridge ainda funciona como painel manual +
-                 ponte MQTT pura)
+devices.yml   -> agora dentro de data/public/ (ver abaixo) — o que está
+                 ligado em qual pino (hardware real)
+data/         -> devices.yml + o processo a automatizar (receitas —
+                 opcional, sem nenhuma disponível o bridge ainda
+                 funciona como painel manual + ponte MQTT pura)
 
 run_panel.py  -> só o painel web, sem MQTT, sem motor de receita
                  (bom pra testar hardware isolado na bancada)
@@ -97,7 +98,7 @@ run_bridge.py -> processo completo: painel + MQTT (se habilitado) +
 |---|---|---|
 | GPIO abstrato | `gpio/base.py`, `simulated_backend.py`, `real_backend.py` | Nenhuma |
 | Drivers de sensor | `gpio/ds18b20_driver.py` (+ scan CLI) | Nenhuma (1-Wire genérico) |
-| Config de hardware | `config.py`, `devices.yml` | Só o que você descrever |
+| Config de hardware | `config.py`, `data/public/devices.yml` | Só o que você descrever |
 | Runtime de device | `device_runtime.py` | Nenhuma |
 | Ponte MQTT | `mqtt_client.py`, `status_handler.py`, `failsafe_watchdog.py`, `bridge.py` | Nenhuma |
 | Painel web | `panel/` | Genérico (lista sensores/atuadores quaisquer) + aba "Receitas" |
@@ -111,16 +112,16 @@ sem banco de dados, tudo em arquivo:
 
 ```
 data/
-├── publico/
+├── public/
 │   ├── receita_base.yaml   # migração do antigo recipe.yml — sempre disponível,
 │   │                       # NÃO editável pelo sistema de cadastro, mas
 │   │                       # selecionável normalmente pra brassar
 │   └── receita.json        # lista de receitas cadastradas — VAI commitado
-└── privado/
+└── private/
     └── receita.json        # mesma coisa, mas NUNCA commitado (gitignored)
 ```
 
-`publico`/`privado` só diferem em versionamento — o sistema lê as duas
+`public`/`private` só diferem em versionamento — o sistema lê as duas
 igualmente. Cada `receita.json` é uma **lista** (não um arquivo por
 receita):
 
@@ -131,12 +132,12 @@ receita):
 ```
 
 ```
-GET  /api/recipes                 -> lista todas (base + publico/receita.json + privado/receita.json), validadas
-POST /api/recipes/active          -> {"id": "privado:minha-receita"} marca ativa pro PRÓXIMO boot (troca de receita exige restart)
+GET  /api/recipes                 -> lista todas (base + public/receita.json + private/receita.json), validadas
+POST /api/recipes/active          -> {"id": "private:minha-receita"} marca ativa pro PRÓXIMO boot (troca de receita exige restart)
 ```
 
 Sem nenhum cadastro em `receita.json`, o bridge usa
-`data/publico/receita_base.yaml` automaticamente — zero configuração
+`data/public/receita_base.yaml` automaticamente — zero configuração
 necessária pra já funcionar. Tela de cadastro pelo painel ainda não
 existe (edição manual do JSON por enquanto) — ver `BACKLOG.md`.
 
@@ -149,20 +150,21 @@ git clone <este-repositorio>
 cd tesseract-device-bridge
 pip install -r requirements.txt
 
-# Só painel, pra testar hardware (cria devices.yml a partir do exemplo automaticamente):
+# Só painel, pra testar hardware (cria data/public/devices.yml a partir do exemplo automaticamente):
 python run_panel.py
 # abrir http://localhost:8088
 
 # Processo completo (painel + MQTT se habilitado + receita se existir):
-cp devices.yml.example devices.yml      # ajuste pinos/sensores reais
-# receita já vem pronta em data/publico/receita_base.yaml — edite ela
-# direto se quiser, ou cadastre outras em data/{publico,privado}/receita.json
+cp data/public/devices.yml.example data/public/devices.yml   # ajuste pinos/sensores reais
+# receita já vem pronta em data/public/receita_base.yaml — edite ela
+# direto se quiser, ou cadastre outras em data/{public,private}/receita.json
 python run_bridge.py
 ```
 
-`devices.yml` nunca é sobrescrito se já existir — `run_panel.py`/
-`run_bridge.py` só cria a partir do `devices.yml.example` na primeira
-vez que rodam num diretório novo. Receitas seguem outra lógica, ver
+`data/public/devices.yml` nunca é sobrescrito se já existir —
+`run_panel.py`/`run_bridge.py` só cria a partir do
+`data/public/devices.yml.example` na primeira vez que rodam num
+diretório novo. Receitas seguem outra lógica, ver
 [Modelagem do processo (`data/`)](#modelagem-do-processo-data) abaixo.
 
 ### Diferença entre `run_panel.py` e `run_bridge.py`
@@ -179,7 +181,7 @@ vez que rodam num diretório novo. Receitas seguem outra lógica, ver
 
 ## Hardware suportado
 
-A configuração de exemplo (`devices.yml.example`) mapeia a [Interface
+A configuração de exemplo (`data/public/devices.yml.example`) mapeia a [Interface
 CLP CraftBeerPi da MAZZA Handmade](https://www.mazzahandmade.com.br/produtos/interface-clp-para-raspberrypi-automacao-cervejeira-craftbeerpi-brewpi1/)
 para Raspberry Pi 4B+ — 13 saídas NPN 12V 500mA digital liga/desliga
 (não é PWM de hardware: potência variável é feita por software via
@@ -188,7 +190,7 @@ em barramento 1-Wire compartilhado (GPIO4 por padrão, vários sensores
 no mesmo pino, cada um identificado pelo `hardware.address` — endereço
 ROM gravado de fábrica). Mas **nada no código depende dessa placa
 específica** — qualquer Raspberry Pi com GPIO comum e sensores 1-Wire
-funciona, só ajustando os pinos no `devices.yml`.
+funciona, só ajustando os pinos no `data/public/devices.yml`.
 
 Pra descobrir os endereços dos sensores DS18B20 conectados:
 
@@ -261,9 +263,9 @@ seção "Controle de potência por atuador" abaixo.
 
 ### Schema do `recipe.yml`
 
-> O schema abaixo é o mesmo pra `data/publico/receita_base.yaml` (raiz
+> O schema abaixo é o mesmo pra `data/public/receita_base.yaml` (raiz
 > do arquivo YAML) e pro campo `"recipe"` de cada registro dentro de
-> `data/{publico,privado}/receita.json` (só que em JSON em vez de
+> `data/{public,private}/receita.json` (só que em JSON em vez de
 > YAML) — é o formato de "uma receita", independente de onde ela mora.
 
 ```yaml

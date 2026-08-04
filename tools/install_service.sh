@@ -84,8 +84,8 @@ fi
 ok "run_bridge.py encontrado"
 
 # Verificar devices.yml
-if [ ! -f "$PROJECT_DIR/devices.yml" ]; then
-    warn "devices.yml não encontrado. Será criado a partir do exemplo no primeiro boot."
+if [ ! -f "$PROJECT_DIR/data/public/devices.yml" ]; then
+    warn "data/public/devices.yml não encontrado. Será criado a partir do exemplo no primeiro boot."
     warn "Recomendado: configure o devices.yml antes de iniciar o serviço."
 else
     ok "devices.yml encontrado"
@@ -265,8 +265,8 @@ SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 
 # O ExecStart usa bash -c para:
 #   1. source o activate da venv (se houver) — ativa PYTHONPATH e variáveis
-#   2. cd para o PROJECT_DIR — garante que devices.yml e recipe.yml são
-#      encontrados como caminhos relativos
+#   2. cd para o PROJECT_DIR — garante que data/public/devices.yml e
+#      data/ (receitas, estado) são encontrados como caminhos relativos
 #   3. exec python3 run_bridge.py — exec substitui o bash pelo Python,
 #      sem processo filho extra (o PID do serviço é o Python diretamente)
 if [ -n "$ACTIVATE_CMD" ]; then
@@ -291,8 +291,8 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=$SERVICE_USER
-# WorkingDirectory garante que devices.yml e recipe.yml são encontrados
-# como caminhos relativos ao diretório do projeto
+# WorkingDirectory garante que data/ (devices.yml, receitas, estado)
+# é encontrado como caminho relativo ao diretório do projeto
 WorkingDirectory=$PROJECT_DIR
 
 # FORCE_COLOR=1: faz o bridge emitir cores ANSI mesmo sem TTY.

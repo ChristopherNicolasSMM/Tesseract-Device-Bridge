@@ -26,7 +26,7 @@ sequenceDiagram
     Note over GPIO: Tenta: lgpio → RPi.GPIO → pigpio
     GPIO-->>BR: INFO: backend selecionado: RPi.GPIO
 
-    BR->>BR: BridgeConfig.load(devices.yml)
+    BR->>BR: BridgeConfig.load(data/public/devices.yml)
     BR->>BR: data.load_active_recipe(config) se alguma receita disponível
     BR->>BR: DeviceRuntime → setup() de cada device
     BR-->>SD: Processo rodando (PID registrado)
