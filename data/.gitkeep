@@ -1,0 +1,1 @@
+# Dados do sistema, por ser iot, mais relevante manter local e ter um __init__.py para buscar em pastas diferentes com o que seria publico ou privado e ignorar no gitgnore para não levar os dados privados para repositorio

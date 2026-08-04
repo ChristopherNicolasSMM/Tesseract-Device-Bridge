@@ -1,0 +1,1 @@
+# Dados privados, não levar conteúdo para repositório, mas manter a pasta para que o __init__.py possa buscar os dados privados localmente.

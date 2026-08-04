@@ -1,1 +1,0 @@
-testar python -m gpio.ds18b20_scan
