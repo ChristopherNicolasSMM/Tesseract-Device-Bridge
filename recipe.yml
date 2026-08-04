@@ -12,7 +12,6 @@ vessels:
       kp: 5.0
       ki: 0.1
       kd: 0.0
-    window_seconds: 10   # janela de time-proportioning (liga/desliga) — ver README
 
   - id: boil
     name: "Boil"
@@ -23,7 +22,6 @@ vessels:
       kp: 4.0
       ki: 0.05
       kd: 0.0
-    window_seconds: 10
 
 steps:
   - vessel: mash
@@ -57,5 +55,4 @@ steps:
           - minutes_remaining: 50   
             label: "Lúpulo Amargor - 15g Magnum"   
           - minutes_remaining: 01   
-            label: "Whirpool - 10min" 
-
+            label: "Whirpool - 10min"
