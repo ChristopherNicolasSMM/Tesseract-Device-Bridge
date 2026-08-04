@@ -5,21 +5,21 @@ dados, tudo em arquivo, seguindo a mesma filosofia de `devices.yml`/
 
 Convenção "entidade": cada tipo de dado cadastrável (receita é a
 primeira; outras podem vir depois) mora em **um arquivo JSON por
-pasta**, contendo uma **lista** de registros — `data/publico/receita.json`
-tem todas as receitas públicas, `data/privado/receita.json` tem todas
+pasta**, contendo uma **lista** de registros — `data/public/receita.json`
+tem todas as receitas públicas, `data/private/receita.json` tem todas
 as privadas. Não é "um arquivo por receita".
 
-Público vs. privado — a única diferença é versionamento:
-    data/publico/   -> vai commitado no repositório (compartilhado)
-    data/privado/   -> gitignored (`.gitignore`: `data/privado/*`),
+Público vs. private — a única diferença é versionamento:
+    data/public/   -> vai commitado no repositório (compartilhado)
+    data/private/   -> gitignored (`.gitignore`: `data/private/*`),
                        fica só na máquina de quem cadastrou
 
-`data/publico/receita_base.yaml` é um caso especial: é a migração da
+`data/public/receita_base.yaml` é um caso especial: é a migração da
 receita que já existia como `recipe.yml` na raiz do projeto antes desta
 pasta existir. Fica em YAML (não em `receita.json`) e **não é editável
 pelo sistema de cadastro** — mas é selecionável normalmente pra
 brassar, como qualquer outra receita. Isso existe pra sempre ter algo
-funcional mesmo se `receita.json` estiver vazio em publico/privado.
+funcional mesmo se `receita.json` estiver vazio em public/private.
 
 Troca de receita ativa exige reiniciar o processo (decisão registrada
 — `Recipe`/`RecipeEngine` são carregados uma única vez no boot,
@@ -42,8 +42,8 @@ from recipe_engine.models import Recipe, RecipeError
 logger = logging.getLogger("tesseract_bridge.data")
 
 DATA_DIR = Path(__file__).parent
-PUBLIC_DIR = DATA_DIR / "publico"
-PRIVATE_DIR = DATA_DIR / "privado"
+PUBLIC_DIR = DATA_DIR / "public"
+PRIVATE_DIR = DATA_DIR / "private"
 
 BASE_RECIPE_PATH = PUBLIC_DIR / "receita_base.yaml"
 ACTIVE_RECIPE_POINTER_PATH = DATA_DIR / "active_recipe.txt"
@@ -55,9 +55,9 @@ ACTIVE_RECIPE_POINTER_PATH = DATA_DIR / "active_recipe.txt"
 LEGACY_RECIPE_PATH = Path("recipe.yml")
 
 RECIPE_ENTITY = "receita"
-BASE_RECIPE_ID = "publico:base"
+BASE_RECIPE_ID = "public:base"
 
-_VALID_SOURCES = ("publico", "privado")
+_VALID_SOURCES = ("public", "private")
 
 
 class DataStoreError(RuntimeError):
@@ -70,7 +70,7 @@ class DataStoreError(RuntimeError):
 def _source_dir(source: str) -> Path:
     if source not in _VALID_SOURCES:
         raise ValueError(f"source inválido: '{source}' (esperado {_VALID_SOURCES}).")
-    return PUBLIC_DIR if source == "publico" else PRIVATE_DIR
+    return PUBLIC_DIR if source == "public" else PRIVATE_DIR
 
 
 def _entity_path(source: str, entity: str) -> Path:
@@ -80,7 +80,7 @@ def _entity_path(source: str, entity: str) -> Path:
 def read_entities(source: str, entity: str) -> List[Dict[str, Any]]:
     """
     Lê todos os registros de um tipo de entidade numa fonte
-    (publico/privado). Arquivo ausente não é erro — devolve lista
+    (public/private). Arquivo ausente não é erro — devolve lista
     vazia (é o estado normal antes de qualquer cadastro).
     """
     path = _entity_path(source, entity)
@@ -108,7 +108,7 @@ def write_entities(source: str, entity: str, entries: List[Dict[str, Any]]) -> N
 def list_recipes(bridge_config: Optional[BridgeConfig] = None) -> List[Dict[str, Any]]:
     """
     Lista todas as receitas disponíveis: receita_base (se existir) +
-    entradas de data/publico/receita.json + data/privado/receita.json.
+    entradas de data/public/receita.json + data/private/receita.json.
 
     Se `bridge_config` for passado, cada receita é validada de verdade
     (Recipe.from_dict + validate) e `valid`/`error` refletem o
@@ -120,7 +120,7 @@ def list_recipes(bridge_config: Optional[BridgeConfig] = None) -> List[Dict[str,
     if BASE_RECIPE_PATH.exists():
         entry: Dict[str, Any] = {
             "id": BASE_RECIPE_ID,
-            "source": "publico",
+            "source": "public",
             "editable": False,
             "name": None,
             "valid": True,
@@ -175,8 +175,8 @@ def list_recipes(bridge_config: Optional[BridgeConfig] = None) -> List[Dict[str,
 
 def load_recipe_by_id(recipe_id: str, bridge_config: BridgeConfig) -> Recipe:
     """
-    Carrega e valida uma receita pelo id global ("publico:base",
-    "privado:<id>", etc. — ver list_recipes). Levanta RecipeError com
+    Carrega e valida uma receita pelo id global ("public:base",
+    "private:<id>", etc. — ver list_recipes). Levanta RecipeError com
     mensagem clara se o id não existir ou a receita for inválida.
     """
     if recipe_id == BASE_RECIPE_ID:
@@ -184,7 +184,7 @@ def load_recipe_by_id(recipe_id: str, bridge_config: BridgeConfig) -> Recipe:
 
     if ":" not in recipe_id:
         raise RecipeError(
-            f"id de receita inválido: '{recipe_id}' (esperado 'publico:<id>' ou 'privado:<id>')."
+            f"id de receita inválido: '{recipe_id}' (esperado 'public:<id>' ou 'private:<id>')."
         )
     source, raw_id = recipe_id.split(":", 1)
     if source not in _VALID_SOURCES:
@@ -227,7 +227,7 @@ def load_active_recipe(bridge_config: BridgeConfig) -> Optional[Recipe]:
          que existe e é válida, usa ela. Se apontar pra algo que sumiu
          ou ficou inválido, loga aviso e cai pro próximo nível (não
          derruba o motor de receita por causa de um ponteiro velho).
-      2. data/publico/receita_base.yaml, se existir.
+      2. data/public/receita_base.yaml, se existir.
       3. recipe.yml na raiz do projeto — comportamento de antes desta
          pasta existir, garante zero quebra pra quem não migrou ainda.
       4. None — motor de receita fica desabilitado (mesmo comportamento
