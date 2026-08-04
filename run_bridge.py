@@ -67,19 +67,15 @@ _boot_log(f"Versao: {sys.version.split()[0]}")
 _boot_log(f"CWD:    {os.getcwd()}")
 _boot_log(f"Args:   {sys.argv}")
 
-# Verifica se está rodando em Windows e aborta com mensagem clara.
-# systemd é exclusivo do Linux — no Windows use Task Scheduler ou WSL.
-if sys.platform.startswith("win"):
-    _boot_log("ERRO: servico systemd nao suportado no Windows.")
-    print(
-        "\nERRO: o servico systemd nao funciona no Windows.\n"
-        "Opcoes:\n"
-        "  1. Use WSL (Windows Subsystem for Linux)\n"
-        "  2. Use Task Scheduler do Windows\n"
-        "  3. Execute manualmente: python run_bridge.py\n",
-        file=sys.stderr,
-    )
-    sys.exit(1)
+# Nenhuma checagem de SO aqui de propósito: run_bridge.py é um processo
+# Python comum, roda igual em Windows/Linux/macOS com backend=simulated
+# (devices.yml). O único trecho realmente específico de hardware é
+# backend=real (Raspberry Pi), e esse já falha sozinho com mensagem
+# clara via o try/except em torno de RealGPIOBackend() em main() —
+# não precisa de bloqueio antecipado por plataforma. Instalar como
+# serviço systemd é responsabilidade só de tools/install_service.sh
+# (script bash, que por si só já não roda nativamente no Windows sem
+# WSL) — não é uma preocupação de run_bridge.py.
 
 import logging
 import threading
