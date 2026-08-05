@@ -64,7 +64,11 @@ devices:
       initial_value: 100.0
       min: 0
       max: 120
-
+# -------------------------------------------------------------------------------------------------------------------
+# Não há sensor de temperatura de saída do chiller no momento
+#  mas poderia ser adicionado futuramente, caso se queira monitorar a temperatura da água de resfriamento. 
+# Exemplo de configuração comentada abaixo:
+#
 #  - id: chiller_out_temp
 #    name: "Temperatura Saída Chiller"
 #    role: sensor
@@ -79,7 +83,7 @@ devices:
 #      initial_value: 18.0
 #      min: 0
 #      max: 100
-
+# -------------------------------------------------------------------------------------------------------------------
   - id: mash_heater
     name: "Resistência Caldeira Mostura"
     role: actuator
