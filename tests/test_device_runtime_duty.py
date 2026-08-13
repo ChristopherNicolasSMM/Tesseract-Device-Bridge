@@ -184,6 +184,33 @@ def test_tick_duty_respects_window_boundaries(runtime):
     assert runtime.get_state("mash_heater").value is False
 
 
+def test_pid_duty_drop_mid_window_does_not_cut_current_window_short(runtime):
+    """
+    Regressão do bug relatado: o PID reduzindo o duty no meio de uma
+    janela em andamento (comportamento normal perto do alvo) não pode
+    encolher retroativamente o "tempo ligado" já decidido para essa
+    janela — só a próxima janela deve refletir o novo valor. O source
+    continua "pid" o tempo todo, então isso passa pelo caminho
+    travado por janela (set_duty_cycle), não pelo force_lock.
+    """
+    runtime.set_pid_duty("mash_heater", 100.0)
+    runtime.tick_duty(now=0.0)  # janela abre (window_seconds=10), locked=100%
+    assert runtime.get_state("mash_heater").value is True
+
+    # PID cai pra 0% no meio da janela — mesmo source ("pid"), não
+    # deve desligar antes do fim da janela travada.
+    runtime.set_pid_duty("mash_heater", 0.0)
+    runtime.tick_duty(now=5.0)
+    assert runtime.get_state("mash_heater").value is True
+
+    runtime.tick_duty(now=9.0)
+    assert runtime.get_state("mash_heater").value is True
+
+    # só na próxima janela o duty=0% pendente entra em vigor.
+    runtime.tick_duty(now=10.0)
+    assert runtime.get_state("mash_heater").value is False
+
+
 # ---- failsafe: suspende duty, sempre vence --------------------------------
 
 

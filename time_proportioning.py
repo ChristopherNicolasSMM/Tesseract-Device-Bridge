@@ -34,40 +34,78 @@ class TimeProportioningController:
         if window_seconds <= 0:
             raise ValueError("window_seconds deve ser > 0.")
         self._window_seconds = window_seconds
-        self._duty_cycle_percent = 0.0
+        # _pending: último valor recebido via set_duty_cycle(), pode
+        # mudar a qualquer momento (ex.: a cada ciclo do PID).
+        # _locked: valor efetivamente usado por should_be_on() durante
+        # a janela em curso — só é atualizado a partir de _pending na
+        # virada de janela (ver correção abaixo).
+        self._pending_duty_percent = 0.0
+        self._locked_duty_percent = 0.0
         self._window_start: float | None = None
 
     def set_duty_cycle(self, duty_cycle_percent: float) -> None:
         """
         Atualiza a potência desejada (0-100%) — normalmente chamado a
         cada ciclo do PID. Não afeta a janela em andamento, só o
-        cálculo de liga/desliga nas próximas chamadas a should_be_on().
+        cálculo de liga/desliga a partir da PRÓXIMA janela.
+
+        Correção (antes: o valor era aplicado imediatamente, mesmo no
+        meio de uma janela já em andamento — se o duty caísse entre
+        duas chamadas de should_be_on(), o "tempo ligado" da janela
+        atual encolhia retroativamente, criando um viés sistemático de
+        "fica ligado menos tempo do que o duty programado", mais
+        perceptível quando o duty está em tendência de queda, como no
+        PID se aproximando do alvo).
         """
-        self._duty_cycle_percent = max(0.0, min(100.0, duty_cycle_percent))
+        self._pending_duty_percent = max(0.0, min(100.0, duty_cycle_percent))
 
     @property
     def duty_cycle_percent(self) -> float:
         """Última potência (0-100%) recebida via set_duty_cycle() — usado pela UI para o medidor."""
-        return self._duty_cycle_percent
+        return self._pending_duty_percent
 
     def should_be_on(self, now: float) -> bool:
         """
         Decide se o relé deve estar ligado neste instante, dado o duty
-        cycle atual e a posição dentro da janela. Avança a janela
-        automaticamente quando o tempo decorrido ultrapassa
-        window_seconds.
+        cycle travado no início da janela atual e a posição dentro
+        dela. Avança a janela automaticamente quando o tempo decorrido
+        ultrapassa window_seconds — e é só nesse instante (ou na
+        primeira chamada, quando a janela ainda não existe) que o
+        duty pendente é promovido a duty travado.
         """
         if self._window_start is None:
             self._window_start = now
+            self._locked_duty_percent = self._pending_duty_percent
 
         elapsed = now - self._window_start
         if elapsed >= self._window_seconds:
-            # Nova janela — realinha o início, não acumula atraso.
+            # Nova janela — realinha o início, não acumula atraso, e
+            # só agora aplica qualquer duty pendente acumulado durante
+            # a janela anterior.
             self._window_start = now
             elapsed = 0.0
+            self._locked_duty_percent = self._pending_duty_percent
 
-        on_duration = self._window_seconds * (self._duty_cycle_percent / 100.0)
+        on_duration = self._window_seconds * (self._locked_duty_percent / 100.0)
         return elapsed < on_duration
+
+    def force_lock(self, now: float, duty_cycle_percent: float) -> None:
+        """
+        Realinha a janela AGORA e trava esse duty imediatamente,
+        ignorando o travamento normal por virada de janela.
+
+        Existe só para transições de "quem está no comando" (o
+        chamador, DeviceRuntime.tick_duty(), decide quando chamar isto
+        em vez de set_duty_cycle()) — fail-safe engatando/saindo,
+        override manual ligando/desligando, troca pid<->manual. Essas
+        transições precisam valer na hora, nunca esperar a janela em
+        andamento terminar; é só a variação de VALOR dentro do mesmo
+        source (ex.: PID ajustando aos poucos) que deve esperar a
+        próxima janela — essa fica a cargo de set_duty_cycle().
+        """
+        self._pending_duty_percent = max(0.0, min(100.0, duty_cycle_percent))
+        self._window_start = now
+        self._locked_duty_percent = self._pending_duty_percent
 
     def reset(self) -> None:
         """
@@ -75,4 +113,5 @@ class TimeProportioningController:
         não começar uma janela "no meio" com base num now() antigo.
         """
         self._window_start = None
-        self._duty_cycle_percent = 0.0
+        self._pending_duty_percent = 0.0
+        self._locked_duty_percent = 0.0

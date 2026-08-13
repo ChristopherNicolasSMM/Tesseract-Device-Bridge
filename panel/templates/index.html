@@ -1746,6 +1746,18 @@
         const devices = await res.json();
         window.lastDevices = devices;
         renderDevices(devices);
+
+        // Atualização otimista: as ações do usuário (setDuty, toggle de
+        // controle manual, comando de bomba) já chamam refresh() na
+        // hora após o POST — sem isto, o card da vasilha (gauge,
+        // subcard de bomba) só reflete a ação no próximo tick
+        // independente de pollRecipeStatus (até 2,5s depois). Reusa o
+        // último status de receita em cache — não busca de novo, já
+        // que o que mudou com a ação foi window.lastDevices, não a
+        // etapa/alvo da receita em si.
+        if (recipeLoaded && window.lastRecipeStatus) {
+          updateVesselGaugesFromStatus(window.lastRecipeStatus);
+        }
       } catch (e) {
         toast(`❌ Erro ao atualizar: ${e.message}`, 'error');
       }
@@ -1946,60 +1958,106 @@
         sourceEl.textContent = heaterDevice ? `Aplicado: ${sourceLabels[dutySource] || dutySource || ''}` : '';
       }
 
+      updatePumpSubcards(vesselName);
+    }
+
+    // Marcação HTML de um subcard de bomba — usada só quando a LISTA de
+    // bombas da vasilha muda de "formato" (entrou/saiu do estado
+    // "aguardando confirmação", ou a lista de ids mudou). Estado que
+    // muda com frequência (ligado/desligado, manual/receita) NÃO passa
+    // por aqui depois da primeira renderização — ver syncPumpSubcard().
+    function renderPumpSubcardHtml(pid, pendingPumps) {
+      // Estado "aguardando confirmação" tem prioridade sobre tudo — a
+      // receita quer ligar essa bomba pela primeira vez nesta execução
+      // e precisa de aprovação explícita antes (evita energizar bomba
+      // com conexão fechada/errada sem checar).
+      if (pendingPumps.includes(pid)) {
+        return `
+          <div class="pump-subcard pending" data-pump-id="${pid}">
+            <div class="pump-subcard-info">
+              <span class="pump-subcard-name">${pid}</span>
+              <span class="pump-subcard-pending-label">⚠️ Ligar automaticamente?</span>
+            </div>
+            <div class="pump-confirm-actions">
+              <button type="button" class="pump-confirm-btn approve" onclick="confirmPumpAuto('${pid}')">Confirmar</button>
+              <button type="button" class="pump-confirm-btn decline" onclick="declinePumpAuto('${pid}')">Manter manual</button>
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="pump-subcard" data-pump-id="${pid}">
+          <button type="button" class="pump-power-btn" onclick="togglePumpManual('${pid}')"></button>
+          <div class="pump-subcard-info">
+            <span class="pump-subcard-name">${pid}</span>
+            <span class="pump-mode-badge"></span>
+          </div>
+        </div>
+      `;
+    }
+
+    // Sincroniza só os campos que mudam com frequência (ligado/
+    // desligado, manual/receita) de um subcard "normal" já existente no
+    // DOM, sem recriar nós — evita o "piscar" de regenerar o HTML
+    // inteiro a cada poll (2,5s), quando na prática só o ícone/badge
+    // mudam.
+    function syncPumpSubcard(subcard, pid) {
+      const pumpDevice = deviceById(pid);
+      const isOn = pumpDevice ? pumpDevice.value === true : false;
+      const isManual = !!(pumpDevice && pumpDevice.manual_override !== null && pumpDevice.manual_override !== undefined);
+
+      subcard.classList.toggle('on', isOn);
+      subcard.classList.toggle('manual', isManual);
+
+      // Ícone real (não label sem affordance): ▶ quando desligada
+      // (ação = "ligar"), ⏹ quando ligada (ação = "parar").
+      const btn = subcard.querySelector('.pump-power-btn');
+      if (btn) {
+        btn.textContent = isOn ? '\u23f9' : '\u25b6';
+        btn.title = isOn ? 'Parar bomba (assume controle manual)' : 'Ligar bomba (assume controle manual)';
+      }
+
+      const badge = subcard.querySelector('.pump-mode-badge');
+      if (badge) {
+        badge.classList.toggle('manual', isManual);
+        badge.textContent = isManual ? '\ud83e\uddb1\ufe0f Manual' : '\ud83e\udd16 Receita';
+      }
+
+      let releaseBtn = subcard.querySelector('.pump-release-btn');
+      if (isManual && !releaseBtn) {
+        releaseBtn = document.createElement('button');
+        releaseBtn.type = 'button';
+        releaseBtn.className = 'pump-release-btn';
+        releaseBtn.title = 'Devolver pro controle automático da receita';
+        releaseBtn.textContent = '\u21ba';
+        releaseBtn.onclick = () => releasePumpManual(pid);
+        subcard.appendChild(releaseBtn);
+      } else if (!isManual && releaseBtn) {
+        releaseBtn.remove();
+      }
+    }
+
+    function updatePumpSubcards(vesselName) {
       const pumpsEl = $('vpumps-' + vesselName);
       const pumpIds = vesselPumpIds(vesselName);
       const pendingPumps = window.pendingPumpConfirmations || [];
-      pumpsEl.innerHTML = pumpIds.map(pid => {
-        // Estado "aguardando confirmação" tem prioridade sobre tudo —
-        // a receita quer ligar essa bomba pela primeira vez nesta
-        // execução e precisa de aprovação explícita antes (evita
-        // energizar bomba com conexão fechada/errada sem checar).
-        if (pendingPumps.includes(pid)) {
-          return `
-            <div class="pump-subcard pending">
-              <div class="pump-subcard-info">
-                <span class="pump-subcard-name">${pid}</span>
-                <span class="pump-subcard-pending-label">⚠️ Ligar automaticamente?</span>
-              </div>
-              <div class="pump-confirm-actions">
-                <button type="button" class="pump-confirm-btn approve" onclick="confirmPumpAuto('${pid}')">Confirmar</button>
-                <button type="button" class="pump-confirm-btn decline" onclick="declinePumpAuto('${pid}')">Manter manual</button>
-              </div>
-            </div>
-          `;
-        }
 
-        // Estado físico real do pump (window.lastDevices), não mais
-        // condicionado a "pertence à etapa atual" — um override manual
-        // pode ligar/desligar um pump independente da receita, e o
-        // subcard precisa refletir isso corretamente em qualquer etapa.
-        const pumpDevice = deviceById(pid);
-        const isOn = pumpDevice ? pumpDevice.value === true : false;
-        const isManual = !!(pumpDevice && pumpDevice.manual_override !== null && pumpDevice.manual_override !== undefined);
+      // Só recria o DOM quando a "forma" da lista muda (bomba entrou/
+      // saiu do estado pendente, ou a lista de ids em si mudou) — não
+      // a cada poll, que é o que causava o piscar mesmo sem mudança
+      // real de estado.
+      const signature = pumpIds.map(pid => `${pid}:${pendingPumps.includes(pid) ? 'pending' : 'normal'}`).join('|');
+      if (pumpsEl.dataset.signature !== signature) {
+        pumpsEl.innerHTML = pumpIds.map(pid => renderPumpSubcardHtml(pid, pendingPumps)).join('');
+        pumpsEl.dataset.signature = signature;
+      }
 
-        // Botão de ícone real (não mais um label sem affordance) —
-        // o próprio ícone já comunica a ação disponível: ▶ quando
-        // desligada (ação = "ligar"), ⏹ quando ligada (ação = "parar").
-        const powerIcon = isOn ? '\u23f9' : '\u25b6';
-        const powerTitle = isOn ? 'Parar bomba (assume controle manual)' : 'Ligar bomba (assume controle manual)';
-        const modeBadge = isManual
-          ? '<span class="pump-mode-badge manual">\ud83e\uddb1\ufe0f Manual</span>'
-          : '<span class="pump-mode-badge">\ud83e\udd16 Receita</span>';
-        const releaseBtn = isManual
-          ? `<button type="button" class="pump-release-btn" onclick="releasePumpManual('${pid}')" title="Devolver pro controle automático da receita">\u21ba</button>`
-          : '';
-
-        return `
-          <div class="pump-subcard ${isOn ? 'on' : ''} ${isManual ? 'manual' : ''}">
-            <button type="button" class="pump-power-btn" onclick="togglePumpManual('${pid}')" title="${powerTitle}">${powerIcon}</button>
-            <div class="pump-subcard-info">
-              <span class="pump-subcard-name">${pid}</span>
-              ${modeBadge}
-            </div>
-            ${releaseBtn}
-          </div>
-        `;
-      }).join('');
+      pumpIds.forEach(pid => {
+        if (pendingPumps.includes(pid)) return; // sem campos dinâmicos a sincronizar no estado pendente
+        const subcard = pumpsEl.querySelector(`.pump-subcard[data-pump-id="${pid}"]`);
+        if (subcard) syncPumpSubcard(subcard, pid);
+      });
     }
 
     function pushChartPoint(vesselName, actual, setpoint) {
@@ -2033,12 +2091,45 @@
       `;
     }
 
+    // Atualiza só os cards de vasilha (gauge, potência, subcards de
+    // bomba) a partir do último status de receita conhecido — extraído
+    // de pollRecipeStatus() pra poder ser chamado também logo após
+    // refresh() (ver mais abaixo), sem precisar buscar /api/recipe/status
+    // de novo: um comando do usuário muda window.lastDevices na hora,
+    // não muda o status da receita em si (etapa/alvo), então reusar o
+    // status em cache é seguro e evita esperar o próximo tick de
+    // pollRecipeStatus (até 2,5s) só pra refletir a própria ação.
+    function updateVesselGaugesFromStatus(status) {
+      const active = (status.status === 'ramping' || status.status === 'holding');
+      const currentVessel = status.current_vessel;
+      const currentStep = active ? recipeDefinition.steps[status.step_index] : null;
+
+      (recipeDefinition.vessel_order || Object.keys(recipeDefinition.vessels)).forEach(name => {
+        const isActive = active && name === currentVessel;
+        const vesselInfo = recipeDefinition.vessels[name];
+        const sensorId = vesselInfo.sensor_device_id;
+        const temp = deviceValue(sensorId);
+        const heaterDevice = deviceById(vesselInfo.heater_device_id);
+        updateGauge(name, temp, currentStep ? currentStep.target_temp : null, heaterDevice, isActive);
+      });
+
+      if (active && currentVessel) {
+        const sensorId = recipeDefinition.vessels[currentVessel].sensor_device_id;
+        const temp = deviceValue(sensorId);
+        if (temp !== null) {
+          pushChartPoint(currentVessel, temp, currentStep.target_temp);
+          drawChart(currentVessel);
+        }
+      }
+    }
+
     async function pollRecipeStatus() {
       if (!recipeLoaded) return;
       try {
         const res = await fetch('/api/recipe/status');
         if (!res.ok) return;
         const status = await res.json();
+        window.lastRecipeStatus = status;
         currentStepIndexCache = status.step_index;
 
         const pill = $('recipeStatusPill');
@@ -2071,27 +2162,7 @@
 
         renderTimeline(status);
 
-        const active = (status.status === 'ramping' || status.status === 'holding');
-        const currentVessel = status.current_vessel;
-        const currentStep = active ? recipeDefinition.steps[status.step_index] : null;
-
-        (recipeDefinition.vessel_order || Object.keys(recipeDefinition.vessels)).forEach(name => {
-          const isActive = active && name === currentVessel;
-          const vesselInfo = recipeDefinition.vessels[name];
-          const sensorId = vesselInfo.sensor_device_id;
-          const temp = deviceValue(sensorId);
-          const heaterDevice = deviceById(vesselInfo.heater_device_id);
-          updateGauge(name, temp, currentStep ? currentStep.target_temp : null, heaterDevice, isActive);
-        });
-
-        if (active && currentVessel) {
-          const sensorId = recipeDefinition.vessels[currentVessel].sensor_device_id;
-          const temp = deviceValue(sensorId);
-          if (temp !== null) {
-            pushChartPoint(currentVessel, temp, currentStep.target_temp);
-            drawChart(currentVessel);
-          }
-        }
+        updateVesselGaugesFromStatus(status);
       } catch (e) { /* silencioso */ }
     }
 

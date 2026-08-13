@@ -119,6 +119,15 @@ class DeviceRuntime:
         # Estado de controle de potência — um TPC por atuador com
         # hardware.window_seconds; populado em _setup_all().
         self._tpc: Dict[str, TimeProportioningController] = {}
+        # Último "source" resolvido por device_id em tick_duty()
+        # (manual/pid/idle/failsafe_suspended) — usado só para saber
+        # quando forçar o realinhamento imediato da janela do TPC (ver
+        # tick_duty). Trocar de source (ex.: failsafe engatando/saindo,
+        # manual ligando/desligando, troca pid<->manual) precisa valer
+        # já, nunca esperar a janela atual terminar; só o VALOR dentro
+        # do mesmo source (ex.: PID ajustando aos poucos) é que fica
+        # travado até a próxima janela.
+        self._duty_last_source: Dict[str, str] = {}
         self._manual_duty: Dict[str, float] = {}
         # Interruptor mestre do override manual — SEPARADO do valor de %
         # (self._manual_duty). Ajustar o % sozinho nunca arma o atuador;
@@ -403,10 +412,24 @@ class DeviceRuntime:
         (failsafe > manual > receita > repouso), atualiza o TPC e
         escreve liga/desliga no GPIO. Chamado a cada iteração do loop
         principal do bridge — nunca pelo painel isolado (run_panel.py).
+
+        Correção (janela travada, ver time_proportioning.py): o TPC só
+        aplica um duty novo na virada da janela — exceto quando o
+        SOURCE muda (failsafe engatando/saindo, manual ligando/
+        desligando, troca pid<->manual), caso em que o realinhamento é
+        forçado na hora via tpc.force_lock(). Isso preserva a resposta
+        imediata do fail-safe e do interruptor manual, e ainda assim
+        elimina o viés de "desliga antes da hora" quando só o VALOR
+        do duty muda dentro do mesmo source (ex.: PID se aproximando
+        do alvo).
         """
         for device_id, tpc in self._tpc.items():
-            duty_percent, _source = self._resolve_effective_duty(device_id)
-            tpc.set_duty_cycle(duty_percent)
+            duty_percent, source = self._resolve_effective_duty(device_id)
+            if source != self._duty_last_source.get(device_id):
+                tpc.force_lock(now, duty_percent)
+                self._duty_last_source[device_id] = source
+            else:
+                tpc.set_duty_cycle(duty_percent)
             on = tpc.should_be_on(now)
             device = self._config.get_device(device_id)
             self._backend.write(device.hardware["pin"], on, address=device.hardware.get("address"))
