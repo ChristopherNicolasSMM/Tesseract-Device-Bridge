@@ -1,12 +1,18 @@
 <!doctype html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tesseract Device Bridge — Painel de Controle</title>
   <style>
     /* ===== RESET & VARIÁVEIS ===== */
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
     body {
       font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Noto Color Emoji', 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif;
       background: #0b0e14;
@@ -17,6 +23,7 @@
       display: flex;
       flex-direction: column;
     }
+
     :root {
       --bg-primary: #0f141e;
       --bg-card: #1a1f2e;
@@ -30,13 +37,22 @@
       --success: #22c55e;
       --warning: #eab308;
       --radius: 12px;
-      --shadow: 0 4px 24px rgba(0,0,0,0.4);
+      --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
     }
 
     /* ===== SCROLLBAR ===== */
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: var(--bg-primary); }
-    ::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 8px; }
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg-primary);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-subtle);
+      border-radius: 8px;
+    }
 
     /* ===== HEADER ===== */
     .app-header {
@@ -49,11 +65,13 @@
       flex-wrap: wrap;
       gap: 12px;
     }
+
     .brand {
       display: flex;
       align-items: center;
       gap: 12px;
     }
+
     .brand h1 {
       font-size: 20px;
       font-weight: 700;
@@ -62,6 +80,7 @@
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
+
     .brand small {
       font-size: 13px;
       font-weight: 400;
@@ -70,11 +89,13 @@
       background: none;
       margin-left: 4px;
     }
+
     .header-actions {
       display: flex;
       align-items: center;
       gap: 24px;
     }
+
     .mqtt-status {
       display: flex;
       align-items: center;
@@ -85,6 +106,7 @@
       font-size: 13px;
       border: 1px solid var(--border-subtle);
     }
+
     .led-dot {
       width: 10px;
       height: 10px;
@@ -92,12 +114,45 @@
       display: inline-block;
       transition: 0.3s;
     }
-    .led-dot.connected { background: var(--success); box-shadow: 0 0 10px var(--success); }
-    .led-dot.disconnected { background: var(--danger); box-shadow: 0 0 10px var(--danger); }
-    .led-dot.disabled { background: var(--text-secondary); }
-    .led-dot.unknown { background: var(--warning); animation: pulse 1.5s infinite; }
-    @keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
-    .clock { font-size: 14px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+    .led-dot.connected {
+      background: var(--success);
+      box-shadow: 0 0 10px var(--success);
+    }
+
+    .led-dot.disconnected {
+      background: var(--danger);
+      box-shadow: 0 0 10px var(--danger);
+    }
+
+    .led-dot.disabled {
+      background: var(--text-secondary);
+    }
+
+    .led-dot.unknown {
+      background: var(--warning);
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% {
+        opacity: 0.4;
+      }
+
+      50% {
+        opacity: 1;
+      }
+
+      100% {
+        opacity: 0.4;
+      }
+    }
+
+    .clock {
+      font-size: 14px;
+      color: var(--text-secondary);
+      font-variant-numeric: tabular-nums;
+    }
 
     /* ===== NAV TABS ===== */
     .nav-tabs {
@@ -107,6 +162,7 @@
       gap: 0;
       border-bottom: 1px solid var(--border-subtle);
     }
+
     .nav-tab {
       padding: 14px 24px;
       font-size: 14px;
@@ -121,8 +177,16 @@
       border-right: none;
       font-family: inherit;
     }
-    .nav-tab:hover { color: var(--text-primary); background: var(--bg-primary); }
-    .nav-tab.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); }
+
+    .nav-tab:hover {
+      color: var(--text-primary);
+      background: var(--bg-primary);
+    }
+
+    .nav-tab.active {
+      color: var(--accent-blue);
+      border-bottom-color: var(--accent-blue);
+    }
 
     /* ===== MAIN CONTENT ===== */
     .main-content {
@@ -132,9 +196,27 @@
       margin: 0 auto;
       width: 100%;
     }
-    .tab-pane { display: none; animation: fadeIn 0.25s ease; }
-    .tab-pane.active { display: block; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+    .tab-pane {
+      display: none;
+      animation: fadeIn 0.25s ease;
+    }
+
+    .tab-pane.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
 
     /* ===== DASHBOARD ===== */
     .section-title {
@@ -145,7 +227,11 @@
       align-items: center;
       gap: 10px;
     }
-    .section-title:first-of-type { margin-top: 0; }
+
+    .section-title:first-of-type {
+      margin-top: 0;
+    }
+
     .section-title .badge {
       font-size: 12px;
       background: var(--border-subtle);
@@ -154,6 +240,7 @@
       font-weight: 400;
       color: var(--text-secondary);
     }
+
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -171,13 +258,24 @@
       flex-direction: column;
       gap: 10px;
     }
-    .card:hover { background: var(--bg-card-hover); border-color: #3a4460; transform: translateY(-2px); box-shadow: var(--shadow); }
-    .card.risk { border-left: 4px solid var(--danger); }
+
+    .card:hover {
+      background: var(--bg-card-hover);
+      border-color: #3a4460;
+      transform: translateY(-2px);
+      box-shadow: var(--shadow);
+    }
+
+    .card.risk {
+      border-left: 4px solid var(--danger);
+    }
+
     .card-header {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
     }
+
     .card-header h3 {
       font-size: 15px;
       font-weight: 600;
@@ -185,6 +283,7 @@
       align-items: center;
       gap: 6px;
     }
+
     .card-header .type-tag {
       font-size: 10px;
       text-transform: uppercase;
@@ -195,14 +294,35 @@
       border-radius: 12px;
       color: var(--text-secondary);
     }
+
     .card-value {
       font-size: 28px;
       font-weight: 700;
       line-height: 1.2;
     }
-    .card-value .unit { font-size: 16px; font-weight: 400; color: var(--text-secondary); margin-left: 4px; }
-    .card-meta { font-size: 12px; color: var(--text-secondary); display: flex; gap: 12px; flex-wrap: wrap; }
-    .card-actions { display: flex; align-items: center; gap: 12px; margin-top: 4px; flex-wrap: wrap; }
+
+    .card-value .unit {
+      font-size: 16px;
+      font-weight: 400;
+      color: var(--text-secondary);
+      margin-left: 4px;
+    }
+
+    .card-meta {
+      font-size: 12px;
+      color: var(--text-secondary);
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .card-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 4px;
+      flex-wrap: wrap;
+    }
 
     /* ===== TOGGLE SWITCH (para atuadores digitais) ===== */
     .toggle-wrapper {
@@ -210,6 +330,7 @@
       align-items: center;
       gap: 12px;
     }
+
     .toggle {
       position: relative;
       width: 44px;
@@ -220,7 +341,12 @@
       transition: 0.3s;
       flex-shrink: 0;
     }
-    .toggle.active { background: var(--accent-blue); box-shadow: 0 0 12px var(--accent-blue-glow); }
+
+    .toggle.active {
+      background: var(--accent-blue);
+      box-shadow: 0 0 12px var(--accent-blue-glow);
+    }
+
     .toggle .thumb {
       position: absolute;
       top: 3px;
@@ -231,8 +357,16 @@
       border-radius: 50%;
       transition: 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
-    .toggle.active .thumb { left: 23px; }
-    .toggle-label { font-size: 14px; font-weight: 500; min-width: 60px; }
+
+    .toggle.active .thumb {
+      left: 23px;
+    }
+
+    .toggle-label {
+      font-size: 14px;
+      font-weight: 500;
+      min-width: 60px;
+    }
 
     /* ===== RANGE SLIDER ===== */
     input[type="range"] {
@@ -245,6 +379,7 @@
       outline: none;
       transition: 0.2s;
     }
+
     input[type="range"]::-webkit-slider-thumb {
       -webkit-appearance: none;
       appearance: none;
@@ -255,6 +390,7 @@
       cursor: pointer;
       box-shadow: 0 0 8px var(--accent-blue-glow);
     }
+
     input[type="range"]::-moz-range-thumb {
       width: 16px;
       height: 16px;
@@ -263,7 +399,13 @@
       cursor: pointer;
       border: none;
     }
-    .range-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary); }
+
+    .range-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
 
     /* ===== BOTÕES GENÉRICOS ===== */
     .btn {
@@ -278,10 +420,25 @@
       background: var(--border-subtle);
       color: var(--text-primary);
     }
-    .btn:hover { filter: brightness(1.2); }
-    .btn-primary { background: var(--accent-blue); color: white; }
-    .btn-danger { background: var(--danger); color: white; }
-    .btn-sm { padding: 4px 12px; font-size: 12px; }
+
+    .btn:hover {
+      filter: brightness(1.2);
+    }
+
+    .btn-primary {
+      background: var(--accent-blue);
+      color: white;
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: white;
+    }
+
+    .btn-sm {
+      padding: 4px 12px;
+      font-size: 12px;
+    }
 
     /* ===== GERENCIAMENTO (TABELA) ===== */
     .table-wrapper {
@@ -291,11 +448,13 @@
       overflow-x: auto;
       padding: 4px 0;
     }
+
     table {
       width: 100%;
       border-collapse: collapse;
       font-size: 14px;
     }
+
     th {
       text-align: left;
       padding: 14px 16px;
@@ -307,15 +466,32 @@
       border-bottom: 1px solid var(--border-subtle);
       background: var(--bg-primary);
     }
+
     td {
       padding: 12px 16px;
       border-bottom: 1px solid var(--border-subtle);
       color: var(--text-primary);
     }
-    tr:last-child td { border-bottom: none; }
-    .status-indicator { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
-    .status-indicator.on { background: var(--success); }
-    .status-indicator.off { background: var(--text-secondary); }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .status-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+
+    .status-indicator.on {
+      background: var(--success);
+    }
+
+    .status-indicator.off {
+      background: var(--text-secondary);
+    }
 
     /* ===== TOAST ===== */
     #toast-container {
@@ -327,6 +503,7 @@
       gap: 10px;
       z-index: 9999;
     }
+
     .toast {
       background: var(--bg-card);
       border: 1px solid var(--border-subtle);
@@ -341,23 +518,74 @@
       animation: slideIn 0.3s ease;
       border-left: 4px solid var(--accent-blue);
     }
-    .toast.error { border-left-color: var(--danger); }
-    .toast.success { border-left-color: var(--success); }
-    @keyframes slideIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+
+    .toast.error {
+      border-left-color: var(--danger);
+    }
+
+    .toast.success {
+      border-left-color: var(--success);
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateX(40px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
 
     /* ===== RESPONSIVO ===== */
     @media (max-width: 700px) {
-      .app-header { padding: 12px 16px; flex-direction: column; align-items: stretch; }
-      .header-actions { justify-content: space-between; flex-wrap: wrap; }
-      .nav-tabs { padding: 0 16px; overflow-x: auto; gap: 0; }
-      .nav-tab { padding: 12px 14px; font-size: 13px; white-space: nowrap; }
-      .main-content { padding: 16px; }
-      .grid { grid-template-columns: 1fr; }
+      .app-header {
+        padding: 12px 16px;
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .header-actions {
+        justify-content: space-between;
+        flex-wrap: wrap;
+      }
+
+      .nav-tabs {
+        padding: 0 16px;
+        overflow-x: auto;
+        gap: 0;
+      }
+
+      .nav-tab {
+        padding: 12px 14px;
+        font-size: 13px;
+        white-space: nowrap;
+      }
+
+      .main-content {
+        padding: 16px;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
     }
+
     @media (max-width: 480px) {
-      .brand h1 { font-size: 17px; }
-      .mqtt-status { font-size: 12px; padding: 4px 10px; }
-      .clock { font-size: 12px; }
+      .brand h1 {
+        font-size: 17px;
+      }
+
+      .mqtt-status {
+        font-size: 12px;
+        padding: 4px 10px;
+      }
+
+      .clock {
+        font-size: 12px;
+      }
     }
 
     /* ===== RECEITAS — tokens proprios (accent cobre, numerais de instrumentacao) ===== */
@@ -381,13 +609,21 @@
       gap: 14px;
       margin-bottom: 24px;
     }
-    .recipe-title-block { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+
+    .recipe-title-block {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
     .recipe-title {
       font-size: 22px;
       font-weight: 700;
       letter-spacing: -0.2px;
       color: var(--ink-warm-0);
     }
+
     .recipe-eyebrow {
       font-size: 11px;
       text-transform: uppercase;
@@ -395,6 +631,7 @@
       color: var(--copper-300);
       font-weight: 600;
     }
+
     .status-pill {
       display: inline-flex;
       align-items: center;
@@ -408,31 +645,82 @@
       background: var(--bg-primary);
       text-transform: uppercase;
     }
-    .status-pill .dot { width: 8px; height: 8px; border-radius: 50%; }
-    .status-pill.idle .dot { background: var(--text-secondary); }
-    .status-pill.ramping .dot { background: var(--ramp-amber); box-shadow: 0 0 8px var(--ramp-amber); animation: pulse 1.4s infinite; }
-    .status-pill.ramping { border-color: rgba(227,162,60,0.35); color: var(--ramp-amber); }
-    .status-pill.holding .dot { background: var(--hold-green); box-shadow: 0 0 8px var(--hold-green); }
-    .status-pill.holding { border-color: rgba(76,174,110,0.35); color: var(--hold-green); }
-    .status-pill.finished .dot { background: var(--hold-green); }
-    .status-pill.finished { border-color: rgba(76,174,110,0.35); color: var(--hold-green); }
-    .status-pill.aborted .dot { background: var(--text-secondary); }
-    .status-pill.paused_after_crash .dot { background: var(--fault-red); box-shadow: 0 0 8px var(--fault-red); animation: pulse 1s infinite; }
-    .status-pill.paused_after_crash { border-color: rgba(224,84,74,0.4); color: var(--fault-red); }
+
+    .status-pill .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .status-pill.idle .dot {
+      background: var(--text-secondary);
+    }
+
+    .status-pill.ramping .dot {
+      background: var(--ramp-amber);
+      box-shadow: 0 0 8px var(--ramp-amber);
+      animation: pulse 1.4s infinite;
+    }
+
+    .status-pill.ramping {
+      border-color: rgba(227, 162, 60, 0.35);
+      color: var(--ramp-amber);
+    }
+
+    .status-pill.holding .dot {
+      background: var(--hold-green);
+      box-shadow: 0 0 8px var(--hold-green);
+    }
+
+    .status-pill.holding {
+      border-color: rgba(76, 174, 110, 0.35);
+      color: var(--hold-green);
+    }
+
+    .status-pill.finished .dot {
+      background: var(--hold-green);
+    }
+
+    .status-pill.finished {
+      border-color: rgba(76, 174, 110, 0.35);
+      color: var(--hold-green);
+    }
+
+    .status-pill.aborted .dot {
+      background: var(--text-secondary);
+    }
+
+    .status-pill.paused_after_crash .dot {
+      background: var(--fault-red);
+      box-shadow: 0 0 8px var(--fault-red);
+      animation: pulse 1s infinite;
+    }
+
+    .status-pill.paused_after_crash {
+      border-color: rgba(224, 84, 74, 0.4);
+      color: var(--fault-red);
+    }
 
     .crash-banner {
       display: none;
       align-items: center;
       gap: 12px;
-      background: linear-gradient(90deg, rgba(224,84,74,0.14), rgba(224,84,74,0.04));
-      border: 1px solid rgba(224,84,74,0.35);
+      background: linear-gradient(90deg, rgba(224, 84, 74, 0.14), rgba(224, 84, 74, 0.04));
+      border: 1px solid rgba(224, 84, 74, 0.35);
       border-radius: var(--radius);
       padding: 14px 18px;
       margin-bottom: 22px;
       font-size: 13.5px;
     }
-    .crash-banner.show { display: flex; }
-    .crash-banner strong { color: var(--fault-red); }
+
+    .crash-banner.show {
+      display: flex;
+    }
+
+    .crash-banner strong {
+      color: var(--fault-red);
+    }
+
     .crash-banner button {
       margin-left: auto;
       background: var(--fault-red);
@@ -445,7 +733,10 @@
       cursor: pointer;
       white-space: nowrap;
     }
-    .crash-banner button:hover { filter: brightness(1.1); }
+
+    .crash-banner button:hover {
+      filter: brightness(1.1);
+    }
 
     .vessel-row {
       display: grid;
@@ -453,6 +744,7 @@
       gap: 18px;
       margin-bottom: 26px;
     }
+
     .vessel-card {
       background: var(--bg-card);
       border: 1px solid var(--border-subtle);
@@ -465,103 +757,269 @@
       overflow: hidden;
       transition: border-color 0.3s;
     }
-    .vessel-top-row { display: flex; align-items: center; gap: 20px; }
-    .vessel-manual-control { border-top: 1px solid var(--border-subtle); padding-top: 12px; }
-    .vessel-card.active { border-color: rgba(201,118,63,0.45); }
+
+    .vessel-top-row {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .vessel-manual-control {
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 12px;
+    }
+
+    .vessel-card.active {
+      border-color: rgba(201, 118, 63, 0.45);
+    }
+
     .vessel-card.active::before {
       content: '';
-      position: absolute; inset: 0;
+      position: absolute;
+      inset: 0;
       background: radial-gradient(circle at 0% 0%, var(--copper-glow), transparent 60%);
       opacity: 0.5;
       pointer-events: none;
     }
-    .gauge-wrap { position: relative; width: 104px; height: 104px; flex-shrink: 0; }
-    .gauge-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-    .gauge-track { fill: none; stroke: var(--border-subtle); stroke-width: 8; }
-    .gauge-fill { fill: none; stroke: var(--copper-500); stroke-width: 8; stroke-linecap: round; transition: stroke-dasharray 0.6s ease; }
+
+    .gauge-wrap {
+      position: relative;
+      width: 104px;
+      height: 104px;
+      flex-shrink: 0;
+    }
+
+    .gauge-wrap svg {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+
+    .gauge-track {
+      fill: none;
+      stroke: var(--border-subtle);
+      stroke-width: 8;
+    }
+
+    .gauge-fill {
+      fill: none;
+      stroke: var(--copper-500);
+      stroke-width: 8;
+      stroke-linecap: round;
+      transition: stroke-dasharray 0.6s ease;
+    }
+
     .gauge-center {
-      position: absolute; top: 0; right: 0; bottom: 0; left: 0;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
     }
-    .gauge-temp { font-family: var(--mono); font-size: 19px; font-weight: 700; color: var(--ink-warm-0); line-height: 1; }
-    .gauge-duty { font-family: var(--mono); font-size: 10px; color: var(--copper-300); margin-top: 3px; }
-    .vessel-info { flex: 1; min-width: 0; }
-    .vessel-name { font-size: 14.5px; font-weight: 700; color: var(--ink-warm-0); margin-bottom: 6px; }
+
+    .gauge-temp {
+      font-family: var(--mono);
+      font-size: 19px;
+      font-weight: 700;
+      color: var(--ink-warm-0);
+      line-height: 1;
+    }
+
+    .gauge-duty {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--copper-300);
+      margin-top: 3px;
+    }
+
+    .vessel-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .vessel-name {
+      font-size: 14.5px;
+      font-weight: 700;
+      color: var(--ink-warm-0);
+      margin-bottom: 6px;
+    }
+
     .vessel-target {
-      font-family: var(--mono); font-size: 12.5px; color: var(--ink-warm-400);
-      display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
+      font-family: var(--mono);
+      font-size: 12.5px;
+      color: var(--ink-warm-400);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
     }
-    .vessel-target .arrow { color: var(--copper-300); }
+
+    .vessel-target .arrow {
+      color: var(--copper-300);
+    }
 
     /* Subcard de bomba: antes era só uma "pílula" de texto sem nenhuma
        affordance visual de que era clicável ou de que tinha 2 ações
        (manual/automático + liga/desliga) — substituído por um botão de
        ícone real (liga/desliga explícito) + badge de modo + botão
        pequeno de liberar controle, só quando sob controle manual. */
-    .vessel-pumps { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+    .vessel-pumps {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
     .pump-subcard {
-      display: flex; align-items: center; gap: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
       padding: 8px 10px;
       border-radius: 10px;
       background: var(--bg-primary);
       border: 1px solid var(--border-subtle);
       transition: border-color 0.2s;
     }
-    .pump-subcard.manual { border-style: dashed; border-color: var(--copper-300); }
-    .pump-subcard.on { border-color: rgba(76,174,110,0.35); }
-    .pump-subcard.on.manual { border-color: var(--hold-green); }
+
+    .pump-subcard.manual {
+      border-style: dashed;
+      border-color: var(--copper-300);
+    }
+
+    .pump-subcard.on {
+      border-color: rgba(76, 174, 110, 0.35);
+    }
+
+    .pump-subcard.on.manual {
+      border-color: var(--hold-green);
+    }
 
     .pump-power-btn {
-      width: 32px; height: 32px; flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      flex-shrink: 0;
       border-radius: 50%;
       background: var(--bg-card);
       border: 1px solid var(--border-subtle);
       color: var(--text-secondary);
-      display: flex; align-items: center; justify-content: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       cursor: pointer;
       font-size: 13px;
       transition: border-color 0.15s, color 0.15s, transform 0.1s, background 0.15s;
     }
-    .pump-power-btn:hover { border-color: var(--copper-500); color: var(--copper-300); }
-    .pump-power-btn:active { transform: scale(0.9); }
-    .pump-subcard.on .pump-power-btn {
-      background: var(--hold-green); border-color: var(--hold-green); color: #0d1f14;
+
+    .pump-power-btn:hover {
+      border-color: var(--copper-500);
+      color: var(--copper-300);
     }
 
-    .pump-subcard-info { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
-    .pump-subcard-name { font-size: 12.5px; font-weight: 600; color: var(--ink-warm-0); }
-    .pump-mode-badge { font-size: 10.5px; color: var(--text-secondary); }
-    .pump-mode-badge.manual { color: var(--copper-300); }
+    .pump-power-btn:active {
+      transform: scale(0.9);
+    }
+
+    .pump-subcard.on .pump-power-btn {
+      background: var(--hold-green);
+      border-color: var(--hold-green);
+      color: #0d1f14;
+    }
+
+    .pump-subcard-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .pump-subcard-name {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--ink-warm-0);
+    }
+
+    .pump-mode-badge {
+      font-size: 10.5px;
+      color: var(--text-secondary);
+    }
+
+    .pump-mode-badge.manual {
+      color: var(--copper-300);
+    }
 
     .pump-release-btn {
-      width: 26px; height: 26px; flex-shrink: 0;
+      width: 26px;
+      height: 26px;
+      flex-shrink: 0;
       border-radius: 50%;
       background: transparent;
       border: 1px solid var(--border-subtle);
       color: var(--text-secondary);
-      display: flex; align-items: center; justify-content: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       cursor: pointer;
       font-size: 12px;
       transition: border-color 0.15s, color 0.15s;
     }
-    .pump-release-btn:hover { border-color: var(--copper-500); color: var(--copper-300); }
+
+    .pump-release-btn:hover {
+      border-color: var(--copper-500);
+      color: var(--copper-300);
+    }
 
     /* Estado "aguardando confirmação" — a receita quer ligar esta bomba
        pela primeira vez nesta execução e precisa de aprovação explícita
        antes (evita energizar bomba com conexão fechada/errada). */
     .pump-subcard.pending {
-      border-color: rgba(227,162,60,0.6);
+      border-color: rgba(227, 162, 60, 0.6);
       animation: alarmPulseBorder 1.4s infinite;
     }
-    .pump-subcard-pending-label { font-size: 12px; font-weight: 600; color: var(--ramp-amber); flex: 1; min-width: 0; }
-    .pump-confirm-actions { display: flex; gap: 6px; flex-shrink: 0; }
-    .pump-confirm-btn {
-      font-size: 11px; font-weight: 600; padding: 5px 10px; border-radius: 6px;
-      cursor: pointer; border: 1px solid; transition: filter 0.15s;
+
+    .pump-subcard-pending-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ramp-amber);
+      flex: 1;
+      min-width: 0;
     }
-    .pump-confirm-btn:hover { filter: brightness(1.15); }
-    .pump-confirm-btn.approve { background: var(--ramp-amber); color: #1a1208; border-color: var(--ramp-amber); }
-    .pump-confirm-btn.decline { background: transparent; color: var(--text-secondary); border-color: var(--border-subtle); }
+
+    .pump-confirm-actions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .pump-confirm-btn {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 5px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid;
+      transition: filter 0.15s;
+    }
+
+    .pump-confirm-btn:hover {
+      filter: brightness(1.15);
+    }
+
+    .pump-confirm-btn.approve {
+      background: var(--ramp-amber);
+      color: #1a1208;
+      border-color: var(--ramp-amber);
+    }
+
+    .pump-confirm-btn.decline {
+      background: transparent;
+      color: var(--text-secondary);
+      border-color: var(--border-subtle);
+    }
 
     .timeline-wrap {
       background: var(--bg-card);
@@ -574,26 +1032,98 @@
       /* Ajuste CNSMM */
       display: flex;
       justify-content: center;
-      
+
     }
-    .timeline-track { display: flex; align-items: flex-start; min-width: max-content; gap: 0; }
-    .timeline-step { display: flex; flex-direction: column; align-items: center; width: 150px; position: relative; }
-    .timeline-line { position: absolute; top: 9px; left: -75px; width: 150px; height: 2px; background: var(--border-subtle); z-index: 0; }
-    .timeline-step:first-child .timeline-line { display: none; }
-    .timeline-step.done .timeline-line { background: var(--copper-500); }
+
+    .timeline-track {
+      display: flex;
+      align-items: flex-start;
+      min-width: max-content;
+      gap: 0;
+    }
+
+    .timeline-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 150px;
+      position: relative;
+    }
+
+    .timeline-line {
+      position: absolute;
+      top: 9px;
+      left: -75px;
+      width: 150px;
+      height: 2px;
+      background: var(--border-subtle);
+      z-index: 0;
+    }
+
+    .timeline-step:first-child .timeline-line {
+      display: none;
+    }
+
+    .timeline-step.done .timeline-line {
+      background: var(--copper-500);
+    }
+
     .timeline-node {
-      width: 20px; height: 20px; border-radius: 50%;
-      background: var(--bg-primary); border: 2px solid var(--border-subtle);
-      z-index: 1; display: flex; align-items: center; justify-content: center;
-      font-size: 10px; color: var(--text-secondary); font-weight: 700;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--bg-primary);
+      border: 2px solid var(--border-subtle);
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      color: var(--text-secondary);
+      font-weight: 700;
     }
-    .timeline-step.done .timeline-node { background: var(--copper-500); border-color: var(--copper-500); color: #1a1208; }
-    .timeline-step.current .timeline-node { border-color: var(--ramp-amber); box-shadow: 0 0 0 4px rgba(227,162,60,0.18); color: var(--ramp-amber); }
-    .timeline-step.current.holding .timeline-node { border-color: var(--hold-green); box-shadow: 0 0 0 4px rgba(76,174,110,0.18); color: var(--hold-green); }
-    .timeline-label { font-size: 12px; font-weight: 600; color: var(--ink-warm-0); margin-top: 10px; text-align: center; }
-    .timeline-meta { font-family: var(--mono); font-size: 11px; color: var(--ink-warm-400); margin-top: 3px; text-align: center; }
-    .timeline-step.current .timeline-meta { color: var(--ramp-amber); }
-    .timeline-step.current.holding .timeline-meta { color: var(--hold-green); }
+
+    .timeline-step.done .timeline-node {
+      background: var(--copper-500);
+      border-color: var(--copper-500);
+      color: #1a1208;
+    }
+
+    .timeline-step.current .timeline-node {
+      border-color: var(--ramp-amber);
+      box-shadow: 0 0 0 4px rgba(227, 162, 60, 0.18);
+      color: var(--ramp-amber);
+    }
+
+    .timeline-step.current.holding .timeline-node {
+      border-color: var(--hold-green);
+      box-shadow: 0 0 0 4px rgba(76, 174, 110, 0.18);
+      color: var(--hold-green);
+    }
+
+    .timeline-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink-warm-0);
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    .timeline-meta {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink-warm-400);
+      margin-top: 3px;
+      text-align: center;
+    }
+
+    .timeline-step.current .timeline-meta {
+      color: var(--ramp-amber);
+    }
+
+    .timeline-step.current.holding .timeline-meta {
+      color: var(--hold-green);
+    }
 
     .chart-wrap {
       background: var(--bg-card);
@@ -602,14 +1132,47 @@
       padding: 22px 24px;
       margin-bottom: 22px;
     }
-    .chart-legend { display: flex; gap: 18px; margin-bottom: 14px; font-size: 12px; color: var(--ink-warm-400); }
-    .chart-legend span { display: flex; align-items: center; gap: 6px; }
-    .legend-swatch { width: 16px; height: 2px; display: inline-block; }
-    .legend-swatch.actual { background: var(--copper-500); }
-    .legend-swatch.setpoint { background: repeating-linear-gradient(90deg, var(--ink-warm-400) 0 4px, transparent 4px 8px); }
-    #recipeChart { width: 100%; height: 180px; display: block; }
 
-    .recipe-controls { display: flex; gap: 12px; flex-wrap: wrap; }
+    .chart-legend {
+      display: flex;
+      gap: 18px;
+      margin-bottom: 14px;
+      font-size: 12px;
+      color: var(--ink-warm-400);
+    }
+
+    .chart-legend span {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-swatch {
+      width: 16px;
+      height: 2px;
+      display: inline-block;
+    }
+
+    .legend-swatch.actual {
+      background: var(--copper-500);
+    }
+
+    .legend-swatch.setpoint {
+      background: repeating-linear-gradient(90deg, var(--ink-warm-400) 0 4px, transparent 4px 8px);
+    }
+
+    #recipeChart {
+      width: 100%;
+      height: 180px;
+      display: block;
+    }
+
+    .recipe-controls {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
     .btn-recipe {
       padding: 11px 22px;
       border-radius: 9px;
@@ -619,20 +1182,54 @@
       cursor: pointer;
       transition: filter 0.15s, transform 0.1s;
     }
-    .btn-recipe:active { transform: scale(0.97); }
-    .btn-recipe.primary { background: var(--copper-500); color: #1a1208; }
-    .btn-recipe.primary:hover { filter: brightness(1.12); }
-    .btn-recipe.ghost { background: transparent; border-color: var(--border-subtle); color: var(--text-secondary); }
-    .btn-recipe.ghost:hover { border-color: var(--fault-red); color: var(--fault-red); }
-    .btn-recipe:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .btn-recipe:active {
+      transform: scale(0.97);
+    }
+
+    .btn-recipe.primary {
+      background: var(--copper-500);
+      color: #1a1208;
+    }
+
+    .btn-recipe.primary:hover {
+      filter: brightness(1.12);
+    }
+
+    .btn-recipe.ghost {
+      background: transparent;
+      border-color: var(--border-subtle);
+      color: var(--text-secondary);
+    }
+
+    .btn-recipe.ghost:hover {
+      border-color: var(--fault-red);
+      color: var(--fault-red);
+    }
+
+    .btn-recipe:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
 
     .recipe-empty {
       text-align: center;
       padding: 70px 20px;
       color: var(--ink-warm-400);
     }
-    .recipe-empty .icon { font-size: 36px; margin-bottom: 14px; opacity: 0.6; }
-    .recipe-empty p { font-size: 13.5px; max-width: 420px; margin: 0 auto; line-height: 1.6; }
+
+    .recipe-empty .icon {
+      font-size: 36px;
+      margin-bottom: 14px;
+      opacity: 0.6;
+    }
+
+    .recipe-empty p {
+      font-size: 13.5px;
+      max-width: 420px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
 
     /* ===== BARRA DE TRANSPORTE (anterior/reset/play-pause/proxima + cronometro) ===== */
     .transport-bar {
@@ -645,6 +1242,7 @@
       padding: 20px;
       margin-bottom: 22px;
     }
+
     .transport-buttons {
       display: grid;
       grid-template-columns: 1fr auto 1fr;
@@ -652,31 +1250,64 @@
       gap: 18px;
       align-self: stretch;
     }
-    .transport-buttons-side { display: flex; align-items: center; gap: 18px; }
-    .transport-buttons-side.left { justify-content: flex-end; }
-    .transport-buttons-side.right { justify-content: flex-start; }
+
+    .transport-buttons-side {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .transport-buttons-side.left {
+      justify-content: flex-end;
+    }
+
+    .transport-buttons-side.right {
+      justify-content: flex-start;
+    }
+
     .transport-btn {
-      width: 44px; height: 44px;
+      width: 44px;
+      height: 44px;
       border-radius: 50%;
       background: var(--bg-primary);
       border: 1px solid var(--border-subtle);
       color: var(--text-secondary);
-      display: flex; align-items: center; justify-content: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       cursor: pointer;
       font-size: 16px;
       transition: border-color 0.15s, color 0.15s, transform 0.1s;
     }
-    .transport-btn:hover:not(:disabled) { border-color: var(--copper-500); color: var(--copper-300); }
-    .transport-btn:active:not(:disabled) { transform: scale(0.93); }
-    .transport-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    .transport-btn:hover:not(:disabled) {
+      border-color: var(--copper-500);
+      color: var(--copper-300);
+    }
+
+    .transport-btn:active:not(:disabled) {
+      transform: scale(0.93);
+    }
+
+    .transport-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
     .transport-btn.play {
-      width: 56px; height: 56px;
+      width: 56px;
+      height: 56px;
       background: var(--copper-500);
       border-color: var(--copper-500);
       color: #1a1208;
       font-size: 20px;
     }
-    .transport-btn.play:hover:not(:disabled) { filter: brightness(1.12); color: #1a1208; }
+
+    .transport-btn.play:hover:not(:disabled) {
+      filter: brightness(1.12);
+      color: #1a1208;
+    }
+
     .countdown-display {
       width: 100%;
       text-align: center;
@@ -686,6 +1317,7 @@
       border-radius: 10px;
       padding: 14px;
     }
+
     .countdown-time {
       font-family: var(--mono);
       font-size: 34px;
@@ -693,6 +1325,7 @@
       color: var(--ink-warm-0);
       letter-spacing: 1px;
     }
+
     .countdown-label {
       font-size: 11.5px;
       color: var(--ink-warm-400);
@@ -700,6 +1333,7 @@
       letter-spacing: 1px;
       margin-top: 2px;
     }
+
     .total-time-row {
       display: flex;
       margin-top: 14px;
@@ -707,31 +1341,71 @@
       color: var(--ink-warm-400);
       font-family: var(--mono);
     }
-    .total-time-row span { margin-right: 24px; }
-    .total-time-row span:last-child { margin-right: 0; }
-    .total-time-row strong { color: var(--copper-300); font-weight: 600; }
+
+    .total-time-row span {
+      margin-right: 24px;
+    }
+
+    .total-time-row span:last-child {
+      margin-right: 0;
+    }
+
+    .total-time-row strong {
+      color: var(--copper-300);
+      font-weight: 600;
+    }
 
     /* ===== ALARMES (Sessao B: banner + configuracao de som) ===== */
     .alarm-banner {
       display: none;
       align-items: center;
       gap: 16px;
-      background: linear-gradient(90deg, rgba(227,162,60,0.18), rgba(227,162,60,0.05));
-      border: 1px solid rgba(227,162,60,0.45);
+      background: linear-gradient(90deg, rgba(227, 162, 60, 0.18), rgba(227, 162, 60, 0.05));
+      border: 1px solid rgba(227, 162, 60, 0.45);
       border-radius: var(--radius);
       padding: 16px 20px;
       margin-bottom: 22px;
       animation: alarmPulseBorder 1.4s infinite;
     }
-    .alarm-banner.show { display: flex; }
-    @keyframes alarmPulseBorder {
-      0%, 100% { border-color: rgba(227,162,60,0.45); }
-      50% { border-color: rgba(227,162,60,0.9); }
+
+    .alarm-banner.show {
+      display: flex;
     }
-    .alarm-banner-icon { font-size: 28px; flex-shrink: 0; }
-    .alarm-banner-body { flex: 1; min-width: 0; }
-    .alarm-banner-label { font-size: 16px; font-weight: 700; color: var(--ramp-amber); }
-    .alarm-banner-extra { font-size: 12px; color: var(--ink-warm-400); margin-top: 2px; }
+
+    @keyframes alarmPulseBorder {
+
+      0%,
+      100% {
+        border-color: rgba(227, 162, 60, 0.45);
+      }
+
+      50% {
+        border-color: rgba(227, 162, 60, 0.9);
+      }
+    }
+
+    .alarm-banner-icon {
+      font-size: 28px;
+      flex-shrink: 0;
+    }
+
+    .alarm-banner-body {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .alarm-banner-label {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--ramp-amber);
+    }
+
+    .alarm-banner-extra {
+      font-size: 12px;
+      color: var(--ink-warm-400);
+      margin-top: 2px;
+    }
+
     .alarm-banner-btn {
       background: var(--ramp-amber);
       color: #1a1208;
@@ -743,23 +1417,40 @@
       cursor: pointer;
       flex-shrink: 0;
     }
-    .alarm-banner-btn:hover { filter: brightness(1.1); }
+
+    .alarm-banner-btn:hover {
+      filter: brightness(1.1);
+    }
 
     .pump-confirm-banner {
       display: none;
       align-items: center;
       gap: 16px;
-      background: linear-gradient(90deg, rgba(227,162,60,0.18), rgba(227,162,60,0.05));
-      border: 1px solid rgba(227,162,60,0.45);
+      background: linear-gradient(90deg, rgba(227, 162, 60, 0.18), rgba(227, 162, 60, 0.05));
+      border: 1px solid rgba(227, 162, 60, 0.45);
       border-radius: var(--radius);
       padding: 14px 20px;
       margin-bottom: 22px;
       animation: alarmPulseBorder 1.4s infinite;
     }
-    .pump-confirm-banner.show { display: flex; }
-    .pump-confirm-banner-icon { font-size: 24px; flex-shrink: 0; }
-    .pump-confirm-banner-text { font-size: 13.5px; color: var(--ink-warm-400); }
-    .pump-confirm-banner-text strong { color: var(--ramp-amber); }
+
+    .pump-confirm-banner.show {
+      display: flex;
+    }
+
+    .pump-confirm-banner-icon {
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+
+    .pump-confirm-banner-text {
+      font-size: 13.5px;
+      color: var(--ink-warm-400);
+    }
+
+    .pump-confirm-banner-text strong {
+      color: var(--ramp-amber);
+    }
 
     .alarm-settings-popover {
       position: absolute;
@@ -772,12 +1463,31 @@
       border-radius: var(--radius);
       padding: 16px;
       z-index: 50;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
     }
-    .recipe-controls { position: relative; }
-    .alarm-settings-title { font-size: 13px; font-weight: 700; color: var(--ink-warm-0); margin-bottom: 12px; }
-    .alarm-settings-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--ink-warm-400); margin-bottom: 6px; }
-    .alarm-settings-select, .alarm-settings-input {
+
+    .recipe-controls {
+      position: relative;
+    }
+
+    .alarm-settings-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink-warm-0);
+      margin-bottom: 12px;
+    }
+
+    .alarm-settings-label {
+      display: block;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--ink-warm-400);
+      margin-bottom: 6px;
+    }
+
+    .alarm-settings-select,
+    .alarm-settings-input {
       width: 100%;
       background: var(--bg-primary);
       border: 1px solid var(--border-subtle);
@@ -786,106 +1496,298 @@
       padding: 8px 10px;
       font-size: 13px;
     }
-    .alarm-settings-hint { font-size: 11px; color: var(--ink-warm-400); margin-top: 6px; line-height: 1.4; }
+
+    .alarm-settings-hint {
+      font-size: 11px;
+      color: var(--ink-warm-400);
+      margin-top: 6px;
+      line-height: 1.4;
+    }
 
     /* ===== ABA CADASTRO ===== */
-    .cadastro-hint { font-size: 12.5px; color: var(--text-secondary); line-height: 1.6; margin: 4px 0 18px; }
+    .cadastro-hint {
+      font-size: 12.5px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin: 4px 0 18px;
+    }
 
     .recipe-catalog-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
       gap: 14px;
     }
+
     .recipe-catalog-card {
       background: var(--bg-card);
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius);
       padding: 16px;
-      display: flex; flex-direction: column; gap: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
       transition: border-color 0.2s;
     }
-    .recipe-catalog-card.running { border-color: var(--hold-green); }
-    .recipe-catalog-card.pending-restart { border-color: var(--copper-300); }
-    .recipe-catalog-card.invalid { border-color: rgba(224,90,90,0.5); }
 
-    .recipe-catalog-name { font-size: 14.5px; font-weight: 700; color: var(--ink-warm-0); }
-    .recipe-catalog-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+    .recipe-catalog-card.running {
+      border-color: var(--hold-green);
+    }
+
+    .recipe-catalog-card.pending-restart {
+      border-color: var(--copper-300);
+    }
+
+    .recipe-catalog-card.invalid {
+      border-color: rgba(224, 90, 90, 0.5);
+    }
+
+    .recipe-catalog-name {
+      font-size: 14.5px;
+      font-weight: 700;
+      color: var(--ink-warm-0);
+    }
+
+    .recipe-catalog-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
     .recipe-badge {
-      font-size: 10.5px; padding: 3px 9px; border-radius: 20px;
-      background: var(--bg-primary); border: 1px solid var(--border-subtle); color: var(--text-secondary);
+      font-size: 10.5px;
+      padding: 3px 9px;
+      border-radius: 20px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
     }
-    .recipe-badge.source-public { color: var(--accent-blue); border-color: rgba(55,138,221,0.4); }
-    .recipe-badge.source-private { color: var(--copper-300); border-color: rgba(201,118,63,0.4); }
-    .recipe-badge.locked { color: var(--text-secondary); }
-    .recipe-badge.running { color: var(--hold-green); border-color: var(--hold-green); }
-    .recipe-badge.pending { color: var(--copper-300); border-color: var(--copper-300); }
-    .recipe-badge.invalid { color: var(--fault-red); border-color: rgba(224,90,90,0.5); }
 
-    .recipe-catalog-error { font-size: 11.5px; color: var(--fault-red); line-height: 1.4; }
+    .recipe-badge.source-public {
+      color: var(--accent-blue);
+      border-color: rgba(55, 138, 221, 0.4);
+    }
 
-    .recipe-catalog-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
-    .recipe-catalog-actions .btn-recipe { padding: 7px 12px; font-size: 12px; }
+    .recipe-badge.source-private {
+      color: var(--copper-300);
+      border-color: rgba(201, 118, 63, 0.4);
+    }
 
-    .cadastro-source-choice { display: flex; flex-direction: column; gap: 8px; }
+    .recipe-badge.locked {
+      color: var(--text-secondary);
+    }
+
+    .recipe-badge.running {
+      color: var(--hold-green);
+      border-color: var(--hold-green);
+    }
+
+    .recipe-badge.pending {
+      color: var(--copper-300);
+      border-color: var(--copper-300);
+    }
+
+    .recipe-badge.invalid {
+      color: var(--fault-red);
+      border-color: rgba(224, 90, 90, 0.5);
+    }
+
+    .recipe-catalog-error {
+      font-size: 11.5px;
+      color: var(--fault-red);
+      line-height: 1.4;
+    }
+
+    .recipe-catalog-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .recipe-catalog-actions .btn-recipe {
+      padding: 7px 12px;
+      font-size: 12px;
+    }
+
+    .cadastro-source-choice {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
     .cadastro-radio {
-      display: flex; align-items: center; gap: 8px;
-      font-size: 13px; color: var(--text-primary);
-      background: var(--bg-primary); border: 1px solid var(--border-subtle);
-      border-radius: 8px; padding: 10px 12px; cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-primary);
+      background: var(--bg-primary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 10px 12px;
+      cursor: pointer;
     }
-    .cadastro-radio-hint { font-size: 11px; color: var(--text-secondary); margin-left: auto; }
+
+    .cadastro-radio-hint {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-left: auto;
+    }
 
     .cadastro-vessels-details {
-      margin-top: 16px; background: var(--bg-primary);
-      border: 1px solid var(--border-subtle); border-radius: var(--radius);
+      margin-top: 16px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius);
       padding: 12px 14px;
     }
-    .cadastro-vessels-details summary { cursor: pointer; font-size: 13px; color: var(--text-secondary); }
-    .cadastro-vessels-details[open] summary { margin-bottom: 10px; color: var(--ink-warm-0); }
-    .cadastro-vessel-row {
-      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-      padding: 8px 0; border-top: 1px solid var(--border-subtle);
+
+    .cadastro-vessels-details summary {
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text-secondary);
     }
-    .cadastro-vessel-row:first-of-type { border-top: none; }
-    .cadastro-vessel-name { font-size: 12.5px; font-weight: 600; color: var(--ink-warm-0); min-width: 90px; }
-    .cadastro-vessel-devices { font-size: 11px; color: var(--text-secondary); flex: 1; min-width: 160px; }
+
+    .cadastro-vessels-details[open] summary {
+      margin-bottom: 10px;
+      color: var(--ink-warm-0);
+    }
+
+    .cadastro-vessel-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 8px 0;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .cadastro-vessel-row:first-of-type {
+      border-top: none;
+    }
+
+    .cadastro-vessel-name {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--ink-warm-0);
+      min-width: 90px;
+    }
+
+    .cadastro-vessel-devices {
+      font-size: 11px;
+      color: var(--text-secondary);
+      flex: 1;
+      min-width: 160px;
+    }
+
     .cadastro-pid-input {
-      width: 64px; background: var(--bg-card); border: 1px solid var(--border-subtle);
-      color: var(--text-primary); border-radius: 6px; padding: 5px 6px; font-size: 12px; text-align: center;
+      width: 64px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      border-radius: 6px;
+      padding: 5px 6px;
+      font-size: 12px;
+      text-align: center;
     }
 
     .cadastro-step-card {
-      background: var(--bg-primary); border: 1px solid var(--border-subtle);
-      border-radius: var(--radius); padding: 14px; margin-bottom: 10px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin-bottom: 10px;
     }
-    .cadastro-step-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+
+    .cadastro-step-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
     .cadastro-step-number {
-      width: 24px; height: 24px; border-radius: 50%; background: var(--copper-500);
-      color: #1a1208; font-size: 12px; font-weight: 700;
-      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--copper-500);
+      color: #1a1208;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
     }
-    .cadastro-step-remove { margin-left: auto; }
-    .cadastro-step-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
-    .cadastro-pumps-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+    .cadastro-step-remove {
+      margin-left: auto;
+    }
+
+    .cadastro-step-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+    }
+
+    .cadastro-pumps-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
     .cadastro-pump-check {
-      display: flex; align-items: center; gap: 6px; font-size: 12px;
-      background: var(--bg-card); border: 1px solid var(--border-subtle);
-      border-radius: 20px; padding: 5px 10px; cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 20px;
+      padding: 5px 10px;
+      cursor: pointer;
     }
-    .cadastro-hop-alarms { margin-top: 12px; border-top: 1px solid var(--border-subtle); padding-top: 10px; }
-    .cadastro-hop-alarm-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-    .cadastro-hop-alarm-row input[type="number"] { width: 70px; }
-    .cadastro-hop-alarm-row input[type="text"] { flex: 1; }
+
+    .cadastro-hop-alarms {
+      margin-top: 12px;
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 10px;
+    }
+
+    .cadastro-hop-alarm-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .cadastro-hop-alarm-row input[type="number"] {
+      width: 70px;
+    }
+
+    .cadastro-hop-alarm-row input[type="text"] {
+      flex: 1;
+    }
 
     .cadastro-error {
-      background: rgba(224,90,90,0.12); border: 1px solid rgba(224,90,90,0.4);
-      color: var(--fault-red); border-radius: 8px; padding: 10px 14px;
-      font-size: 12.5px; margin-top: 14px;
+      background: rgba(224, 90, 90, 0.12);
+      border: 1px solid rgba(224, 90, 90, 0.4);
+      color: var(--fault-red);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12.5px;
+      margin-top: 14px;
     }
-    .cadastro-form-actions { display: flex; justify-content: flex-end; margin-top: 20px; }
 
+    .cadastro-form-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 20px;
+    }
   </style>
 </head>
+
 <body>
 
   <!-- ===== HEADER ===== -->
@@ -943,12 +1845,15 @@
             </tr>
           </thead>
           <tbody id="deviceTableBody">
-            <tr><td colspan="8" style="text-align:center; color: var(--text-secondary);">Carregando...</td></tr>
+            <tr>
+              <td colspan="8" style="text-align:center; color: var(--text-secondary);">Carregando...</td>
+            </tr>
           </tbody>
         </table>
       </div>
       <p style="margin-top: 16px; font-size: 13px; color: var(--text-secondary);">
-        ℹ️ Esta tabela reflete os dados em tempo real do bridge. Configurações avançadas (como mapeamento de GPIO) devem ser ajustadas no arquivo <code>devices.yml</code> ou via variáveis de ambiente.
+        ℹ️ Esta tabela reflete os dados em tempo real do bridge. Configurações avançadas (como mapeamento de GPIO) devem
+        ser ajustadas no arquivo <code>devices.yml</code> ou via variáveis de ambiente.
       </p>
     </section>
 
@@ -956,10 +1861,11 @@
     <section id="recipes" class="tab-pane">
       <div id="recipeEmpty" class="recipe-empty" style="display:none;">
         <div class="icon">🧪</div>
-        <p>Nenhuma receita carregada neste bridge. Vá na aba <strong>📖 Cadastro</strong> e marque uma receita como ativa (depois reinicie o bridge), ou edite <code>data/public/receita_base.yaml</code> diretamente.</p>
+        <p>Nenhuma receita carregada neste bridge. Vá na aba <strong>📖 Cadastro</strong> e marque uma receita como
+          ativa (depois reinicie o bridge), ou edite <code>data/public/receita_base.yaml</code> diretamente.</p>
       </div>
 
-<div id="recipeContent" style="display:none;">
+      <div id="recipeContent" style="display:none;">
         <div id="alarmBanner" class="alarm-banner">
           <div class="alarm-banner-icon">🔔</div>
           <div class="alarm-banner-body">
@@ -975,7 +1881,9 @@
         </div>
 
         <div id="crashBanner" class="crash-banner">
-          <span>⚠️ <strong>Execução interrompida</strong> — o processo encerrou durante <span id="crashFromStatus"></span>. Failsafe já aplicado em todos os atuadores de risco. Retome de onde parou quando estiver pronto.</span>
+          <span>⚠️ <strong>Execução interrompida</strong> — o processo encerrou durante <span
+              id="crashFromStatus"></span>. Failsafe já aplicado em todos os atuadores de risco. Retome de onde parou
+            quando estiver pronto.</span>
           <button onclick="resumeRecipe()">Retomar</button>
         </div>
 
@@ -985,48 +1893,56 @@
               <div class="recipe-eyebrow">Receita ativa</div>
               <div class="recipe-title" id="recipeName">—</div>
             </div>
-            <span class="status-pill idle" id="recipeStatusPill"><span class="dot"></span><span id="recipeStatusText">Idle</span></span>
+            <span class="status-pill idle" id="recipeStatusPill"><span class="dot"></span><span
+                id="recipeStatusText">Idle</span></span>
           </div>
-<div class="recipe-controls">
-            <button class="btn-recipe ghost" id="btnAlarmSettings" onclick="toggleAlarmSettings()" title="Configurar alarmes">⚙️ Alarmes</button>
+          <div class="recipe-controls">
+            <button class="btn-recipe ghost" id="btnAlarmSettings" onclick="toggleAlarmSettings()"
+              title="Configurar alarmes">⚙️ Alarmes</button>
             <button class="btn-recipe ghost" id="btnAbort" onclick="abortRecipe()" disabled>Cancelar</button>
             <button class="btn-recipe primary" id="btnStart" onclick="startRecipe()">Iniciar Receita</button>
 
-          <div id="alarmSettingsPopover" class="alarm-settings-popover" style="display:none;">
-            <div class="alarm-settings-title">Configuração de alarme</div>
+            <div id="alarmSettingsPopover" class="alarm-settings-popover" style="display:none;">
+              <div class="alarm-settings-title">Configuração de alarme</div>
 
-            <label class="alarm-settings-label">Som</label>
-            <select id="alarmSoundType" class="alarm-settings-select" onchange="onAlarmSoundTypeChange()">
-              <option value="beep">Beep simples</option>
-              <option value="siren">Sirene</option>
-              <option value="bell">Campainha dupla</option>
-              <option value="custom">Som personalizado (upload)</option>
-            </select>
+              <label class="alarm-settings-label">Som</label>
+              <select id="alarmSoundType" class="alarm-settings-select" onchange="onAlarmSoundTypeChange()">
+                <option value="beep">Beep simples</option>
+                <option value="siren">Sirene</option>
+                <option value="bell">Campainha dupla</option>
+                <option value="custom">Som personalizado (upload)</option>
+              </select>
 
-            <div id="alarmCustomSoundRow" style="display:none; margin-top:10px;">
-              <input type="file" id="alarmCustomSoundFile" accept="audio/*" onchange="onCustomSoundUpload(event)">
-              <div class="alarm-settings-hint" id="alarmCustomSoundStatus">Nenhum arquivo selecionado.</div>
+              <div id="alarmCustomSoundRow" style="display:none; margin-top:10px;">
+                <input type="file" id="alarmCustomSoundFile" accept="audio/*" onchange="onCustomSoundUpload(event)">
+                <div class="alarm-settings-hint" id="alarmCustomSoundStatus">Nenhum arquivo selecionado.</div>
+              </div>
+
+              <label class="alarm-settings-label" style="margin-top:14px;">Repetições do som</label>
+              <input type="number" id="alarmRepeatCount" class="alarm-settings-input" min="1" max="20" value="3"
+                onchange="onAlarmRepeatChange()">
+              <div class="alarm-settings-hint">O som para sozinho após essa quantidade de repetições, ou no clique em
+                "OK", o que vier primeiro.</div>
+
+              <button class="btn-recipe ghost" style="margin-top:14px; width:100%;" onclick="testAlarmSound()">Testar
+                som</button>
             </div>
-
-            <label class="alarm-settings-label" style="margin-top:14px;">Repetições do som</label>
-            <input type="number" id="alarmRepeatCount" class="alarm-settings-input" min="1" max="20" value="3"
-                   onchange="onAlarmRepeatChange()">
-            <div class="alarm-settings-hint">O som para sozinho após essa quantidade de repetições, ou no clique em "OK", o que vier primeiro.</div>
-
-            <button class="btn-recipe ghost" style="margin-top:14px; width:100%;" onclick="testAlarmSound()">Testar som</button>
-          </div>
           </div>
         </div>
 
-<div class="transport-bar">
+        <div class="transport-bar">
           <div class="transport-buttons">
             <div class="transport-buttons-side left">
-              <button class="transport-btn" id="btnSkipPrevious" onclick="skipPreviousRecipe()" disabled title="Etapa anterior">⏮</button>
-              <button class="transport-btn" id="btnResetStep" onclick="resetStepRecipe()" disabled title="Reiniciar etapa atual">↺</button>
+              <button class="transport-btn" id="btnSkipPrevious" onclick="skipPreviousRecipe()" disabled
+                title="Etapa anterior">⏮</button>
+              <button class="transport-btn" id="btnResetStep" onclick="resetStepRecipe()" disabled
+                title="Reiniciar etapa atual">↺</button>
             </div>
-            <button class="transport-btn play" id="btnPlayPause" onclick="togglePlayPauseRecipe()" title="Iniciar/Pausar">▶</button>
+            <button class="transport-btn play" id="btnPlayPause" onclick="togglePlayPauseRecipe()"
+              title="Iniciar/Pausar">▶</button>
             <div class="transport-buttons-side right">
-              <button class="transport-btn" id="btnSkipNext" onclick="skipNextRecipe()" disabled title="Proxima etapa">⏭</button>
+              <button class="transport-btn" id="btnSkipNext" onclick="skipNextRecipe()" disabled
+                title="Proxima etapa">⏭</button>
             </div>
           </div>
           <div class="countdown-display">
@@ -1060,8 +1976,10 @@
       <div id="cadastroListView">
         <div class="section-title">📖 Minhas Receitas <span class="badge" id="recipeCatalogCount">0</span></div>
         <p class="cadastro-hint">
-          Toda receita nova parte de uma existente — clique em <strong>🧬 Duplicar</strong> e ajuste só o que muda (etapas, temperaturas, bombas). As vasilhas (equipamento físico) vêm prontas.
-          <br>🌐 <strong>Pública</strong> vai pro repositório (compartilhada) · 🔒 <strong>Privada</strong> fica só nesta máquina.
+          Toda receita nova parte de uma existente — clique em <strong>🧬 Duplicar</strong> e ajuste só o que muda
+          (etapas, temperaturas, bombas). As vasilhas (equipamento físico) vêm prontas.
+          <br>🌐 <strong>Pública</strong> vai pro repositório (compartilhada) · 🔒 <strong>Privada</strong> fica só
+          nesta máquina.
         </p>
         <div id="recipeCatalogGrid" class="recipe-catalog-grid"></div>
       </div>
@@ -1072,23 +1990,29 @@
         <p class="cadastro-hint" id="cadastroBasedOnHint"></p>
 
         <label class="alarm-settings-label">Nome da receita</label>
-        <input type="text" id="cadastroName" class="alarm-settings-input" placeholder="Ex.: IPA Tropical" oninput="onCadastroFieldChange()">
+        <input type="text" id="cadastroName" class="alarm-settings-input" placeholder="Ex.: IPA Tropical"
+          oninput="onCadastroFieldChange()">
 
         <label class="alarm-settings-label" style="margin-top:14px;">Salvar como</label>
         <div class="cadastro-source-choice">
-          <label class="cadastro-radio"><input type="radio" name="cadastroSource" value="private" checked> 🔒 Privada <span class="cadastro-radio-hint">só nesta máquina</span></label>
-          <label class="cadastro-radio"><input type="radio" name="cadastroSource" value="public"> 🌐 Pública <span class="cadastro-radio-hint">vai pro repositório</span></label>
+          <label class="cadastro-radio"><input type="radio" name="cadastroSource" value="private" checked> 🔒 Privada
+            <span class="cadastro-radio-hint">só nesta máquina</span></label>
+          <label class="cadastro-radio"><input type="radio" name="cadastroSource" value="public"> 🌐 Pública <span
+              class="cadastro-radio-hint">vai pro repositório</span></label>
         </div>
 
         <details id="cadastroVesselsDetails" class="cadastro-vessels-details">
           <summary>⚙️ Vasilhas (avançado) — <span id="cadastroVesselsSummary">herdadas da receita base</span></summary>
-          <p class="cadastro-hint">Isso é configuração de <strong>equipamento físico</strong> (qual sensor, qual aquecedor, ajuste fino do PID) — normalmente não precisa mexer aqui. Só o ganho do PID é editável; pra trocar o device em si, edite o JSON/YAML diretamente.</p>
+          <p class="cadastro-hint">Isso é configuração de <strong>equipamento físico</strong> (qual sensor, qual
+            aquecedor, ajuste fino do PID) — normalmente não precisa mexer aqui. Só o ganho do PID é editável; pra
+            trocar o device em si, edite o JSON/YAML diretamente.</p>
           <div id="cadastroVesselsEditor"></div>
         </details>
 
         <div class="section-title" style="margin-top:20px;">Etapas</div>
         <div id="cadastroStepsList"></div>
-        <button type="button" class="btn-recipe ghost" style="width:100%; margin-top:8px;" onclick="addCadastroStep()">+ Nova etapa</button>
+        <button type="button" class="btn-recipe ghost" style="width:100%; margin-top:8px;" onclick="addCadastroStep()">+
+          Nova etapa</button>
 
         <div id="cadastroError" class="cadastro-error" style="display:none;"></div>
 
@@ -1650,14 +2574,14 @@
     }
 
     // Função especial para toggle (evita dupla chamada)
-    window.toggleActuator = function(id, newState) {
+    window.toggleActuator = function (id, newState) {
       command(id, newState);
     };
 
     // Atualiza só o label enquanto o usuário arrasta o slider de duty,
     // sem bater na API a cada pixel — a chamada de fato só acontece em
     // onchange (setDuty), quando o usuário solta o slider.
-    window.dutyPreview = function(id, value) {
+    window.dutyPreview = function (id, value) {
       const label = document.getElementById(`dutyLabel-${id}`);
       if (label) label.textContent = `${value}%`;
     };
@@ -1698,7 +2622,7 @@
     // gravado no HTML (o card da vasilha é renderizado uma vez só, ao
     // carregar a receita, então não dá pra "cravar" o !enabled no onclick
     // como é feito na grade de Atuadores, que é re-renderizada a cada poll).
-    window.toggleVesselManual = function(vesselName, heaterDeviceId) {
+    window.toggleVesselManual = function (vesselName, heaterDeviceId) {
       const device = deviceById(heaterDeviceId);
       const currentlyEnabled = !!(device && device.duty_enabled);
       toggleDutyEnabled(heaterDeviceId, !currentlyEnabled);
@@ -1707,7 +2631,7 @@
     // Atualiza só o label do slider de duty dentro do card da vasilha
     // enquanto o usuário arrasta — mesma lógica de dutyPreview(), só que
     // aponta pro elemento do card da receita em vez do card de Atuadores.
-    window.vesselDutyPreview = function(vesselName, value) {
+    window.vesselDutyPreview = function (vesselName, value) {
       const label = document.getElementById(`vdutyLabel-${vesselName}`);
       if (label) label.textContent = `${value}%`;
     };
@@ -1718,13 +2642,13 @@
     // liberado). Reaproveita o mesmo endpoint /command já usado pela
     // grade de Atuadores — o registro de override acontece no backend
     // (command_device -> set_manual_override), não aqui.
-    window.togglePumpManual = function(pumpId) {
+    window.togglePumpManual = function (pumpId) {
       const device = deviceById(pumpId);
       const currentlyOn = !!(device && device.value === true);
       command(pumpId, !currentlyOn);
     };
 
-    window.releasePumpManual = async function(pumpId) {
+    window.releasePumpManual = async function (pumpId) {
       try {
         const res = await fetch(`/api/devices/${pumpId}/command`, {
           method: 'POST',
@@ -1896,11 +2820,11 @@
             cls += ' done';
           }
         }
-        
+
         // MUDANÇA AQUI: Busca o label do vessel para a timeline
         const vesselDisplayLabel = recipeDefinition.vessels[s.vessel]?.label || s.vessel;
         const label = s.label || `${vesselDisplayLabel} \u2014 ${s.target_temp}\u00b0C`;
-        
+
         return `
           <div class="${cls}">
             <div class="timeline-line"></div>
@@ -2004,7 +2928,20 @@
     // mudam.
     function syncPumpSubcard(subcard, pid) {
       const pumpDevice = deviceById(pid);
-      const isOn = pumpDevice ? pumpDevice.value === true : false;
+
+
+      //const isOn = pumpDevice ? pumpDevice.value === true : false;
+      const isOn = pumpDevice
+        ? (
+          pumpDevice.value === true ||
+          pumpDevice.value === 1 ||
+          pumpDevice.value === '1' ||
+          pumpDevice.value === 'true' ||
+          pumpDevice.value === 'on'
+        )
+        : false;
+
+
       const isManual = !!(pumpDevice && pumpDevice.manual_override !== null && pumpDevice.manual_override !== undefined);
 
       subcard.classList.toggle('on', isOn);
@@ -2557,4 +3494,5 @@
     setInterval(tickCountdownDisplay, 1000);
   </script>
 </body>
+
 </html>
