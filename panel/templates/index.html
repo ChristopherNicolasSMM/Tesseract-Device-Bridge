@@ -2931,15 +2931,7 @@
 
 
       //const isOn = pumpDevice ? pumpDevice.value === true : false;
-      const isOn = pumpDevice
-        ? (
-          pumpDevice.value === true ||
-          pumpDevice.value === 1 ||
-          pumpDevice.value === '1' ||
-          pumpDevice.value === 'true' ||
-          pumpDevice.value === 'on'
-        )
-        : false;
+      const isOn = pumpDevice ? Boolean(Number(pumpDevice.value)) : false;
 
 
       const isManual = !!(pumpDevice && pumpDevice.manual_override !== null && pumpDevice.manual_override !== undefined);
