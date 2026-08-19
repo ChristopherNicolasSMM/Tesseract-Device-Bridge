@@ -7,6 +7,11 @@ venv/
 .env
 *.patch
 
+#Como já tem no git atualizado agora não precisa mais incluir para versionar, esta estavel.
+#Seguir com simulado ou real nos ambientes como se fosse um .env
+*.yaml
+*.yml
+
 # data/private/ é onde a diferença entre public e private vira real:
 # tudo aqui dentro NUNCA vai commitado (exceto o .gitkeep, que mantém
 # a pasta existindo em qualquer clone novo do repositório).
