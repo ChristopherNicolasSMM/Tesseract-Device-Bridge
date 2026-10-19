@@ -153,7 +153,7 @@ class Ds18b20Reader:
             raise Ds18b20ReadError(
                 f"Sensor DS18B20 '{self.address}' não encontrado em "
                 f"'{self._device_path}'. Verifique se o overlay 1-Wire está "
-                f"habilitado (dtoverlay=w1-gpio em /boot/config.txt) e se o "
+                f"habilitado (dtoverlay=w1-gpio em /boot/firmware/config.txt ou /boot/config.txt) e se o "
                 f"endereço está correto (rode gpio/ds18b20_scan.py para listar "
                 f"os sensores conectados)."
             )

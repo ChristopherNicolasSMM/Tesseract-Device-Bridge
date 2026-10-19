@@ -97,6 +97,7 @@ class RecipeState:
 
     def save(self, path: str | Path) -> None:
         file_path = Path(path)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_text(json.dumps(asdict(self), ensure_ascii=False, indent=2), encoding="utf-8")
 
     @classmethod

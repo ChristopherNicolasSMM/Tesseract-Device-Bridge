@@ -121,7 +121,7 @@ bash tools/logs.sh --boot
 ```
 
 Erros comuns:
-- `data/public/devices.yml` não encontrado → o `WorkingDirectory` do serviço precisa ser o diretório do projeto. Reinstale com `sudo bash tools/install_service.sh`.
+- `data/public/devices.yml` não encontrado → o padrão é resolvido junto à instalação, independentemente do diretório atual. Confira a presença de `data/public/devices.yml.example` e as permissões do usuário do serviço. Veja [caminhos Windows/Raspberry Pi](07-windows-raspberry-caminhos.md).
 - `ModuleNotFoundError` → o Python do serviço não tem os pacotes instalados. Se usar virtualenv, o script detecta `.venv/` automaticamente. Senão, garanta que o `pip install -r requirements.txt` foi feito com o mesmo Python que o serviço usa.
 
 ---

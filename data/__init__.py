@@ -38,12 +38,13 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
+from project_paths import LEGACY_RECIPE_PATH
 from config import BridgeConfig
 from recipe_engine.models import Recipe, RecipeError
 
 logger = logging.getLogger("tesseract_bridge.data")
 
-DATA_DIR = Path(__file__).parent
+DATA_DIR = Path(__file__).resolve().parent
 PUBLIC_DIR = DATA_DIR / "public"
 PRIVATE_DIR = DATA_DIR / "private"
 
@@ -53,8 +54,7 @@ ACTIVE_RECIPE_POINTER_PATH = DATA_DIR / "active_recipe.txt"
 # Fallback de última instância — comportamento de antes desta pasta
 # existir. Só é alcançado se nem o ponteiro de receita ativa nem
 # receita_base.yaml resolverem em nada (ex.: instalação nova que ainda
-# não migrou). Path relativo à raiz do projeto (cwd do processo).
-LEGACY_RECIPE_PATH = Path("recipe.yml")
+# não migrou). Caminho absoluto ancorado na instalação.
 
 RECIPE_ENTITY = "receita"
 BASE_RECIPE_ID = "public:base"

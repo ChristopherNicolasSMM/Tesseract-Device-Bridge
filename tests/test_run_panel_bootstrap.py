@@ -8,6 +8,7 @@ from config import ConfigError
 
 def test_ensure_config_file_creates_from_example_when_missing(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("run_panel.EXAMPLE_CONFIG_PATH", tmp_path / "data" / "public" / "devices.yml.example")
 
     example_content = "backend: simulated\nmqtt:\n  enabled: false\npanel:\n  enabled: true\ndevices: []\n"
     example_dir = tmp_path / "data" / "public"
@@ -23,6 +24,7 @@ def test_ensure_config_file_creates_from_example_when_missing(tmp_path, monkeypa
 
 def test_ensure_config_file_does_not_overwrite_existing(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("run_panel.EXAMPLE_CONFIG_PATH", tmp_path / "data" / "public" / "devices.yml.example")
 
     (tmp_path / "devices.yml.example").write_text("backend: simulated\n", encoding="utf-8")
     (tmp_path / "devices.yml").write_text("backend: real\n", encoding="utf-8")
@@ -34,6 +36,7 @@ def test_ensure_config_file_does_not_overwrite_existing(tmp_path, monkeypatch):
 
 def test_ensure_config_file_raises_when_example_also_missing(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("run_panel.EXAMPLE_CONFIG_PATH", tmp_path / "data" / "public" / "devices.yml.example")
 
     with pytest.raises(ConfigError, match="modelo padrão"):
         ensure_config_file("devices.yml")
@@ -41,6 +44,7 @@ def test_ensure_config_file_raises_when_example_also_missing(tmp_path, monkeypat
 
 def test_ensure_config_file_creates_parent_dirs(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("run_panel.EXAMPLE_CONFIG_PATH", tmp_path / "data" / "public" / "devices.yml.example")
 
     example_dir = tmp_path / "data" / "public"
     example_dir.mkdir(parents=True)

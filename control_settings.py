@@ -6,8 +6,8 @@ import os
 import tempfile
 from pathlib import Path
 
-DEFAULTS_PATH = Path(__file__).parent / "data/control_defaults.json"
-SETTINGS_PATH = Path(__file__).parent / "data/private/control_settings.json"
+DEFAULTS_PATH = Path(__file__).resolve().parent / "data" / "control_defaults.json"
+SETTINGS_PATH = Path(__file__).resolve().parent / "data" / "private" / "control_settings.json"
 
 
 def factory_settings():

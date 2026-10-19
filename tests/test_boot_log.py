@@ -15,7 +15,7 @@ import types
 import pytest
 
 
-def load_boot_log_fn(tmp_path):
+def load_boot_log_fn(tmp_path, platform_name="posix"):
     """
     Importa a função _boot_log de run_bridge.py injetando tmp_path como
     diretório de fallback — evita escrever em /var/log durante os testes.
@@ -27,16 +27,11 @@ def load_boot_log_fn(tmp_path):
     with open(source_path, "r", encoding="utf-8") as f:
         source = f.read()
 
-    # Cria um módulo temporário com o trecho de _boot_log isolado
-    # (sem precisar importar o módulo inteiro, que tenta subir o bridge)
-    fn_start = source.index("def _boot_log(")
-    # Pega até o próximo def/class de nível raiz após _boot_log
-    rest = source[fn_start:]
-    # Encontra o próximo item de nível raiz (def ou class sem indentação)
-    import re
-    matches = list(re.finditer(r'\ndef [a-z]|\nclass [a-z]', rest))
-    fn_end = matches[1].start() + 1 if len(matches) > 1 else len(rest)
-    fn_source = rest[:fn_end]
+    # Extract just the function, never module-level boot side effects.
+    import ast
+    function = next(node for node in ast.parse(source).body
+                    if isinstance(node, ast.FunctionDef) and node.name == "_boot_log")
+    fn_source = ast.get_source_segment(source, function)
 
     # Substitui os log_dirs hardcoded pelos diretórios de tmp
     fallback_dir = str(tmp_path / "logs")
@@ -53,7 +48,8 @@ def load_boot_log_fn(tmp_path):
 
     ns = {"os": os, "datetime": __import__("datetime"), "sys": sys}
     exec(fn_source, ns)
-    return ns["_boot_log"]
+    from functools import partial
+    return partial(ns["_boot_log"], platform_name=platform_name)
 
 
 def test_boot_log_creates_file_and_writes_message(tmp_path):

@@ -16,7 +16,9 @@
 
 SERVICE_NAME="tesseract-bridge"
 BOOT_LOG_FILE="/var/log/tesseract-bridge/boot.log"
-BOOT_LOG_FALLBACK="./logs/boot.log"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+BOOT_LOG_FALLBACK="$PROJECT_DIR/logs/boot.log"
 
 # ---- opcao --boot-log -------------------------------------------------------
 if [[ "${1:-}" == "--boot-log" ]]; then

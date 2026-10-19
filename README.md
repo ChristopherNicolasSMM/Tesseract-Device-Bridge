@@ -579,3 +579,8 @@ A aba **Configurações** reúne a curva de potência automática da mosturaçã
 ## Desligamento de emergência
 
 Falhas do controlador bloqueiam novos acionamentos, mandam OFF em todos os atuadores e abortam a receita. O DS18B20 não mascara erros com o último valor bom. Veja [comportamento, limites físicos e validação em bancada](docs/manual/06-desligamento-emergencia.md).
+
+
+## Windows e Raspberry Pi
+
+Os caminhos padrão de dados são ancorados na instalação, inclusive ao iniciar por outra pasta. Veja [caminhos, logs e comandos por ambiente](docs/manual/07-windows-raspberry-caminhos.md). Windows usa backend simulado; Raspberry Pi usa backend real.

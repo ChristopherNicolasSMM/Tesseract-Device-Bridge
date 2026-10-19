@@ -26,8 +26,7 @@ from device_runtime import DeviceRuntime
 from gpio.simulated_backend import SimulatedGPIOBackend
 from panel.app import create_panel_app
 
-DEFAULT_CONFIG_PATH = "data/public/devices.yml"
-EXAMPLE_CONFIG_PATH = "data/public/devices.yml.example"
+from project_paths import DEFAULT_CONFIG_PATH, EXAMPLE_CONFIG_PATH
 
 
 def ensure_config_file(path: str) -> None:
@@ -54,7 +53,8 @@ def ensure_config_file(path: str) -> None:
 
 
 def main() -> None:
-    config_path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_CONFIG_PATH
+    file_args = [arg for arg in sys.argv[1:] if not arg.startswith("-")]
+    config_path = file_args[0] if file_args else DEFAULT_CONFIG_PATH
     ensure_config_file(config_path)
     config = BridgeConfig.load(config_path)
 

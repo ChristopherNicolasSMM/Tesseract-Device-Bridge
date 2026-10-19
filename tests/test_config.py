@@ -347,11 +347,11 @@ def test_mqtt_disabled_skips_host_validation(tmp_path):
 
 def test_example_yaml_in_repo_is_valid():
     """
-    O devices.yml versionado no repo precisa, ele mesmo, passar
+    O devices.yml.example versionado no repo precisa, ele mesmo, passar
     pela validação — senão a documentação do projeto está mentindo sobre
     o próprio schema que ela define.
     """
-    config = BridgeConfig.load("data/public/devices.yml")
+    config = BridgeConfig.load(__import__("project_paths").EXAMPLE_CONFIG_PATH)
     assert config.backend == "simulated"
     assert len(config.devices) == 6
 

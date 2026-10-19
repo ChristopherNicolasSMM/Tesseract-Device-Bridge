@@ -29,7 +29,7 @@ import os
 import sys
 import datetime
 
-def _boot_log(msg: str) -> None:
+def _boot_log(msg: str, platform_name: str | None = None) -> None:
     """
     Grava uma linha no arquivo de boot log, independente do logging
     Python normal. Nunca levanta exceção — se falhar, só printa no stderr
@@ -39,10 +39,11 @@ def _boot_log(msg: str) -> None:
     line = f"[{timestamp}] {msg}\n"
 
     # Tenta o diretório padrão de logs do sistema, depois o local do projeto
-    log_dirs = [
-        "/var/log/tesseract-bridge",
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs"),
-    ]
+    log_dirs = [os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")]
+    # A POSIX absolute path becomes drive-root-relative on Windows.
+    # Never create C:\var\log there, even when running as administrator.
+    if (platform_name or os.name) != "nt":
+        log_dirs.insert(0, "/var/log/tesseract-bridge")
     written = False
     for log_dir in log_dirs:
         try:
@@ -113,11 +114,10 @@ from gpio.simulated_backend import SimulatedGPIOBackend
 from panel.app import create_panel_app
 from recipe_engine.engine import RecipeEngine
 from recipe_engine.models import Recipe, RecipeError
+from project_paths import DEFAULT_RECIPE_STATE_PATH
 from run_panel import DEFAULT_CONFIG_PATH, ensure_config_file
 
 logger = logging.getLogger("tesseract_bridge.run_bridge")
-
-DEFAULT_RECIPE_STATE_PATH = "data/private/recipe_state.json"
 
 
 def mqtt_status_provider(bridge: Bridge, config: BridgeConfig):
