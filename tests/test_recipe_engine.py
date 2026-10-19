@@ -8,6 +8,7 @@ from gpio.simulated_backend import SimulatedGPIOBackend
 from recipe_engine.engine import RecipeEngine, RecipeEngineError
 from recipe_engine.models import Recipe
 from recipe_engine.state import RecipeState
+from control_settings import factory_settings, save_settings
 
 
 DEVICES_YAML = """
@@ -90,7 +91,7 @@ steps:
 
 
 @pytest.fixture
-def setup(tmp_path):
+def setup(tmp_path, monkeypatch):
     devices_path = tmp_path / "devices.yml"
     devices_path.write_text(textwrap.dedent(DEVICES_YAML), encoding="utf-8")
     bridge_config = BridgeConfig.load(devices_path)
@@ -103,6 +104,12 @@ def setup(tmp_path):
     recipe = Recipe.load(recipe_path, bridge_config)
 
     state_path = tmp_path / "recipe_state.json"
+    settings = factory_settings()
+    settings["vessel_profiles"]["boil"] = "mash"
+    settings_path = tmp_path / "control_settings.json"
+    save_settings(settings, settings_path)
+    monkeypatch.setattr("control_settings.SETTINGS_PATH", settings_path)
+    # These lifecycle fixtures use 25/30 °C, not a boiling process.
     return runtime, recipe, state_path
 
 
@@ -820,7 +827,7 @@ steps:
 
 
 @pytest.fixture
-def alarm_setup(tmp_path):
+def alarm_setup(tmp_path, monkeypatch):
     devices_path = tmp_path / "devices.yml"
     devices_path.write_text(textwrap.dedent(DEVICES_YAML), encoding="utf-8")
     bridge_config = BridgeConfig.load(devices_path)
@@ -833,6 +840,12 @@ def alarm_setup(tmp_path):
     recipe = Recipe.load(recipe_path, bridge_config)
 
     state_path = tmp_path / "recipe_state.json"
+    settings = factory_settings()
+    settings["vessel_profiles"]["boil"] = "mash"
+    settings_path = tmp_path / "control_settings.json"
+    save_settings(settings, settings_path)
+    monkeypatch.setattr("control_settings.SETTINGS_PATH", settings_path)
+    # These lifecycle fixtures use 25/30 °C, not a boiling process.
     return runtime, recipe, state_path
 
 

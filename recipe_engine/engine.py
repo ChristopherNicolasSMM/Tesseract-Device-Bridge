@@ -28,6 +28,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Optional, Set
 
+from control_settings import load_settings, power_limit
 from device_runtime import DeviceRuntime
 from recipe_engine.models import Recipe, RecipeError
 from recipe_engine.pid import PidController
@@ -53,11 +54,18 @@ class RecipeEngine:
         recipe: Recipe,
         state_path: str | Path,
         now: float,
+        settings_path: str | Path | None = None,
     ) -> None:
+        self._settings_path = settings_path
+        self.control_settings = load_settings(settings_path)
+        self.thermal = {}
         self._runtime = runtime
         self._recipe = recipe
         self._state_path = Path(state_path)
         self._state = RecipeState.load(self._state_path)
+        if self._state.control_settings is not None:
+            from control_settings import validate_settings
+            self.control_settings = validate_settings(self._state.control_settings)
 
         self._pid: Dict[str, PidController] = {
             v.id: PidController(v.pid) for v in recipe.vessels
@@ -178,7 +186,10 @@ class RecipeEngine:
         independente do status atual - acao explicita do usuario, sempre
         permitida.
         """
+        self.control_settings = load_settings(self._settings_path)
+        self.thermal = {}
         self._state = RecipeState.fresh(self._recipe.name)
+        self._state.control_settings = self.control_settings
         self._state.step_started_at = now
         self._state.recipe_started_at = now
         self._reset_controllers_for_current_step()
@@ -343,12 +354,16 @@ class RecipeEngine:
 
         if self._state.status == "ramping":
             current_temp = self._runtime.get_state(vessel.sensor_device_id).value
-            if current_temp >= step.target_temp:
+            if current_temp >= self.target_temperature(step) and not self.thermal.get("over_temperature"):
                 self._state.status = "holding"
                 self._state.hold_started_at = now
                 self._save()
 
         elif self._state.status == "holding":
+            if self.thermal.get("timer_frozen"):
+                self._state.hold_started_at += dt
+                self._save()
+                return
             elapsed = now - self._state.hold_started_at
             self._check_hop_alarms(step, elapsed, now)
             if elapsed >= step.hold_minutes * 60.0:
@@ -356,10 +371,38 @@ class RecipeEngine:
 
     # ---- internos -------------------------------------------------------
 
+    def target_temperature(self, step):
+        if self.control_settings["vessel_profiles"].get(step.vessel, "mash") == "boil":
+            return self.control_settings["boil_temperature"]
+        return step.target_temp
+
     def _apply_heater(self, step, vessel, now: float, dt: float) -> None:
         current_temp = self._runtime.get_state(vessel.sensor_device_id).value
         pid = self._pid[step.vessel]
-        duty = pid.compute(setpoint=step.target_temp, current_value=current_temp, dt=dt)
+        target = self.target_temperature(step)
+        settings = self.control_settings
+        delta = current_temp - target
+        previous = self.thermal.get("over_temperature", False)
+        over = delta > settings["alert_above"] or (previous and delta > settings["alert_clear"])
+        if over and not previous:
+            self._fire_alarm("over_temperature", f"Acima do previsto: {current_temp:.2f} °C / alvo {target:.2f} °C", now)
+        profile = settings["vessel_profiles"].get(vessel.id, "mash")
+        if profile == "boil":
+            limit = settings["boil_power"] if self._state.status == "holding" or current_temp >= target else 100.0
+            if over:
+                limit = 0.0
+            duty = limit
+        else:
+            limit = power_limit(settings["mash_curve"], delta)
+            if over:
+                limit = 0.0
+            duty = pid.compute(setpoint=target, current_value=current_temp, dt=dt, output_limit=limit)
+        self.thermal = {
+            "profile": profile, "temperature": current_temp, "target": target,
+            "delta": delta, "power_limit": limit, "automatic_power": duty,
+            "over_temperature": over,
+            "timer_frozen": over and settings["freeze_hold_on_alert"] and self._state.status == "holding",
+        }
         # So registra a intencao do PID - quem decide o duty efetivo (e
         # escreve no GPIO) e o DeviceRuntime.tick_duty(), que da
         # prioridade a um eventual override manual ou failsafe suspenso.
@@ -411,6 +454,7 @@ class RecipeEngine:
         self._active_pumps = next_active
 
     def _restart_current_step(self, now: float) -> None:
+        self.thermal = {}
         self._state.status = "ramping"
         self._state.step_started_at = now
         self._state.hold_started_at = None

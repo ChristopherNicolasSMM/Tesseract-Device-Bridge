@@ -46,7 +46,7 @@ class PidController:
         self._integral = 0.0
         self._previous_error = None
 
-    def compute(self, setpoint: float, current_value: float, dt: float) -> float:
+    def compute(self, setpoint: float, current_value: float, dt: float, output_limit: float | None = None) -> float:
         """
         Calcula a saída do PID para o instante atual.
 
@@ -59,6 +59,7 @@ class PidController:
         if dt <= 0:
             raise ValueError(f"dt deve ser > 0, recebido {dt}.")
 
+        maximum = self._output_max if output_limit is None else max(self._output_min, min(self._output_max, output_limit))
         error = setpoint - current_value
 
         # Anti-windup: só acumula integral se a saída não estiver
@@ -74,10 +75,16 @@ class PidController:
             + self._gains.kd * derivative
         )
 
-        if self._output_min <= output_unclamped <= self._output_max:
+        # Conditional integration also allows unwinding when saturated.
+        if (self._output_min <= output_unclamped <= maximum
+                or (output_unclamped > maximum and error < 0)
+                or (output_unclamped < self._output_min and error > 0)):
             self._integral = tentative_integral
+        # Track a reduced external ceiling, preventing a stored demand above it.
+        if output_limit is not None and self._gains.ki > 0:
+            self._integral = min(self._integral, maximum / self._gains.ki)
 
-        output = max(self._output_min, min(self._output_max, output_unclamped))
+        output = max(self._output_min, min(maximum, output_unclamped))
 
         self._previous_error = error
         return output

@@ -569,3 +569,8 @@ sem nenhuma validação automática entre os dois repositórios:
 pip install -r requirements.txt
 python -m pytest tests/ -v
 ```
+
+
+## Controle de temperatura configurável
+
+A aba **Configurações** reúne a curva de potência automática da mosturação, alertas de excesso e o perfil independente de fervura. Ajustes locais são preservados e passam a valer na próxima execução. Veja o [manual de configurações](docs/manual/05-configuracoes-temperatura.md). As janelas de acionamento e as prioridades de controle permanecem as existentes.

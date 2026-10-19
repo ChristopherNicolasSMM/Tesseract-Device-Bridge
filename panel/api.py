@@ -23,6 +23,7 @@ from typing import Callable, Optional
 from flask import Blueprint, current_app, jsonify, request
 
 import data
+from control_settings import factory_settings, load_settings, save_settings
 from device_runtime import DeviceRuntime, DeviceRuntimeError
 from recipe_engine.engine import RecipeEngine, RecipeEngineError
 from recipe_engine.models import RecipeError
@@ -182,6 +183,7 @@ def _recipe_status_payload(engine: RecipeEngine) -> dict:
         current_vessel = engine.recipe.steps[state.step_index].vessel
         current_duty = engine.current_duty(current_vessel)
     return {
+        "thermal": engine.thermal if state.status in ("ramping", "holding") else {},
         "loaded_recipe_name": engine.recipe_name,
         "recipe_name": state.recipe_name,
         "status": state.status,
@@ -240,7 +242,7 @@ def recipe_definition():
         "steps": [
             {
                 "vessel": s.vessel,
-                "target_temp": s.target_temp,
+                "target_temp": engine.target_temperature(s),
                 "hold_minutes": s.hold_minutes,
                 "pumps": s.pumps,
                 "label": s.label,
@@ -482,3 +484,31 @@ def set_active_recipe():
         "active_recipe_id": recipe_id,
         "note": "efetivo só no próximo restart do processo (troca de receita exige reiniciar).",
     })
+
+
+def _settings_path():
+    engine = _recipe_engine()
+    return engine._settings_path if engine is not None else current_app.config.get("CONTROL_SETTINGS_PATH")
+
+
+@bp.get("/control-settings")
+def get_control_settings():
+    engine = _recipe_engine()
+    return jsonify(settings=load_settings(_settings_path()), defaults=factory_settings(),
+                   vessels=[{"id": v.id, "name": v.name} for v in engine.recipe.vessels] if engine else [],
+                   note="Alterações entram na próxima execução da receita.")
+
+
+@bp.put("/control-settings")
+def put_control_settings():
+    try:
+        settings = save_settings(request.get_json(silent=True), _settings_path())
+    except (ValueError, TypeError) as exc:
+        return jsonify(error=str(exc)), 400
+    return jsonify(settings=settings, note="Salvo. Efetivo na próxima execução.")
+
+
+@bp.post("/control-settings/restore")
+def restore_control_settings():
+    save_settings(factory_settings(), _settings_path())
+    return jsonify(settings=factory_settings(), note="Padrões restaurados. Efetivo na próxima execução.")

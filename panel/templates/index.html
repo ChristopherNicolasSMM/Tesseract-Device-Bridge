@@ -1785,6 +1785,16 @@
       justify-content: flex-end;
       margin-top: 20px;
     }
+    #control-settings { max-width: 980px; }
+    #control-settings h3 { margin: 24px 0 12px; }
+    #control-settings p { margin: 12px 0; line-height: 1.6; }
+    #control-settings label { line-height: 2.7; }
+    #control-settings input[type="number"], #control-settings select {
+      padding: 7px; border: 1px solid #64748b; border-radius: 6px;
+      color: inherit; background: transparent; max-width: 160px;
+    }
+    #control-settings button { margin: 20px 12px 0 0; padding: 10px 16px;
+      border: 1px solid #64748b; border-radius: 6px; cursor: pointer; }
   </style>
 </head>
 
@@ -1809,6 +1819,7 @@
     <button class="nav-tab active" data-tab="dashboard">📊 Painel</button>
     <button class="nav-tab" data-tab="management">⚙️ Gerenciamento</button>
     <button class="nav-tab" data-tab="recipes">🍺 Receitas</button>
+    <button class="nav-tab" data-tab="control-settings">⚙️ Configurações</button>
     <button class="nav-tab" data-tab="cadastro">📖 Cadastro</button>
   </nav>
 
@@ -1971,6 +1982,28 @@
       </div>
     </section>
 
+    <section id="control-settings" class="tab-pane">
+      <div class="section-title">⚙️ Controle de temperatura</div>
+      <p>Configurações locais preservadas nas atualizações. Alterações entram na próxima execução, inclusive sem reiniciar o Bridge.</p>
+      <p>A curva limita somente a potência automática. Comando manual e fail-safe mantêm suas prioridades.</p>
+      <form id="controlSettingsForm">
+        <h3>Mosturação — curva de potência máxima</h3>
+        <p>Diferenças relativas ao alvo em °C; redução gradual entre os pontos.</p>
+        <div id="controlCurve"></div>
+        <h3>Oscilação e alertas</h3>
+        <label>Disparar acima do alvo + <input type="number" step="0.1" min="0.1" id="controlAlert" required> °C</label><br>
+        <label>Encerrar ao voltar para alvo + <input type="number" step="0.1" min="0" id="controlClear" required> °C</label><br>
+        <label><input type="checkbox" id="controlFreeze"> Congelar contagem do patamar durante excesso crítico</label>
+        <h3>Fervura</h3>
+        <p>O perfil fervura usa a temperatura abaixo como alvo de todas as etapas do recipiente selecionado. Não usa a curva de mosturação.</p>
+        <label>Temperatura local de fervura <input type="number" min="50" max="110" step="0.1" id="controlBoilTemp" required> °C</label><br>
+        <label>Potência para manter fervura <input type="number" min="0" max="100" step="0.1" id="controlBoilPower" required> %</label>
+        <h3>Perfil por recipiente</h3><div id="controlProfiles"></div>
+        <button type="submit">Salvar configurações</button>
+        <button type="button" id="controlRestore">Restaurar padrões de fábrica</button>
+      </form>
+      <p id="controlSettingsMessage" role="status"></p>
+    </section>
     <!-- CADASTRO DE RECEITAS -->
     <section id="cadastro" class="tab-pane">
       <div id="cadastroListView">
@@ -2804,7 +2837,7 @@
           else if (i === status.step_index && (status.status === 'ramping' || status.status === 'holding')) {
             cls += ' current';
             if (status.status === 'holding') cls += ' holding';
-            meta = status.status === 'ramping' ? 'subindo\u2026' : 'em patamar\u2026';
+            meta = status.thermal?.over_temperature ? '🔴 acima do previsto' : (status.status === 'ramping' ? 'subindo\u2026' : 'em patamar\u2026');
           } else if (i === status.step_index && status.status === 'finished') {
             cls += ' done';
           }
@@ -2831,7 +2864,7 @@
           else if (i === status.step_index && (status.status === 'ramping' || status.status === 'holding')) {
             cls += ' current';
             if (status.status === 'holding') cls += ' holding';
-            meta = status.status === 'ramping' ? 'subindo\u2026' : 'em patamar\u2026';
+            meta = status.thermal?.over_temperature ? '🔴 acima do previsto' : (status.status === 'ramping' ? 'subindo\u2026' : 'em patamar\u2026');
           } else if (i === status.step_index && status.status === 'finished') {
             cls += ' done';
           }
@@ -3089,7 +3122,13 @@
           finished: 'Concluida', aborted: 'Cancelada',
           paused_after_crash: 'Pausada (queda)', paused_manual: 'Pausada',
         };
-        $('recipeStatusText').textContent = labels[status.status] || status.status;
+        $('recipeStatusText').textContent = status.thermal?.over_temperature ? 'Acima do previsto' : (labels[status.status] || status.status);
+        pill.style.background = status.thermal?.over_temperature ? '#9f1239' : '';
+        pill.style.color = status.thermal?.over_temperature ? '#fff' : '';
+        let thermalInfo = document.getElementById('thermalInfo');
+        if (!thermalInfo) { thermalInfo = document.createElement('p'); thermalInfo.id = 'thermalInfo'; pill.parentNode.appendChild(thermalInfo); }
+        const thermal = status.thermal;
+        thermalInfo.textContent = thermal?.temperature != null ? `Atual: ${thermal.temperature.toFixed(2)} °C · Alvo: ${thermal.target.toFixed(2)} °C · Limite automático: ${thermal.power_limit.toFixed(1)}% · Pedido automático: ${thermal.automatic_power.toFixed(1)}%${thermal.timer_frozen ? ' · Contagem congelada' : ''}` : '';
 
         $('btnStart').disabled = (status.status === 'ramping' || status.status === 'holding');
         $('btnAbort').disabled = !(status.status === 'ramping' || status.status === 'holding');
@@ -3150,6 +3189,7 @@
         const step = recipeDefinition.steps[status.step_index];
         countdownAnchor = {
           mode: 'holding',
+          thermalFrozen: status.thermal?.timer_frozen || false,
           deadlineEpoch: status.hold_started_at + (step.hold_minutes * 60),
           serverNowEpoch: Date.now() / 1000,
           clientNowMs: Date.now(),
@@ -3190,12 +3230,12 @@
         labelEl.textContent = labels[countdownAnchor.mode] || countdownAnchor.mode;
         return;
       }
-      const elapsedSinceAnchor = (Date.now() - countdownAnchor.clientNowMs) / 1000;
+      const elapsedSinceAnchor = countdownAnchor.thermalFrozen ? 0 : (Date.now() - countdownAnchor.clientNowMs) / 1000;
       if (countdownAnchor.mode === 'holding') {
         const nowEpoch = countdownAnchor.serverNowEpoch + elapsedSinceAnchor;
         const remaining = countdownAnchor.deadlineEpoch - nowEpoch;
         timeEl.textContent = formatMMSS(Math.max(0, remaining));
-        labelEl.textContent = 'Tempo restante na etapa';
+        labelEl.textContent = countdownAnchor.thermalFrozen ? 'Contagem congelada — acima do previsto' : 'Tempo restante na etapa';
       } else if (countdownAnchor.mode === 'ramping') {
         const nowEpoch = countdownAnchor.serverNowEpoch + elapsedSinceAnchor;
         const elapsed = nowEpoch - countdownAnchor.startedEpoch;
@@ -3475,6 +3515,7 @@
     async function startRecipe() {
       try {
         await fetch('/api/recipe/start', { method: 'POST' });
+        recipeDefinition = await (await fetch('/api/recipe/definition')).json();
         toast('Receita iniciada', 'success');
         pollRecipeStatus();
       } catch (e) { toast('Erro ao iniciar receita', 'error'); }
@@ -3511,6 +3552,7 @@
 
   </script>
 
+<script src="/static/control-settings.js"></script>
 </body>
 
 </html>
