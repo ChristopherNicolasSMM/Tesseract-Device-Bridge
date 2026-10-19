@@ -25,6 +25,9 @@ zero sem mudar de etapa).
 
 from __future__ import annotations
 
+import logging
+import time
+from functools import wraps
 from pathlib import Path
 from typing import Dict, Optional, Set
 
@@ -45,6 +48,29 @@ from recipe_engine.state import (
 
 class RecipeEngineError(RuntimeError):
     """Erro de uso do RecipeEngine - ex.: acao incompativel com o status atual."""
+
+
+def abort_on_failure(method):
+    @wraps(method)
+    def wrapped(self, *args, **kwargs):
+        with self._runtime._io_lock:
+            return protected(self, *args, **kwargs)
+    def protected(self, *args, **kwargs):
+        try:
+            self._runtime.ensure_operational()
+            return method(self, *args, **kwargs)
+        except BaseException as exc:
+            self.emergency_abort(str(exc))
+            raise
+    return wrapped
+
+
+def serialized(method):
+    @wraps(method)
+    def wrapped(self, *args, **kwargs):
+        with self._runtime._io_lock:
+            return method(self, *args, **kwargs)
+    return wrapped
 
 
 class RecipeEngine:
@@ -85,6 +111,7 @@ class RecipeEngine:
         self._confirmed_pumps: Set[str] = set()
         self._pending_confirmation: Set[str] = set()
 
+        self._runtime.set_fault_handler(self.emergency_abort)
         if self._state.status in ACTIVE_STATUSES:
             self._recover_from_crash(now)
 
@@ -148,6 +175,7 @@ class RecipeEngine:
         """
         return sorted(self._pending_confirmation)
 
+    @serialized
     def confirm_pump_auto(self, pump_id: str) -> None:
         """
         Operador confirmou que é seguro a receita ligar esta bomba
@@ -160,6 +188,7 @@ class RecipeEngine:
         self._pending_confirmation.discard(pump_id)
         self._confirmed_pumps.add(pump_id)
 
+    @serialized
     def decline_pump_auto(self, pump_id: str) -> None:
         """
         Operador optou por manter esta bomba manual — registra um
@@ -173,6 +202,7 @@ class RecipeEngine:
         self._pending_confirmation.discard(pump_id)
         self._runtime.set_manual_override(pump_id, False)
 
+    @serialized
     def acknowledge_alarm(self, alarm_id: int) -> None:
         """Confirma (dispensa) um alarme pendente pelo id - remove da lista."""
         self._state.pending_alarms = [a for a in self._state.pending_alarms if a.id != alarm_id]
@@ -180,6 +210,7 @@ class RecipeEngine:
 
     # ---- acoes de usuario -------------------------------------------------
 
+    @abort_on_failure
     def start(self, now: float) -> None:
         """
         Inicia (ou reinicia do zero) a execucao da receita carregada,
@@ -204,6 +235,7 @@ class RecipeEngine:
         self._fire_alarm(ALARM_TYPE_VESSEL_START, f"Início {first_vessel.name}", now)
         self._save()
 
+    @serialized
     def abort(self, now: float) -> None:
         """
         Cancela a execucao manualmente: aplica failsafe em tudo, status
@@ -216,6 +248,7 @@ class RecipeEngine:
         self._state.status = "aborted"
         self._save()
 
+    @serialized
     def pause(self, now: float) -> None:
         """
         Pausa deliberada pelo usuario (botao no painel) - aplica
@@ -238,6 +271,7 @@ class RecipeEngine:
         self._active_pumps = set()
         self._save()
 
+    @abort_on_failure
     def resume(self, now: float) -> None:
         """
         Retoma uma execucao pausada (por crash OU pausa manual), de
@@ -270,6 +304,7 @@ class RecipeEngine:
         self._state.paused_from_status = None
         self._save()
 
+    @serialized
     def skip_next(self, now: float) -> None:
         """
         Forca avanco pra proxima etapa, ignorando temperatura/tempo de
@@ -282,6 +317,7 @@ class RecipeEngine:
             )
         self._advance_step(now)
 
+    @serialized
     def skip_previous(self, now: float) -> None:
         """
         Volta pra etapa anterior (reiniciando ela do zero - rampa de
@@ -304,6 +340,7 @@ class RecipeEngine:
 
         self._restart_current_step(now)
 
+    @serialized
     def reset_current_step(self, now: float) -> None:
         """
         Reinicia a etapa atual do zero (volta pra ramping, zera tempo
@@ -318,6 +355,7 @@ class RecipeEngine:
 
     # ---- loop principal -----------------------------------------------------
 
+    @abort_on_failure
     def tick(self, now: float) -> None:
         """
         Avanca o motor um passo - chamado periodicamente pelo loop do
@@ -533,3 +571,20 @@ class RecipeEngine:
 
     def _save(self) -> None:
         self._state.save(self._state_path)
+
+
+    @serialized
+    def emergency_abort(self, reason):
+        # Hardware first. Disk errors may not prevent remaining outputs OFF.
+        self._runtime.emergency_stop(reason)
+        self._state.total_elapsed_seconds_frozen = self.total_elapsed_seconds(time.time())
+        self._state.status = "aborted"
+        self._state.safety_error = str(reason)
+        self._active_pumps.clear()
+        self._pending_confirmation.clear()
+        self._last_tick_time = None
+        self.thermal = {}
+        try:
+            self._save()
+        except BaseException:
+            logging.getLogger("tesseract_bridge.safety").exception("Falha ao persistir aborto de emergência")

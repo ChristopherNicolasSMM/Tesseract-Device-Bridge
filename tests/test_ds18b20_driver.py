@@ -26,6 +26,13 @@ MISSING_T_CONTENT = "4e 01 4b 46 7f ff 0e 10 68 : crc=68 YES\n4e 01 4b 46 7f ff 
 GARBAGE_CONTENT = "isto nao eh um arquivo w1_slave valido"
 
 
+def replace_sample(path, content):
+    # Atomic fixture replacement prevents a fake empty-file error while writing.
+    pending = path.with_suffix(".tmp")
+    pending.write_text(content, encoding="ascii")
+    pending.replace(path)
+
+
 @pytest.fixture
 def make_reader():
     """
@@ -116,31 +123,30 @@ def test_value_is_cached_updates_only_on_next_poll_cycle(tmp_path, make_reader):
     reader = make_reader(pin=4, address="28-fff", base_path=str(base))
     assert reader.value == 20.875  # da leitura síncrona inicial
 
-    (base / "28-fff" / "w1_slave").write_text(
-        "4e 01 4b 46 7f ff 0e 10 68 : crc=68 YES\n4e 01 4b 46 7f ff 0e 10 68 t=22000\n",
-        encoding="ascii",
-    )
+    replace_sample(base / "28-fff" / "w1_slave",
+        "4e 01 4b 46 7f ff 0e 10 68 : crc=68 YES\n4e 01 4b 46 7f ff 0e 10 68 t=22000\n")
     time.sleep(SETTLE)
     assert reader.value == 22.0  # agora sim, depois de pelo menos 1 ciclo de poll
 
 
-def test_transient_read_failure_keeps_last_good_value_cached(tmp_path, make_reader):
+def test_read_failure_latches_fault_even_after_sensor_recovers(tmp_path, make_reader):
     """
-    Um glitch de CRC (comum em 1-Wire por ruído elétrico) na thread de
-    fundo não deve derrubar .value nem travar o valor bom anterior --
-    só loga e tenta de novo no próximo ciclo.
+    Qualquer falha detectada bloqueia a leitura até reinicializar o driver,
+    mesmo se uma leitura posterior recuperar: não retomar aquecimento sozinho.
     """
     base = make_w1_dir(tmp_path, "28-hhh", VALID_CONTENT)
     reader = make_reader(pin=4, address="28-hhh", base_path=str(base))
     assert reader.value == 20.875
 
-    (base / "28-hhh" / "w1_slave").write_text(INVALID_CRC_CONTENT, encoding="ascii")
+    replace_sample(base / "28-hhh" / "w1_slave", INVALID_CRC_CONTENT)
     time.sleep(SETTLE)
-    assert reader.value == 20.875  # sem exceção, valor bom anterior mantido
+    with pytest.raises(Ds18b20ReadError, match="Falha de leitura"):
+        _ = reader.value
 
-    (base / "28-hhh" / "w1_slave").write_text(VALID_CONTENT, encoding="ascii")
+    replace_sample(base / "28-hhh" / "w1_slave", VALID_CONTENT)
     time.sleep(SETTLE)
-    assert reader.value == 20.875  # se recupera sozinho no próximo ciclo bom
+    with pytest.raises(Ds18b20ReadError, match="Falha de leitura"):
+        _ = reader.value
 
 
 def test_value_raises_when_stale_after_seconds_exceeded(tmp_path, make_reader):

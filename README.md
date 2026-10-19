@@ -574,3 +574,8 @@ python -m pytest tests/ -v
 ## Controle de temperatura configurável
 
 A aba **Configurações** reúne a curva de potência automática da mosturação, alertas de excesso e o perfil independente de fervura. Ajustes locais são preservados e passam a valer na próxima execução. Veja o [manual de configurações](docs/manual/05-configuracoes-temperatura.md). As janelas de acionamento e as prioridades de controle permanecem as existentes.
+
+
+## Desligamento de emergência
+
+Falhas do controlador bloqueiam novos acionamentos, mandam OFF em todos os atuadores e abortam a receita. O DS18B20 não mascara erros com o último valor bom. Veja [comportamento, limites físicos e validação em bancada](docs/manual/06-desligamento-emergencia.md).

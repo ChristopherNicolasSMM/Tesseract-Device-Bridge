@@ -54,6 +54,7 @@ class AlarmEvent:
 
 @dataclass
 class RecipeState:
+    safety_error: Optional[str] = None
     control_settings: Optional[dict] = None
     recipe_name: Optional[str] = None
     status: str = "idle"

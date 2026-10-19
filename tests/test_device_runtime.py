@@ -199,7 +199,7 @@ def test_setup_all_forwards_ds18b20_poll_kwargs_to_driver(tmp_path):
           pin: 4
           driver: ds18b20
           address: "28-poll-test"
-          base_path: "{tmp_path}"
+          base_path: "{tmp_path.as_posix()}"
           poll_interval_seconds: 0.01
           stale_after_seconds: 0.05
     """

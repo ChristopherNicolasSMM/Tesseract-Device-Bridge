@@ -68,7 +68,7 @@ def test_index_page_loads(client):
 def test_status_reports_disabled_when_mqtt_disabled(client):
     res = client.get("/api/status")
     assert res.status_code == 200
-    assert res.get_json() == {"mqtt": "disabled"}
+    assert res.get_json() == {"mqtt": "disabled", "emergency": False, "emergency_reason": None, "shutdown_errors": {}}
 
 
 def test_list_devices_returns_both_devices(client):

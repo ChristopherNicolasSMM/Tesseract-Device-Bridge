@@ -39,6 +39,10 @@ não religar um atuador de risco sozinho.
 
 from __future__ import annotations
 
+import logging
+import math
+import threading
+from functools import wraps
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -105,6 +109,17 @@ def resolve_mode(role: str, subtype: str | None) -> str:
     return mode
 
 
+logger = logging.getLogger("tesseract_bridge.safety")
+
+
+def synchronized(method):
+    @wraps(method)
+    def wrapped(self, *args, **kwargs):
+        with self._io_lock:
+            return method(self, *args, **kwargs)
+    return wrapped
+
+
 class DeviceRuntime:
     """
     Liga cada DeviceConfig a um pino do GPIOBackend, e expõe operações
@@ -113,6 +128,11 @@ class DeviceRuntime:
     """
 
     def __init__(self, config: BridgeConfig, backend: GPIOBackend) -> None:
+        self._io_lock = threading.RLock()
+        self.emergency_reason = None
+        self.shutdown_errors = {}
+        self._fault_handler = None
+        self._closed = False
         self._config = config
         self._backend = backend
 
@@ -147,10 +167,16 @@ class DeviceRuntime:
         # silenciosamente na próxima troca de etapa.
         self._manual_override: Dict[str, Any] = {}
 
-        self._setup_all()
+        try:
+            self._setup_all()
+        except BaseException as exc:
+            self.trip(f"Falha na inicialização: {exc}")
+            self.shutdown()
+            raise
 
     def _setup_all(self) -> None:
-        for device in self._config.devices:
+        # Initialize outputs OFF before reading any potentially failing sensor.
+        for device in sorted(self._config.devices, key=lambda d: d.role != "actuator"):
             mode = resolve_mode(device.role, device.subtype)
             kwargs: Dict[str, Any] = {}
             kwargs.update(device.simulated)
@@ -177,18 +203,26 @@ class DeviceRuntime:
                 kwargs["stale_after_seconds"] = device.hardware["stale_after_seconds"]
             if "base_path" in device.hardware:
                 kwargs["base_path"] = device.hardware["base_path"]
+            if device.role == "actuator":
+                kwargs["initial_value"] = 0.0 if mode == "pwm" else False
+            if device.hardware.get("driver") == "ds18b20":
+                kwargs["on_error"] = lambda exc, device_id=device.id: self.trip(f"Sensor {device_id}: {exc}")
             self._backend.setup(pin=device.hardware["pin"], mode=mode, **kwargs)
 
+            self.ensure_operational()
             if device.has_duty_control:
                 self._tpc[device.id] = TimeProportioningController(device.hardware["window_seconds"])
 
+    @synchronized
     def list_devices(self) -> List[DeviceState]:
         return [self._state_of(device) for device in self._config.devices]
 
+    @synchronized
     def get_state(self, device_id: str) -> DeviceState:
         device = self._config.get_device(device_id)
         return self._state_of(device)
 
+    @synchronized
     def set_actuator(self, device_id: str, value: Any) -> DeviceState:
         """
         Aciona um atuador diretamente (sem passar por MQTT) — usado pelo
@@ -200,9 +234,10 @@ class DeviceRuntime:
             raise DeviceRuntimeError(
                 f"set_actuator chamado em '{device_id}', que não é actuator (role='{device.role}')."
             )
-        self._backend.write(device.hardware["pin"], value, address=device.hardware.get("address"))
+        self._write(device, value)
         return self._state_of(device)
 
+    @synchronized
     def inject_sensor(self, device_id: str, value: Any) -> DeviceState:
         """
         Injeta um valor fake em um sensor simulado (painel ajustando um
@@ -219,6 +254,7 @@ class DeviceRuntime:
         self._backend.inject(device.hardware["pin"], value, address=device.hardware.get("address"))
         return self._state_of(device)
 
+    @synchronized
     def apply_failsafe(self, device_id: str) -> DeviceState:
         """
         Aplica failsafe_value (do próprio devices.yml) localmente a um
@@ -241,6 +277,7 @@ class DeviceRuntime:
             self._failsafe_suspended.add(device.id)
         return self.set_actuator(device_id, device.failsafe_value)
 
+    @synchronized
     def apply_failsafe_external(self, device_id: str, value: Any) -> DeviceState:
         """
         Igual a apply_failsafe(), mas com o valor vindo de fora (payload
@@ -253,6 +290,7 @@ class DeviceRuntime:
             self._failsafe_suspended.add(device.id)
         return self.set_actuator(device_id, value)
 
+    @synchronized
     def resume_all_suspended_overrides(self) -> None:
         """
         Limpa toda suspensão de failsafe. Atuadores com controle de
@@ -268,6 +306,7 @@ class DeviceRuntime:
             device_id for device_id in self._failsafe_suspended
             if device_id in self._manual_override
         ]
+        self.ensure_operational()
         self._failsafe_suspended.clear()
         for device_id in suspended_bool_overrides:
             self.set_actuator(device_id, self._manual_override[device_id])
@@ -284,6 +323,7 @@ class DeviceRuntime:
         """
         return device_id in self._manual_override
 
+    @synchronized
     def set_manual_override(self, device_id: str, value: Optional[Any]) -> DeviceState:
         """
         Define (value não-None) ou limpa (None) um override manual pra um
@@ -301,6 +341,7 @@ class DeviceRuntime:
         if value is None:
             self._manual_override.pop(device.id, None)
             return self._state_of(device)
+        self.ensure_operational()
         self._manual_override[device.id] = value
         if device.id in self._failsafe_suspended:
             # Guarda a intenção, mas não escreve fisicamente enquanto o
@@ -309,6 +350,7 @@ class DeviceRuntime:
             return self._state_of(device)
         return self.set_actuator(device_id, value)
 
+    @synchronized
     def set_manual_duty_percent(self, device_id: str, duty_percent: float) -> DeviceState:
         """
         Define só o VALOR de % do override manual — NÃO arma o
@@ -326,9 +368,11 @@ class DeviceRuntime:
             raise DeviceRuntimeError(f"duty_percent deve ser numérico (recebido {duty_percent!r}).")
         if not (0.0 <= duty_percent <= 100.0):
             raise DeviceRuntimeError(f"duty_percent deve estar entre 0 e 100 (recebido {duty_percent}).")
+        self.ensure_operational()
         self._manual_duty[device.id] = float(duty_percent)
         return self._state_of(device)
 
+    @synchronized
     def set_manual_enabled(self, device_id: str, enabled: bool) -> DeviceState:
         """
         Liga/desliga o interruptor mestre do override manual — separado
@@ -343,6 +387,7 @@ class DeviceRuntime:
                 f"set_manual_enabled chamado em '{device_id}', que não declara "
                 f"hardware.window_seconds (sem controle de potência)."
             )
+        self.ensure_operational()
         if enabled:
             self._manual_enabled.add(device.id)
             # Garante que exista um valor (default seguro 0%) — ligar o
@@ -353,6 +398,7 @@ class DeviceRuntime:
             self._manual_enabled.discard(device.id)
         return self._state_of(device)
 
+    @synchronized
     def set_manual_duty(self, device_id: str, duty_percent: Optional[float]) -> DeviceState:
         """
         Atômico: define o valor de % E arma o interruptor mestre de uma
@@ -367,6 +413,7 @@ class DeviceRuntime:
         self.set_manual_duty_percent(device_id, duty_percent)
         return self.set_manual_enabled(device_id, True)
 
+    @synchronized
     def set_pid_duty(self, device_id: str, duty_percent: float) -> None:
         """
         Chamado pelo RecipeEngine a cada tick com o duty calculado pelo
@@ -380,8 +427,10 @@ class DeviceRuntime:
                 f"set_pid_duty chamado em '{device_id}', que não declara "
                 f"hardware.window_seconds (sem controle de potência)."
             )
+        self.ensure_operational()
         self._pid_duty[device.id] = max(0.0, min(100.0, float(duty_percent)))
 
+    @synchronized
     def get_duty_state(self, device_id: str) -> "DutyState":
         device = self._config.get_device(device_id)
         if device.id not in self._tpc:
@@ -397,7 +446,7 @@ class DeviceRuntime:
         )
 
     def _resolve_effective_duty(self, device_id: str) -> Tuple[float, str]:
-        if device_id in self._failsafe_suspended:
+        if self.emergency_reason or device_id in self._failsafe_suspended:
             return 0.0, "failsafe_suspended"
         if device_id in self._manual_enabled:
             return self._manual_duty.get(device_id, 0.0), "manual"
@@ -405,6 +454,7 @@ class DeviceRuntime:
             return self._pid_duty[device_id], "pid"
         return 0.0, "idle"
 
+    @synchronized
     def tick_duty(self, now: float) -> None:
         """
         Avança um passo o controle de potência de todo atuador com
@@ -432,7 +482,7 @@ class DeviceRuntime:
                 tpc.set_duty_cycle(duty_percent)
             on = tpc.should_be_on(now)
             device = self._config.get_device(device_id)
-            self._backend.write(device.hardware["pin"], on, address=device.hardware.get("address"))
+            self._write(device, on)
 
     def get_device_config(self, device_id: str) -> DeviceConfig:
         """
@@ -446,7 +496,7 @@ class DeviceRuntime:
         return list(self._config.devices)
 
     def _state_of(self, device: DeviceConfig) -> DeviceState:
-        value = self._backend.read(device.hardware["pin"], address=device.hardware.get("address"))
+        value = self._read(device)
         source = device.simulated if device.role == "sensor" else device.limits
         device_range = {
             "min": source.get("min", 0),
@@ -483,3 +533,88 @@ class DeviceRuntime:
             manual_duty_percent=manual_duty_percent,
             manual_override=manual_override,
         )
+
+
+    def ensure_operational(self):
+        if self.emergency_reason or self._closed:
+            raise DeviceRuntimeError(f"Bloqueio de emergência: {self.emergency_reason or 'encerrado'}. Reinicie após corrigir a causa.")
+
+    def set_fault_handler(self, handler):
+        self._fault_handler = handler
+
+    @synchronized
+    def emergency_stop(self, reason):
+        """Latch first, then attempt every output OFF without reading any sensor."""
+        self.emergency_reason = self.emergency_reason or str(reason)
+        self._manual_enabled.clear()
+        self._manual_duty.clear()
+        self._manual_override.clear()
+        self._pid_duty.clear()
+        self._failsafe_suspended.update(d.id for d in self._config.devices if d.role == "actuator")
+        for tpc in self._tpc.values():
+            tpc.reset()
+        if self._closed:
+            return dict(self.shutdown_errors)
+        errors = {}
+        for device in self._config.devices:
+            if device.role != "actuator":
+                continue
+            try:
+                self._backend.write(device.hardware["pin"], 0.0 if device.subtype == "pwm" else False, address=device.hardware.get("address"))
+            except BaseException as exc:
+                errors[device.id] = str(exc)
+                logger.critical("Não foi possível confirmar OFF de %s: %s", device.id, exc)
+        self.shutdown_errors = errors
+        return dict(errors)
+
+    def trip(self, reason):
+        first = self.emergency_reason is None
+        self.emergency_stop(reason)
+        if first:
+            logger.critical("Emergência: %s", self.emergency_reason)
+            if self._fault_handler:
+                try:
+                    self._fault_handler(self.emergency_reason)
+                except BaseException:
+                    logger.exception("Falha ao registrar aborto; saídas já receberam OFF.")
+
+    @synchronized
+    def shutdown(self):
+        if self._closed:
+            return
+        self.emergency_stop("Encerramento do processo")
+        self._closed = True
+        # Outputs first; teardown failure on one must never skip the others.
+        for device in sorted(self._config.devices, key=lambda d: d.role != "actuator"):
+            try:
+                self._backend.teardown(device.hardware["pin"], address=device.hardware.get("address"))
+            except BaseException:
+                logger.exception("Falha ao liberar %s", device.id)
+
+    def _read(self, device):
+        try:
+            value = self._backend.read(device.hardware["pin"], address=device.hardware.get("address"))
+            if device.role == "sensor" and resolve_mode(device.role, device.subtype) == "input_analog":
+                if not isinstance(value, (float, int)) or isinstance(value, bool) or not math.isfinite(value):
+                    raise DeviceRuntimeError(f"Sensor {device.id} retornou valor inválido: {value!r}")
+            return value
+        except BaseException as exc:
+            self.trip(f"Falha de leitura em {device.id}: {exc}")
+            raise
+
+    def _write(self, device, value):
+        if self.emergency_reason and bool(value):
+            self.ensure_operational()
+        if self._closed:
+            self.ensure_operational()
+        try:
+            self._backend.write(device.hardware["pin"], value, address=device.hardware.get("address"))
+        except BaseException as exc:
+            self.trip(f"Falha de escrita em {device.id}: {exc}")
+            raise
+
+    def validate_sensors(self):
+        self.ensure_operational()
+        for device in self._config.devices:
+            if device.role == "sensor":
+                self.get_state(device.id)

@@ -32,13 +32,12 @@ paga o custo real de ~750-950ms ali. Depois disso, uma thread de fundo
 (default 1.0s), guardando sempre o último valor bom. `.value` nunca
 bloqueia — devolve o que está em cache, instantâneo.
 
-Se as leituras em background começarem a falhar (CRC ruim — comum em
-1-Wire por ruído elétrico —, ou sensor desconectado), a thread loga o
-erro e mantém o último valor bom, sem derrubar nada. Só depois de
-`stale_after_seconds` (default 10s) sem NENHUMA leitura bem-sucedida é
-que `.value` passa a levantar `Ds18b20ReadError` de verdade — evita
-tanto "trava tudo a cada glitch" quanto "mostra um valor de 20 minutos
-atrás pra sempre, calado".
+Qualquer erro detectado na thread de leitura é memorizado e notificado ao
+DeviceRuntime via on_error. O runtime manda OFF em todos os atuadores e
+bloqueia novos acionamentos. O cache não é usado para esconder a falha;
+mesmo que o sensor volte a responder, o bloqueio exige reiniciar.
+O limite stale_after_seconds continua detectando cache envelhecido quando
+não houver atualização (por exemplo, leitura travada).
 """
 
 from __future__ import annotations
@@ -94,8 +93,11 @@ class Ds18b20Reader:
         base_path: str = DEFAULT_W1_BASE_PATH,
         poll_interval_seconds: float = DEFAULT_POLL_INTERVAL_SECONDS,
         stale_after_seconds: float = DEFAULT_STALE_AFTER_SECONDS,
+        on_error=None,
         **kwargs: Any,
     ) -> None:
+        self._on_error = on_error
+        self._fault = None
         self.pin = pin
         self.address = address
         self._device_path = Path(base_path) / address / "w1_slave"
@@ -135,13 +137,16 @@ class Ds18b20Reader:
                     self._cached_value = value
                     self._last_success_at = time.monotonic()
                     self._last_error = None
-            except Ds18b20ReadError as exc:
+            except Exception as exc:
                 logger.warning(
-                    "Leitura em background do DS18B20 %s falhou (mantendo último valor bom em cache): %s",
+                    "Leitura em background do DS18B20 %s falhou (acionando bloqueio de emergência): %s",
                     self.address, exc,
                 )
                 with self._lock:
                     self._last_error = exc
+                    self._fault = self._fault or exc
+                if self._on_error:
+                    self._on_error(exc)
 
     def _read_once(self) -> float:
         if not self._device_path.exists():
@@ -170,6 +175,8 @@ class Ds18b20Reader:
                 f"{age:.1f}s (limite: {self._stale_after}s) — último erro "
                 f"da thread de fundo: {last_error}"
             )
+        if self._fault is not None:
+            raise Ds18b20ReadError(f"Falha de leitura do sensor {self.address}: {self._fault}")
         return cached
 
     def close(self) -> None:

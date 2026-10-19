@@ -2427,6 +2427,15 @@
         const res = await fetch('/api/status');
         if (!res.ok) throw new Error('Status API error');
         const data = await res.json();
+        let emergencyBanner = document.getElementById('emergencyBanner');
+        if (!emergencyBanner) {
+          emergencyBanner = document.createElement('div'); emergencyBanner.id = 'emergencyBanner';
+          emergencyBanner.setAttribute('role', 'alert');
+          emergencyBanner.style.cssText = 'background:#9f1239;color:white;padding:18px;font-weight:bold';
+          document.body.prepend(emergencyBanner);
+        }
+        emergencyBanner.hidden = !data.emergency;
+        emergencyBanner.textContent = data.emergency ? 'EMERGÊNCIA — acionamentos bloqueados em OFF. ' + data.emergency_reason + (Object.keys(data.shutdown_errors || {}).length ? ' ATENÇÃO: falha ao confirmar desligamento: ' + Object.keys(data.shutdown_errors).join(', ') : '') + ' Corrija a causa e reinicie o Bridge.' : '';
         const dot = $('statusDot');
         const text = $('statusText');
         dot.className = 'led-dot ' + (data.mqtt || 'unknown');
@@ -3122,13 +3131,13 @@
           finished: 'Concluida', aborted: 'Cancelada',
           paused_after_crash: 'Pausada (queda)', paused_manual: 'Pausada',
         };
-        $('recipeStatusText').textContent = status.thermal?.over_temperature ? 'Acima do previsto' : (labels[status.status] || status.status);
-        pill.style.background = status.thermal?.over_temperature ? '#9f1239' : '';
-        pill.style.color = status.thermal?.over_temperature ? '#fff' : '';
+        $('recipeStatusText').textContent = status.safety_error ? 'Abortada por falha' : status.thermal?.over_temperature ? 'Acima do previsto' : (labels[status.status] || status.status);
+        pill.style.background = (status.safety_error || status.thermal?.over_temperature) ? '#9f1239' : '';
+        pill.style.color = (status.safety_error || status.thermal?.over_temperature) ? '#fff' : '';
         let thermalInfo = document.getElementById('thermalInfo');
         if (!thermalInfo) { thermalInfo = document.createElement('p'); thermalInfo.id = 'thermalInfo'; pill.parentNode.appendChild(thermalInfo); }
         const thermal = status.thermal;
-        thermalInfo.textContent = thermal?.temperature != null ? `Atual: ${thermal.temperature.toFixed(2)} °C · Alvo: ${thermal.target.toFixed(2)} °C · Limite automático: ${thermal.power_limit.toFixed(1)}% · Pedido automático: ${thermal.automatic_power.toFixed(1)}%${thermal.timer_frozen ? ' · Contagem congelada' : ''}` : '';
+        thermalInfo.textContent = status.safety_error ? 'Falha: ' + status.safety_error : thermal?.temperature != null ? `Atual: ${thermal.temperature.toFixed(2)} °C · Alvo: ${thermal.target.toFixed(2)} °C · Limite automático: ${thermal.power_limit.toFixed(1)}% · Pedido automático: ${thermal.automatic_power.toFixed(1)}%${thermal.timer_frozen ? ' · Contagem congelada' : ''}` : '';
 
         $('btnStart').disabled = (status.status === 'ramping' || status.status === 'holding');
         $('btnAbort').disabled = !(status.status === 'ramping' || status.status === 'holding');

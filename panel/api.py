@@ -50,7 +50,8 @@ def _recipe_engine() -> Optional[RecipeEngine]:
 @bp.get("/status")
 def get_status():
     provider = _mqtt_status_provider()
-    return jsonify({"mqtt": provider()})
+    return jsonify({"mqtt": provider(), "emergency": bool(_runtime().emergency_reason),
+                    "emergency_reason": _runtime().emergency_reason, "shutdown_errors": _runtime().shutdown_errors})
 
 
 @bp.get("/devices")
@@ -183,6 +184,7 @@ def _recipe_status_payload(engine: RecipeEngine) -> dict:
         current_vessel = engine.recipe.steps[state.step_index].vessel
         current_duty = engine.current_duty(current_vessel)
     return {
+        "safety_error": state.safety_error,
         "thermal": engine.thermal if state.status in ("ramping", "holding") else {},
         "loaded_recipe_name": engine.recipe_name,
         "recipe_name": state.recipe_name,

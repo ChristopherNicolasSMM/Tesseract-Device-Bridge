@@ -12,7 +12,8 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
-from flask import Flask
+from flask import Flask, jsonify, request
+from werkzeug.exceptions import HTTPException
 
 from config import BridgeConfig
 from device_runtime import DeviceRuntime
@@ -39,6 +40,18 @@ def create_panel_app(
     app.config["RECIPE_ENGINE"] = recipe_engine
 
     app.register_blueprint(api_bp)
+
+    @app.before_request
+    def emergency_interlock():
+        if runtime.emergency_reason and request.method not in ("GET", "HEAD", "OPTIONS"):
+            return jsonify(error=runtime.emergency_reason, emergency=True), 503
+
+    @app.errorhandler(Exception)
+    def unexpected_failure(exc):
+        if isinstance(exc, HTTPException):
+            return exc
+        runtime.trip(f"Erro interno no painel: {exc}")
+        return jsonify(error="Falha interna: atuadores bloqueados em OFF.", emergency=True), 500
 
     @app.get("/")
     def index():

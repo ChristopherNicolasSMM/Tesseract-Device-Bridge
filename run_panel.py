@@ -21,6 +21,7 @@ import shutil
 from pathlib import Path
 
 from config import BridgeConfig, ConfigError
+from safety_lifecycle import safety_lifecycle
 from device_runtime import DeviceRuntime
 from gpio.simulated_backend import SimulatedGPIOBackend
 from panel.app import create_panel_app
@@ -64,11 +65,11 @@ def main() -> None:
         backend = SimulatedGPIOBackend()
 
     runtime = DeviceRuntime(config, backend)
-    app = create_panel_app(config, runtime)
+    with safety_lifecycle(runtime):
+        app = create_panel_app(config, runtime)
 
-    print(f"Painel disponível em http://{config.panel.host}:{config.panel.port}")
-    app.run(host=config.panel.host, port=config.panel.port, debug=False)
-
+        print(f"Painel disponível em http://{config.panel.host}:{config.panel.port}")
+        app.run(host=config.panel.host, port=config.panel.port, debug=False)
 
 if __name__ == "__main__":
     main()

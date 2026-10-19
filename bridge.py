@@ -58,10 +58,10 @@ class Bridge:
             self._mqtt = MqttClientWrapper(
                 mqtt_config=config.mqtt,
                 command_topic_lookup=self._command_topic_lookup,
-                on_status_message=self._status_handler.handle_message,
-                on_command_message=self._handle_command_message,
-                on_connect_cb=self._watchdog.on_connect,
-                on_disconnect_cb=lambda: self._watchdog.on_disconnect(time.time()),
+                on_status_message=self._safe_callback(self._status_handler.handle_message),
+                on_command_message=self._safe_callback(self._handle_command_message),
+                on_connect_cb=self._safe_callback(self._watchdog.on_connect),
+                on_disconnect_cb=self._safe_callback(lambda: self._watchdog.on_disconnect(time.time())),
             )
 
     @property
@@ -75,6 +75,15 @@ class Bridge:
     @property
     def recipe_engine(self) -> Optional[RecipeEngine]:
         return self._recipe_engine
+
+    def _safe_callback(self, callback):
+        def guarded(*args, **kwargs):
+            try:
+                return callback(*args, **kwargs)
+            except BaseException as exc:
+                self._runtime.trip(f"Erro em callback MQTT: {exc}")
+                logger.exception("Callback MQTT interrompido; atuadores OFF")
+        return guarded
 
     def _handle_command_message(self, device_id: str, payload: str) -> None:
         """
@@ -153,13 +162,18 @@ class Bridge:
             self._mqtt.connect()
 
     def stop(self) -> None:
-        if self._mqtt:
-            self._mqtt.disconnect()
+        self._runtime.trip("Encerramento do Bridge")
+        try:
+            if self._mqtt:
+                self._mqtt.disconnect()
+        finally:
+            self._runtime.shutdown()
 
     def run_forever(self, poll_interval_seconds: float = 2.0) -> None:
-        self.start()
         try:
+            self.start()
             while True:
+                self._runtime.validate_sensors()
                 now = time.time()
                 self.publish_sensor_states()
                 self.check_watchdog(now)
@@ -168,5 +182,8 @@ class Bridge:
                 time.sleep(poll_interval_seconds)
         except KeyboardInterrupt:
             logger.info("Encerrando bridge (KeyboardInterrupt).")
+        except BaseException as exc:
+            self._runtime.trip(f"Falha no loop do Bridge: {exc}")
+            raise
         finally:
             self.stop()

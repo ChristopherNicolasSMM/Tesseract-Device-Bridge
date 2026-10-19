@@ -107,6 +107,7 @@ from pathlib import Path
 from typing import Optional
 
 from config import BridgeConfig
+from safety_lifecycle import safety_lifecycle
 from device_runtime import DeviceRuntime
 from gpio.simulated_backend import SimulatedGPIOBackend
 from panel.app import create_panel_app
@@ -202,39 +203,39 @@ def main() -> None:
         _boot_log("SimulatedGPIOBackend criado OK")
 
     runtime = DeviceRuntime(config, backend)
-    _boot_log("DeviceRuntime criado OK")
+    with safety_lifecycle(runtime):
+        _boot_log("DeviceRuntime criado OK")
 
-    recipe_engine = load_recipe_engine(runtime, config, recipe_path)
-    _boot_log(f"recipe_engine={'ativo' if recipe_engine else 'nao carregado'}")
+        recipe_engine = load_recipe_engine(runtime, config, recipe_path)
+        _boot_log(f"recipe_engine={'ativo' if recipe_engine else 'nao carregado'}")
 
-    bridge = Bridge(config, runtime, recipe_engine=recipe_engine)
-    _boot_log("Bridge criado OK")
+        bridge = Bridge(config, runtime, recipe_engine=recipe_engine)
+        _boot_log("Bridge criado OK")
 
-    if config.panel.enabled:
-        app = create_panel_app(config, runtime, mqtt_status_provider(bridge, config), recipe_engine=recipe_engine)
-        panel_thread = threading.Thread(
-            target=lambda: app.run(host=config.panel.host, port=config.panel.port, debug=False),
-            daemon=True,
-        )
-        panel_thread.start()
-        _boot_log(f"Painel iniciado em http://{config.panel.host}:{config.panel.port}")
-        print(f"Painel disponível em http://{config.panel.host}:{config.panel.port}")
+        if config.panel.enabled:
+            app = create_panel_app(config, runtime, mqtt_status_provider(bridge, config), recipe_engine=recipe_engine)
+            panel_thread = threading.Thread(
+                target=lambda: app.run(host=config.panel.host, port=config.panel.port, debug=False),
+                daemon=True,
+            )
+            panel_thread.start()
+            _boot_log(f"Painel iniciado em http://{config.panel.host}:{config.panel.port}")
+            print(f"Painel disponível em http://{config.panel.host}:{config.panel.port}")
 
-    if config.mqtt.enabled:
-        print(f"Conectando ao broker MQTT em {config.mqtt.host}:{config.mqtt.port}...")
-    else:
-        print("mqtt.enabled=false — rodando só em modo painel manual.")
+        if config.mqtt.enabled:
+            print(f"Conectando ao broker MQTT em {config.mqtt.host}:{config.mqtt.port}...")
+        else:
+            print("mqtt.enabled=false — rodando só em modo painel manual.")
 
-    if recipe_engine is not None:
-        print(f"Motor de receita ativo (status atual: {recipe_engine.state.status}).")
-    elif recipe_path is not None:
-        print(f"Nenhuma receita válida em '{recipe_path}' — rodando sem motor de receita.")
-    else:
-        print("Nenhuma receita disponível (data/ vazia e sem recipe.yml legado) — rodando sem motor de receita.")
+        if recipe_engine is not None:
+            print(f"Motor de receita ativo (status atual: {recipe_engine.state.status}).")
+        elif recipe_path is not None:
+            print(f"Nenhuma receita válida em '{recipe_path}' — rodando sem motor de receita.")
+        else:
+            print("Nenhuma receita disponível (data/ vazia e sem recipe.yml legado) — rodando sem motor de receita.")
 
-    _boot_log("Processo totalmente inicializado — entrando em run_forever()")
-    bridge.run_forever()
-
+        _boot_log("Processo totalmente inicializado — entrando em run_forever()")
+        bridge.run_forever()
 
 if __name__ == "__main__":
     main()
