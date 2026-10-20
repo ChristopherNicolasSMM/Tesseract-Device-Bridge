@@ -148,6 +148,12 @@ class DeviceConfig:
             if self.command_topic:
                 raise ConfigError(f"{prefix}: sensor não deve declarar command_topic.")
 
+        policy = self.hardware.get("external_control_policy", "manual_override")
+        if policy not in ("manual_override", "local_only"):
+            raise ConfigError(f"{prefix}: external_control_policy inválida.")
+        if "external_control_policy" in self.hardware and not self.has_duty_control:
+            raise ConfigError(f"{prefix}: política externa exige controle por janela.")
+
         if self.role == "actuator":
             if not self.command_topic:
                 raise ConfigError(f"{prefix}: actuator requer command_topic.")

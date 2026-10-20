@@ -36,6 +36,7 @@ class PidController:
         self._output_max = output_max
         self._integral = 0.0
         self._previous_error: float | None = None
+        self.last_demand_percent: float | None = None
 
     def reset(self) -> None:
         """
@@ -45,6 +46,7 @@ class PidController:
         """
         self._integral = 0.0
         self._previous_error = None
+        self.last_demand_percent = None
 
     def compute(self, setpoint: float, current_value: float, dt: float, output_limit: float | None = None) -> float:
         """
@@ -84,6 +86,7 @@ class PidController:
         if output_limit is not None and self._gains.ki > 0:
             self._integral = min(self._integral, maximum / self._gains.ki)
 
+        self.last_demand_percent = max(self._output_min, min(self._output_max, output_unclamped))
         output = max(self._output_min, min(maximum, output_unclamped))
 
         self._previous_error = error

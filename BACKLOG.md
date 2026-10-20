@@ -181,3 +181,11 @@ receitas do lado do Tesseract Core, ou continuam sendo independentes
 (cada bridge com seu próprio catálogo)? Fora de escopo da Fase F ainda
 pendente na skill 05 do Tesseract principal — só retomar quando essa
 fase for aberta lá.
+
+## Entrega 3 — integração de aquecimento
+
+- [x] Telemetria versionada no state_topic dos aquecedores; boot, sequência e UTC.
+- [x] Demanda/limite/janela/GPIO separados, origem de controle e política externa.
+- [x] Contrato, manuais e testes com Tesseract; nenhuma nova automação de GLP.
+- Validação: 491 testes Python do Bridge aprovados; contrato comum e processamento
+  do payload no Tesseract verificados. Sem alteração das janelas ou atuação de GLP.

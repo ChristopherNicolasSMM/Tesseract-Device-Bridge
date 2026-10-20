@@ -25,6 +25,8 @@ from __future__ import annotations
 import json
 import logging
 import time
+from datetime import datetime, timezone
+from uuid import uuid4
 from typing import Optional
 
 from config import BridgeConfig
@@ -53,6 +55,8 @@ class Bridge:
         self._status_handler = StatusTopicHandler(runtime, self._command_topic_lookup)
         self._watchdog = FailsafeTimeoutWatchdog(runtime, devices_with_timeout(runtime))
 
+        self._telemetry_boot_id = str(uuid4())
+        self._telemetry_sequence = 0
         self._mqtt: Optional[MqttClientWrapper] = None
         if config.mqtt.enabled:
             self._mqtt = MqttClientWrapper(
@@ -118,7 +122,10 @@ class Bridge:
         if device.has_duty_control:
             try:
                 duty_percent = None if raw_value is None else coerce_value(raw_value, "pwm")
-                self._runtime.set_manual_duty(device_id, duty_percent)
+                if device.hardware.get("external_control_policy", "manual_override") == "local_only" and duty_percent != 0:
+                    logger.warning("Comando MQTT bloqueado pela política local_only: %s", device_id)
+                    return
+                self._runtime.set_manual_duty(device_id, duty_percent, origin="remote_manual")
                 logger.info("Duty manual aplicado via MQTT: device=%s duty=%s", device_id, duty_percent)
             except DeviceRuntimeError as exc:
                 logger.error("Falha ao aplicar duty em '%s': %s", device_id, exc)
@@ -131,14 +138,20 @@ class Bridge:
         except DeviceRuntimeError as exc:
             logger.error("Falha ao aplicar comando em '%s': %s", device_id, exc)
 
-    def publish_sensor_states(self) -> None:
+    def publish_sensor_states(self, *, include_sensors: bool = True) -> None:
         if self._mqtt is None:
             return
         for device in self._runtime.list_device_configs():
-            if device.role == "sensor" and device.state_topic:
+            if device.state_topic and (include_sensors or device.role == "actuator"):
                 state = self._runtime.get_state(device.id)
                 topic = self._config.resolve_topic(device.state_topic)
-                self._mqtt.publish(topic, json.dumps({"value": state.value}), qos=0, retain=False)
+                payload = {"value": state.value}
+                if device.has_duty_control:
+                    self._telemetry_sequence += 1
+                    payload["heating"] = {"version": 1, "boot_id": self._telemetry_boot_id,
+                        "sequence": self._telemetry_sequence, "observed_at": datetime.now(timezone.utc).isoformat(),
+                        **self._runtime.get_heating_telemetry(device.id)}
+                self._mqtt.publish(topic, json.dumps(payload, allow_nan=False), qos=0, retain=False)
 
     def check_watchdog(self, now: float) -> list[str]:
         return self._watchdog.check(now)
@@ -165,6 +178,10 @@ class Bridge:
         self._runtime.trip("Encerramento do Bridge")
         try:
             if self._mqtt:
+                try:
+                    self.publish_sensor_states(include_sensors=False)
+                except Exception:
+                    logger.exception("Não foi possível publicar estado final; os atuadores já foram desligados.")
                 self._mqtt.disconnect()
         finally:
             self._runtime.shutdown()
@@ -175,10 +192,10 @@ class Bridge:
             while True:
                 self._runtime.validate_sensors()
                 now = time.time()
-                self.publish_sensor_states()
                 self.check_watchdog(now)
                 self.tick_recipe(now)
                 self.tick_duty(now)
+                self.publish_sensor_states()
                 time.sleep(poll_interval_seconds)
         except KeyboardInterrupt:
             logger.info("Encerrando bridge (KeyboardInterrupt).")

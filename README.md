@@ -584,3 +584,9 @@ Falhas do controlador bloqueiam novos acionamentos, mandam OFF em todos os atuad
 ## Windows e Raspberry Pi
 
 Os caminhos padrão de dados são ancorados na instalação, inclusive ao iniciar por outra pasta. Veja [caminhos, logs e comandos por ambiente](docs/manual/07-windows-raspberry-caminhos.md). Windows usa backend simulado; Raspberry Pi usa backend real.
+
+### Integração de aquecimento — entrega 3
+
+Telemetria de demanda, limites, janela e origem de controle no Tesseract, com política
+opcional `local_only`. Consulte o [manual de integração](docs/manual/08-integracao-aquecimento.md).
+Sem novas atuações automáticas de GLP.

@@ -444,7 +444,9 @@ class RecipeEngine:
         # So registra a intencao do PID - quem decide o duty efetivo (e
         # escreve no GPIO) e o DeviceRuntime.tick_duty(), que da
         # prioridade a um eventual override manual ou failsafe suspenso.
-        self._runtime.set_pid_duty(vessel.heater_device_id, duty)
+        self._runtime.set_pid_duty(vessel.heater_device_id, duty, telemetry={
+            "demand_percent": duty if profile == "boil" else pid.last_demand_percent,
+            "power_limit_percent": limit, "temperature": current_temp, "target": target})
 
     def _apply_pumps(self, desired_pump_ids) -> None:
         """

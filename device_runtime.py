@@ -155,6 +155,8 @@ class DeviceRuntime:
         # aplicado de fato (ver _resolve_effective_duty).
         self._manual_enabled: Set[str] = set()
         self._pid_duty: Dict[str, float] = {}
+        self._automatic_telemetry: Dict[str, dict] = {}
+        self._manual_origin: Dict[str, str] = {}
         self._failsafe_suspended: Set[str] = set()
         # Override manual genérico pra atuadores SEM controle de potência
         # (ex.: bombas) — separado de _manual_duty/_manual_enabled, que só
@@ -370,10 +372,12 @@ class DeviceRuntime:
             raise DeviceRuntimeError(f"duty_percent deve estar entre 0 e 100 (recebido {duty_percent}).")
         self.ensure_operational()
         self._manual_duty[device.id] = float(duty_percent)
+        if device.id in self._manual_enabled:
+            self._manual_origin[device.id] = "local"
         return self._state_of(device)
 
     @synchronized
-    def set_manual_enabled(self, device_id: str, enabled: bool) -> DeviceState:
+    def set_manual_enabled(self, device_id: str, enabled: bool, *, origin: str = "local") -> DeviceState:
         """
         Liga/desliga o interruptor mestre do override manual — separado
         do valor de % (set_manual_duty_percent). Só quando enabled=True
@@ -389,6 +393,7 @@ class DeviceRuntime:
             )
         self.ensure_operational()
         if enabled:
+            self._manual_origin[device.id] = origin
             self._manual_enabled.add(device.id)
             # Garante que exista um valor (default seguro 0%) — ligar o
             # interruptor sem nunca ter configurado % não deve dar erro,
@@ -399,7 +404,7 @@ class DeviceRuntime:
         return self._state_of(device)
 
     @synchronized
-    def set_manual_duty(self, device_id: str, duty_percent: Optional[float]) -> DeviceState:
+    def set_manual_duty(self, device_id: str, duty_percent: Optional[float], *, origin: str = "local") -> DeviceState:
         """
         Atômico: define o valor de % E arma o interruptor mestre de uma
         vez (duty_percent numérico), ou desarma por completo (None) —
@@ -409,12 +414,12 @@ class DeviceRuntime:
         separados, via a API do painel).
         """
         if duty_percent is None:
-            return self.set_manual_enabled(device_id, False)
+            return self.set_manual_enabled(device_id, False, origin=origin)
         self.set_manual_duty_percent(device_id, duty_percent)
-        return self.set_manual_enabled(device_id, True)
+        return self.set_manual_enabled(device_id, True, origin=origin)
 
     @synchronized
-    def set_pid_duty(self, device_id: str, duty_percent: float) -> None:
+    def set_pid_duty(self, device_id: str, duty_percent: float, *, telemetry: dict | None = None) -> None:
         """
         Chamado pelo RecipeEngine a cada tick com o duty calculado pelo
         PID daquele instante — só tem efeito real se não houver override
@@ -428,7 +433,10 @@ class DeviceRuntime:
                 f"hardware.window_seconds (sem controle de potência)."
             )
         self.ensure_operational()
+        if isinstance(duty_percent, bool) or not isinstance(duty_percent, (int, float)) or not math.isfinite(duty_percent):
+            raise DeviceRuntimeError("Duty automático deve ser numérico finito.")
         self._pid_duty[device.id] = max(0.0, min(100.0, float(duty_percent)))
+        self._automatic_telemetry[device.id] = dict(telemetry or {})
 
     @synchronized
     def get_duty_state(self, device_id: str) -> "DutyState":
@@ -444,6 +452,27 @@ class DeviceRuntime:
             source=source,
             window_seconds=device.hardware["window_seconds"],
         )
+
+    @synchronized
+    def get_heating_telemetry(self, device_id: str) -> dict:
+        device = self._config.get_device(device_id)
+        if device_id not in self._tpc:
+            raise DeviceRuntimeError("Dispositivo sem controle de janela.")
+        state = self._state_of(device)
+        owners = {"pid": "local_recipe", "manual": "remote_manual" if self._manual_origin.get(device_id) == "remote_manual" else "local_manual",
+                  "failsafe_suspended": "failsafe", "idle": "idle"}
+        automatic = self._automatic_telemetry.get(device_id, {})
+        return {"device_id": device_id, "backend": self._config.backend,
+                "owner": owners[state.duty_source],
+                "external_policy": device.hardware.get("external_control_policy", "manual_override"),
+                "demand_percent": automatic.get("demand_percent"),
+                "power_limit_percent": automatic.get("power_limit_percent"),
+                "automatic_percent": self._pid_duty.get(device_id),
+                "selected_percent": state.duty_percent,
+                "applied_window_percent": self._tpc[device_id].applied_duty_percent,
+                "output_on": bool(state.value), "window_seconds": state.window_seconds,
+                "temperature": automatic.get("temperature"), "target": automatic.get("target"),
+                "fault": str(self.emergency_reason)[:1000] if self.emergency_reason else None}
 
     def _resolve_effective_duty(self, device_id: str) -> Tuple[float, str]:
         if self.emergency_reason or device_id in self._failsafe_suspended:
@@ -550,6 +579,8 @@ class DeviceRuntime:
         self._manual_duty.clear()
         self._manual_override.clear()
         self._pid_duty.clear()
+        self._automatic_telemetry.clear()
+        self._manual_origin.clear()
         self._failsafe_suspended.update(d.id for d in self._config.devices if d.role == "actuator")
         for tpc in self._tpc.values():
             tpc.reset()

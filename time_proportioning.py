@@ -64,6 +64,11 @@ class TimeProportioningController:
         """Última potência (0-100%) recebida via set_duty_cycle() — usado pela UI para o medidor."""
         return self._pending_duty_percent
 
+    @property
+    def applied_duty_percent(self) -> float:
+        """Duty locked in the active window; distinct from the pending selection."""
+        return self._locked_duty_percent
+
     def should_be_on(self, now: float) -> bool:
         """
         Decide se o relé deve estar ligado neste instante, dado o duty
