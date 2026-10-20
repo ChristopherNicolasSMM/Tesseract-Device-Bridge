@@ -1,0 +1,41 @@
+# Standalone simulation example. GPIO numbers below are placeholders, not a wiring plan.
+# Use run_bridge.py (not run_panel.py), plus Tesseract and a configured MQTT broker.
+backend: simulated
+mqtt:
+  enabled: true
+  host: localhost
+  port: 1883
+  client_id: tesseract-heating-test
+  topic_prefix: brewery
+panel:
+  enabled: true
+  host: 127.0.0.1
+  port: 5001
+devices:
+  - id: hlt_temp
+    name: Temperatura HLT
+    role: sensor
+    subtype: temperature
+    state_topic: sensors/hlt_temp/state
+    hardware:
+      pin: 4
+    simulated:
+      initial_value: 60.0
+  - id: hlt_heat_source
+    name: Aquecimento HLT protegido
+    role: actuator
+    subtype: digital
+    command_topic: actuators/hlt_heat_source/set
+    state_topic: actuators/hlt_heat_source/state
+    is_risk: true
+    failsafe_value: false
+    failsafe_timeout_seconds: 5
+    hardware:
+      pin: 17
+      heating_source:
+        participation: primary
+        temperature_sensor: hlt_temp
+        # Declaration only; software cannot verify installation or flame presence.
+        external_flame_cutoff: true
+        # For auxiliary: participation: auxiliary, plus controller_device: mash_heater
+        # mash_heater must be an existing local window/PID device with fresh context.

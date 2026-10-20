@@ -66,6 +66,7 @@ class Bridge:
                 on_command_message=self._safe_callback(self._handle_command_message),
                 on_connect_cb=self._safe_callback(self._watchdog.on_connect),
                 on_disconnect_cb=self._safe_callback(lambda: self._watchdog.on_disconnect(time.time())),
+                reject_retained_device_ids={d.id for d in config.devices if 'heating_source' in d.hardware},
             )
 
     @property
@@ -113,11 +114,24 @@ class Bridge:
             logger.error("Comando recebido para device desconhecido: %s", device_id)
             return
 
+        data = None
         try:
             data = json.loads(payload)
             raw_value = data.get("value", data) if isinstance(data, dict) else data
         except json.JSONDecodeError:
             raw_value = payload
+
+        if 'heating_source' in device.hardware:
+            try:
+                if isinstance(data, dict) and 'heating_control' in data:
+                    self._runtime.source_command(device_id, data['heating_control'])
+                elif raw_value is False or (type(raw_value) in (int, float) and raw_value == 0):
+                    self._runtime.set_actuator(device_id, False)
+                else:
+                    logger.warning('ON genérico bloqueado para fonte protegida %s', device_id)
+            except DeviceRuntimeError as exc:
+                logger.warning('Comando da fonte rejeitado: %s', exc)
+            return
 
         if device.has_duty_control:
             try:
@@ -146,6 +160,10 @@ class Bridge:
                 state = self._runtime.get_state(device.id)
                 topic = self._config.resolve_topic(device.state_topic)
                 payload = {"value": state.value}
+                if 'heating_source' in device.hardware:
+                    self._telemetry_sequence += 1
+                    payload['heat_source'] = {**self._runtime.source_telemetry(device.id),
+                        'sequence': self._telemetry_sequence, 'observed_at': datetime.now(timezone.utc).isoformat()}
                 if device.has_duty_control:
                     self._telemetry_sequence += 1
                     payload["heating"] = {"version": 1, "boot_id": self._telemetry_boot_id,
@@ -169,6 +187,7 @@ class Bridge:
         receita acabou de calcular neste mesmo ciclo.
         """
         self._runtime.tick_duty(now)
+        self._runtime.tick_sources()
 
     def start(self) -> None:
         if self._mqtt:

@@ -288,6 +288,22 @@ class BridgeConfig:
                     )
                 seen_addresses[address] = device.id
 
+        for device in self.devices:
+            source = device.hardware.get("heating_source")
+            if source is None:
+                continue
+            if (not isinstance(source, dict) or device.role != "actuator" or device.subtype != "digital"
+                    or device.has_duty_control or not device.state_topic or device.failsafe_value is not False
+                    or device.is_risk is not True or source.get("external_flame_cutoff") is not True
+                    or source.get("participation") not in ("primary", "auxiliary")):
+                raise ConfigError(f"{device.id}: heating_source exige saída digital de risco, OFF, state_topic e proteção externa de chama.")
+            sensor = next((d for d in self.devices if d.id == source.get("temperature_sensor")), None)
+            if sensor is None or sensor.role != "sensor" or sensor.subtype != "temperature":
+                raise ConfigError(f"{device.id}: sensor local de temperatura obrigatório.")
+            controller = next((d for d in self.devices if d.id == source.get("controller_device")), None)
+            if source["participation"] == "auxiliary" and (controller is None or not controller.has_duty_control):
+                raise ConfigError(f"{device.id}: auxiliar exige controlador PID local por janela.")
+
     def resolve_topic(self, topic: str) -> str:
         """
         Aplica o `topic_prefix` a um tópico relativo declarado em um

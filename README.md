@@ -590,3 +590,7 @@ Os caminhos padrão de dados são ancorados na instalação, inclusive ao inicia
 Telemetria de demanda, limites, janela e origem de controle no Tesseract, com política
 opcional `local_only`. Consulte o [manual de integração](docs/manual/08-integracao-aquecimento.md).
 Sem novas atuações automáticas de GLP.
+
+Fonte automática protegida (principal/auxiliar), opcional e desabilitada no boot:
+[manual de testes](docs/manual/09-fonte-automatica.md). Requer proteção externa de
+chama e Tesseract atualizado; comece pelo exemplo com backend simulado.

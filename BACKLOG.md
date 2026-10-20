@@ -189,3 +189,13 @@ fase for aberta lá.
 - [x] Contrato, manuais e testes com Tesseract; nenhuma nova automação de GLP.
 - Validação: 491 testes Python do Bridge aprovados; contrato comum e processamento
   do payload no Tesseract verificados. Sem alteração das janelas ou atuação de GLP.
+
+### Aquecimento — fonte automática protegida (entrega 4)
+
+- [x] Controle local liga/desliga principal/auxiliar, autorização expirável, bloqueio
+  de ON genérico e de comandos retidos, desabilitação após falha/reinício.
+- [x] Contrato MQTT v1 de fonte, exemplo simulado Windows/Linux e manual operacional.
+- [x] Integração com widget do Tesseract, sem alterar janela/PID da resistência.
+- [ ] Retorno físico do corte externo/chama/válvula e watchdog elétrico independente.
+- [ ] Medições de vazamento, nível/fluxo e ensaios reais Raspberry Pi/GLP pelo responsável.
+- [ ] Controle específico de intensidade de fervura; não confundir liga/desliga térmico.

@@ -1,5 +1,8 @@
 # Integração de aquecimento com o Tesseract
 
+> Modo opcional posterior: [fonte automática protegida](09-fonte-automatica.md).
+> As restrições de ausência de comandos abaixo descrevem a entrega 3.
+
 Atualize o Bridge e o Tesseract para a entrega 3. A atualização é compatível com
 comandos/sensores antigos. Não liga equipamentos automaticamente e não muda os
 pontos ou a duração da janela de potência.

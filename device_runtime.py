@@ -42,6 +42,7 @@ from __future__ import annotations
 import logging
 import math
 import threading
+import time
 from functools import wraps
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -49,6 +50,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from config import BridgeConfig, DeviceConfig
 from gpio.base import GPIOBackend
 from time_proportioning import TimeProportioningController
+from source_control import SourceControl
 
 # Mapeia (role, subtype) -> mode aceito por GPIOBackend.setup().
 # subtype=None cai no default de cada role (digital).
@@ -168,6 +170,9 @@ class DeviceRuntime:
         # dessincronizar da realidade e "desfazer" o comando manual
         # silenciosamente na próxima troca de etapa.
         self._manual_override: Dict[str, Any] = {}
+        self._sources = {d.id: SourceControl(d.hardware['heating_source']['participation'])
+                         for d in config.devices if 'heating_source' in d.hardware}
+        self._automatic_updated = {}
 
         try:
             self._setup_all()
@@ -343,6 +348,8 @@ class DeviceRuntime:
         if value is None:
             self._manual_override.pop(device.id, None)
             return self._state_of(device)
+        if device.id in self._sources and bool(value):
+            raise DeviceRuntimeError('Fonte protegida: override ON genérico bloqueado.')
         self.ensure_operational()
         self._manual_override[device.id] = value
         if device.id in self._failsafe_suspended:
@@ -437,6 +444,47 @@ class DeviceRuntime:
             raise DeviceRuntimeError("Duty automático deve ser numérico finito.")
         self._pid_duty[device.id] = max(0.0, min(100.0, float(duty_percent)))
         self._automatic_telemetry[device.id] = dict(telemetry or {})
+        self._automatic_updated[device.id] = time.monotonic()
+
+    @synchronized
+    def source_command(self, device_id, command):
+        self.ensure_operational()
+        control = self._sources[device_id]
+        try:
+            control.command(command, time.monotonic())
+        except (ValueError, TypeError) as exc:
+            if not control.lease_id:
+                self._write(self.get_device_config(device_id), False, source_control=True)
+            raise DeviceRuntimeError(str(exc)) from exc
+        if not control.lease_id:
+            self._write(self.get_device_config(device_id), False, source_control=True)
+
+    @synchronized
+    def source_telemetry(self, device_id):
+        cfg = self.get_device_config(device_id).hardware['heating_source']
+        return {**self._sources[device_id].telemetry(), 'device_id': device_id,
+                'temperature_sensor': cfg['temperature_sensor'],
+                'temperature': self.get_state(cfg['temperature_sensor']).value if not self.emergency_reason else None,
+                'controller_device': cfg.get('controller_device'),
+                'backend': self._config.backend, 'fault': str(self.emergency_reason)[:1000] if self.emergency_reason else None}
+
+    @synchronized
+    def tick_sources(self):
+        now = time.monotonic()
+        for device_id, control in self._sources.items():
+            device = self.get_device_config(device_id)
+            cfg = device.hardware['heating_source']
+            if self.emergency_reason:
+                control.stop(self.emergency_reason)
+            temperature = self.get_state(cfg['temperature_sensor']).value if control.lease_id else None
+            controller = cfg.get('controller_device')
+            context = self._automatic_telemetry.get(controller, {})
+            controller_ok = (controller in self._tpc and self._resolve_effective_duty(controller)[1] == 'pid'
+                             and now-self._automatic_updated.get(controller, float('-inf')) <= 5)
+            if control.lease_id and temperature >= control.target + 3:
+                self.trip('Sobretemperatura da fonte ' + device_id)
+            on = control.tick(now, temperature, context.get('demand_percent'), context.get('target'), controller_ok)
+            self._write(device, on, source_control=True)
 
     @synchronized
     def get_duty_state(self, device_id: str) -> "DutyState":
@@ -584,6 +632,8 @@ class DeviceRuntime:
         self._failsafe_suspended.update(d.id for d in self._config.devices if d.role == "actuator")
         for tpc in self._tpc.values():
             tpc.reset()
+        for control in self._sources.values():
+            control.stop(self.emergency_reason)
         if self._closed:
             return dict(self.shutdown_errors)
         errors = {}
@@ -633,7 +683,11 @@ class DeviceRuntime:
             self.trip(f"Falha de leitura em {device.id}: {exc}")
             raise
 
-    def _write(self, device, value):
+    def _write(self, device, value, *, source_control=False):
+        if device.id in self._sources and not source_control:
+            if bool(value):
+                raise DeviceRuntimeError('Fonte protegida: ON genérico bloqueado; use autorização de aquecimento.')
+            self._sources[device.id].stop('OFF solicitado; habilite novamente')
         if self.emergency_reason and bool(value):
             self.ensure_operational()
         if self._closed:

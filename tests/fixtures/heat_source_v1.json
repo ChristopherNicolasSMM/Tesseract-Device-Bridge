@@ -1,0 +1,29 @@
+{
+  "value": false,
+  "heat_source": {
+    "version": 1,
+    "boot_id": "source-contract-boot",
+    "arm_token": "source-contract-token",
+    "participation": "primary",
+    "armed": false,
+    "lease_id": null,
+    "output_on": false,
+    "target": null,
+    "reason": "Desabilitado; habilitação explícita necessária",
+    "external_protection": "independent_hardware",
+    "limits": {
+      "demand_threshold": 80.0,
+      "minimum_gap": 2.0,
+      "minimum_seconds": 10.0,
+      "cooldown_seconds": 30.0
+    },
+    "device_id": "gas",
+    "temperature_sensor": "temp",
+    "temperature": 60,
+    "controller_device": null,
+    "backend": "simulated",
+    "fault": null,
+    "sequence": 1,
+    "observed_at": "2026-10-20T19:00:00+00:00"
+  }
+}

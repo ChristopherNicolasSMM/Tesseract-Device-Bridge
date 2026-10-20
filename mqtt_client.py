@@ -44,6 +44,7 @@ class MqttClientWrapper:
         on_command_message: Callable[[str, str], None],
         on_connect_cb: Optional[Callable[[], None]] = None,
         on_disconnect_cb: Optional[Callable[[], None]] = None,
+        reject_retained_device_ids: Optional[set[str]] = None,
     ) -> None:
         self._config = mqtt_config
         self._command_topic_lookup = command_topic_lookup
@@ -51,6 +52,7 @@ class MqttClientWrapper:
         self._on_command_message = on_command_message
         self._on_connect_cb = on_connect_cb
         self._on_disconnect_cb = on_disconnect_cb
+        self._reject_retained_device_ids = reject_retained_device_ids or set()
 
         self._status_topic_full = f"{mqtt_config.topic_prefix}/{STATUS_TOPIC_RELATIVE}"
 
@@ -99,6 +101,9 @@ class MqttClientWrapper:
 
         device_id = self._command_topic_lookup.get(topic)
         if device_id is not None:
+            if device_id in self._reject_retained_device_ids and getattr(msg, 'retain', False):
+                logger.warning('Comando retido ignorado: %s', topic)
+                return
             self._on_command_message(device_id, payload)
             return
 
