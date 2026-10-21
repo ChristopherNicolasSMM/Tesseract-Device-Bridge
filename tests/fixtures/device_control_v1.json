@@ -1,0 +1,20 @@
+{
+  "value": false,
+  "control": {
+    "version": 1,
+    "device_id": "mash_heater",
+    "boot_id": "control-contract-boot",
+    "sequence": 1,
+    "observed_at": "2026-10-21T12:00:00+00:00",
+    "backend": "simulated",
+    "kind": "power",
+    "external_policy": "manual_override",
+    "output_on": false,
+    "manual_enabled": false,
+    "manual_percent": 40.0,
+    "owner": "idle",
+    "fault": null,
+    "pending_confirmation": false,
+    "last_command": null
+  }
+}

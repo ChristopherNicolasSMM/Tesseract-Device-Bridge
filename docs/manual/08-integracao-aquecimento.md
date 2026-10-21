@@ -79,3 +79,7 @@ Valide primeiro com backend simulado e broker de teste. Depois confira a telemet
 na instalação real com o operador, inclusive OFF, override local/remoto e failsafe.
 Não é necessária migração no Bridge. No Tesseract esta entrega não adiciona migração;
 mantenha aplicadas as migrações das entregas anteriores.
+
+
+A operação remota de potência e bombas pode ser habilitada por equipamento.
+Veja [controles remotos](10-controles-remotos.md).

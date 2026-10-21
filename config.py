@@ -148,6 +148,12 @@ class DeviceConfig:
             if self.command_topic:
                 raise ConfigError(f"{prefix}: sensor não deve declarar command_topic.")
 
+        if 'remote_control' in self.hardware:
+            if type(self.hardware['remote_control']) is not bool:
+                raise ConfigError(f"{prefix}: hardware.remote_control deve ser booleano.")
+            if self.hardware['remote_control'] and (self.role != 'actuator' or 'heating_source' in self.hardware
+                    or (not self.has_duty_control and self.subtype != 'digital') or not self.state_topic or not self.command_topic):
+                raise ConfigError(f"{prefix}: remote_control exige atuador digital/janela com tópicos, sem heating_source.")
         policy = self.hardware.get("external_control_policy", "manual_override")
         if policy not in ("manual_override", "local_only"):
             raise ConfigError(f"{prefix}: external_control_policy inválida.")

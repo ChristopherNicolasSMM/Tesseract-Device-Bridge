@@ -29,6 +29,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 from typing import Optional
 
+from remote_device_control import RemoteDeviceControl, enabled as remote_control_enabled
 from config import BridgeConfig
 from device_runtime import DeviceRuntime, DeviceRuntimeError
 from failsafe_coercion import coerce_value
@@ -57,6 +58,7 @@ class Bridge:
 
         self._telemetry_boot_id = str(uuid4())
         self._telemetry_sequence = 0
+        self._remote_control = RemoteDeviceControl(runtime, recipe_engine, self._telemetry_boot_id, config.backend)
         self._mqtt: Optional[MqttClientWrapper] = None
         if config.mqtt.enabled:
             self._mqtt = MqttClientWrapper(
@@ -66,7 +68,7 @@ class Bridge:
                 on_command_message=self._safe_callback(self._handle_command_message),
                 on_connect_cb=self._safe_callback(self._watchdog.on_connect),
                 on_disconnect_cb=self._safe_callback(lambda: self._watchdog.on_disconnect(time.time())),
-                reject_retained_device_ids={d.id for d in config.devices if 'heating_source' in d.hardware},
+                reject_retained_device_ids={d.id for d in config.devices if 'heating_source' in d.hardware or remote_control_enabled(d)},
             )
 
     @property
@@ -121,6 +123,18 @@ class Bridge:
         except json.JSONDecodeError:
             raw_value = payload
 
+        if isinstance(data, dict) and 'device_control' in data:
+            self._remote_control.command(device, data['device_control'])
+            return
+        if remote_control_enabled(device):
+            # Managed devices require explicit ownership commands. Legacy OFF remains valid.
+            if raw_value is False or (type(raw_value) in (int, float) and raw_value == 0):
+                if device.has_duty_control:
+                    self._runtime.set_manual_duty(device_id, 0, origin='remote_manual')
+                else:
+                    self._runtime.set_manual_override(device_id, False)
+            return
+
         if 'heating_source' in device.hardware:
             try:
                 if isinstance(data, dict) and 'heating_control' in data:
@@ -135,7 +149,7 @@ class Bridge:
 
         if device.has_duty_control:
             try:
-                duty_percent = None if raw_value is None else coerce_value(raw_value, "pwm")
+                duty_percent = None if raw_value is None else (100.0 if raw_value is True else coerce_value(raw_value, "pwm"))
                 if device.hardware.get("external_control_policy", "manual_override") == "local_only" and duty_percent != 0:
                     logger.warning("Comando MQTT bloqueado pela política local_only: %s", device_id)
                     return
@@ -169,6 +183,8 @@ class Bridge:
                     payload["heating"] = {"version": 1, "boot_id": self._telemetry_boot_id,
                         "sequence": self._telemetry_sequence, "observed_at": datetime.now(timezone.utc).isoformat(),
                         **self._runtime.get_heating_telemetry(device.id)}
+                if remote_control_enabled(device):
+                    payload['control'] = self._remote_control.telemetry(device)
                 self._mqtt.publish(topic, json.dumps(payload, allow_nan=False), qos=0, retain=False)
 
     def check_watchdog(self, now: float) -> list[str]:

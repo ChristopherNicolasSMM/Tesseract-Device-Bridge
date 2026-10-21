@@ -594,3 +594,11 @@ Sem novas atuações automáticas de GLP.
 Fonte automática protegida (principal/auxiliar), opcional e desabilitada no boot:
 [manual de testes](docs/manual/09-fonte-automatica.md). Requer proteção externa de
 chama e Tesseract atualizado; comece pelo exemplo com backend simulado.
+
+
+### Potência e bombas no Mash Control
+
+O opt-in `hardware.remote_control: true` habilita comandos explícitos de potência
+manual/automática e bombas no widget Aquecimento do Tesseract. O PID, a janela e
+o painel local permanecem no Bridge. Veja [ativação e validação](docs/manual/10-controles-remotos.md)
+e [contrato v1](docs/technical/10-controle-dispositivos.md). Sem migration.

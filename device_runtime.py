@@ -318,6 +318,11 @@ class DeviceRuntime:
         for device_id in suspended_bool_overrides:
             self.set_actuator(device_id, self._manual_override[device_id])
 
+    @synchronized
+    def is_failsafe_suspended(self, device_id: str) -> bool:
+        """Whether failsafe currently overrides this device's stored manual intent."""
+        return device_id in self._failsafe_suspended or bool(self.emergency_reason)
+
     def has_duty_control(self, device_id: str) -> bool:
         return device_id in self._tpc
 
