@@ -29,9 +29,14 @@ def test_env_db_path_override_is_explicit(tmp_path,monkeypatch):
     assert store.db_path()==other.resolve()
 
 
-def test_boot_log_windows_uses_own_path(tmp_path):
-    fn=load_boot_log_fn()
-    fn("Boot test", platform_name="win32")
+@pytest.mark.parametrize("platform_name", ["nt", "win32"])
+def test_boot_log_windows_uses_own_path(tmp_path, platform_name):
+    fn = load_boot_log_fn(tmp_path, platform_name=platform_name)
+    fn("Boot test")
+    fallback = tmp_path / "logs" / "boot.log"
+    assert fallback.is_file()
+    assert "Boot test" in fallback.read_text(encoding="utf-8")
+    assert not (tmp_path / "var_log").exists()
 
 
 def test_recipe_state_test_adapter_uses_explicit_path(tmp_path):

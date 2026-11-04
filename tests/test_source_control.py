@@ -149,6 +149,19 @@ def test_publisher_matches_shared_source_fixture(tmp_path):
         actual=json.loads(b._mqtt.publish.call_args.args[1])
         expected=json.loads((Path(__file__).parent/'fixtures/heat_source_v1.json').read_text())
         actual['heat_source']['observed_at']=expected['heat_source']['observed_at']
+        # Keep the entire GLP safety protocol contract strict. A compact,
+        # field-level diff is much more useful than pytest's truncated dict.
+        changed = {
+            key: {"expected": expected["heat_source"].get(key, "<missing>"),
+                  "actual": actual["heat_source"].get(key, "<missing>")}
+            for key in sorted(set(expected["heat_source"]) | set(actual["heat_source"]))
+            if expected["heat_source"].get(key, "<missing>") !=
+               actual["heat_source"].get(key, "<missing>")
+        }
+        assert actual["value"] == expected["value"]
+        assert not changed, "Diferenças no contrato MQTT heat_source: " + json.dumps(
+            changed, ensure_ascii=False, sort_keys=True
+        )
         assert actual==expected
         assert b._mqtt.publish.call_args.kwargs=={'qos':0,'retain':False}
     finally:r.shutdown()

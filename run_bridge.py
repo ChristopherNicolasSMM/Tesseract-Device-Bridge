@@ -39,7 +39,9 @@ def _boot_log(msg: str, platform_name: str | None = None) -> None:
     log_dirs = [os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")]
     # A POSIX absolute path becomes drive-root-relative on Windows.
     # Never create C:\var\log there, even when running as administrator.
-    if (platform_name or os.name) != "nt":
+    # os.name is "nt" on Windows; platform-like callers may pass "win32".
+    # Both must skip the Unix-only /var/log location.
+    if (platform_name or os.name).lower() not in ("nt", "win32", "windows"):
         log_dirs.insert(0, "/var/log/tesseract-bridge")
     written = False
     for log_dir in log_dirs:
