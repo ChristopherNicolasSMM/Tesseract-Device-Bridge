@@ -70,10 +70,22 @@ O retorno precisa indicar `result=OK`,
 não existir, crie-a com `normalize --output` em um nome novo
 antes de executar auditoria.
 
+**Crie uma cópia de trabalho para o cutover**, preservando também
+a `normalized-v3.sqlite3` que passou na auditoria:
+
+```powershell
+Test-Path .\data\private\orm-sandbox.sqlite3
+# Se False, e com o Bridge parado:
+Copy-Item .\data\private\normalized-v3.sqlite3 .\data\private\orm-sandbox.sqlite3
+```
+
+O `Copy-Item` somente deve ser executado se o destino não existir.
+Não sobrescreva cópias anteriores.
+
 **Selecione o modo ORM somente no processo do PowerShell atual**:
 
 ```powershell
-$env:TESSERACT_BRIDGE_DB="./data/private/normalized-v3.sqlite3"
+$env:TESSERACT_BRIDGE_DB="./data/private/orm-sandbox.sqlite3"
 $env:TESSERACT_BRIDGE_STORAGE_MODE="orm"
 $env:TESSERACT_BRIDGE_SIMULATION_ONLY="1"
 $env:TESSERACT_BRIDGE_TEST_PANEL_PORT="8089"
@@ -88,7 +100,7 @@ Teste navegação no painel, cadastro e atualização de receita,
 Configurações, Calibração, criação/aprovação de rascunho e backup.
 Aprovar um hardware editado não aplica seus pinos na sessão atual.
 
-**As alterações feitas na cópia ORM são reais nessa cópia, não
+**As alterações feitas na cópia `orm-sandbox.sqlite3` são reais nessa cópia, não
 são refletidas no banco legado**. Uma auditoria comparativa com a
 origem, depois de editar dados do ORM, deve indicar divergência:
 isso é esperado e impede tratar os dois esquemas como sincronizados.
