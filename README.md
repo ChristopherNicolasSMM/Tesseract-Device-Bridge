@@ -42,6 +42,7 @@ do painel. Não exponha a interface à Internet.
 | Calibração | [11 — Sensores](docs/manual/11-calibracao-sensores.md) |
 | Migração segura de YAML/JSON | [12 — Migração SQLite](docs/manual/12-sqlite-migracao.md) |
 | Administração SQLite | [13 — Administração](docs/manual/13-administracao-sqlite.md) |
+| Scanner 1-Wire, GPIO e serial | [14 — Diagnóstico de hardware](docs/manual/14-diagnostico-hardware.md) |
 | Organização Python | [Estrutura e convenções](docs/technical/07-organizacao-python.md) |
 | Cutover ORM em simulação | [Ativação, testes e rollback](docs/technical/10-cutover-orm-simulacao.md) |
 | Situação e pendências do cutover | [Plano de aceite da 2.0.0](docs/technical/09-status-cutover-v2.md) |

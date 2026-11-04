@@ -6,3 +6,4 @@ pytest>=8.0,<9.0
 gpiozero>=2.0   # só necessário com backend=real (devices.yml); roda em modo mock para testes sem Pi
 SQLAlchemy>=2.0,<2.1
 alembic>=1.16,<1.17
+pyserial>=3.5,<4.0  # monitor serial administrativo, somente leitura

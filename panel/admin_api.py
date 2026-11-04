@@ -146,3 +146,7 @@ def download_backup(filename):
     if target.parent != root or not target.is_file():
         return jsonify(error="Backup não encontrado"), 404
     return send_file(str(target), as_attachment=True, download_name=filename)
+
+# Inherit the existing admin token authorization for diagnostics.
+from panel.admin_diagnostics import register_diagnostics
+register_diagnostics(bp)

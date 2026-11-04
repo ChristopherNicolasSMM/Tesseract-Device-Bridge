@@ -128,7 +128,7 @@ separadamente e aplique-as pelos meios regulares após validação.
 
 - A bateria completa no Windows e CI Python 3.9 deve passar, incluindo
   concorrência e cenários de falha do SQLite.
-- Testes funcionais de todos os endpoints administrativos e receitas,
+- Testes funcionais de todos os endpoints administrativos, diagnósticos e receitas,
   inclusive estados de erro e calibração.
 - Repetir os testes em Raspberry Pi em **modo simulado**, e somente
   depois planejar fase de GPIO real e intertravamentos.

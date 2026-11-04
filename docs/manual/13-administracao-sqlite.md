@@ -32,7 +32,7 @@ Se o token estiver incorreto, a API responderá 401; se não estiver configurado
 
 ## 2. Editar um dispositivo
 
-A interface oferece seleção, criação e remoção de dispositivos do rascunho, e campos como ID, nome, papel, subtipo, pino GPIO, driver, ROM ID de DS18B20, tópicos MQTT, polaridade, controle remoto e alguns vínculos de aquecimento.
+A interface oferece seleção, criação e remoção de dispositivos do rascunho, e campos como ID, nome, papel, subtipo, pino GPIO, driver, ROM ID de DS18B20, tópicos MQTT, polaridade, controle remoto e alguns vínculos de aquecimento. Na revisão mais recente, **GPIO BCM, Sensor térmico e Controlador PID** utilizam selectboxes com dados dos dispositivos cadastrados. O campo ROM ID sugere endereços obtidos pelo scanner visual. Tópicos MQTT continuam livres para suportar integrações personalizadas.
 
 1. Selecione um dispositivo no campo de seleção.
 2. Modifique um campo de baixo risco, como **Nome**.
@@ -92,3 +92,12 @@ Leia [Cutover ORM em simulação](../technical/10-cutover-orm-simulacao.md).
 - A simulação isolada no Windows deve manter `TESSERACT_BRIDGE_SIMULATION_ONLY=1`.
 - Para proteção de equipamentos, qualquer operação real requer testes de GPIO, failsafe, sensores, intertravamentos e GLP com supervisão humana.
 - Se houver problema, pare o clone experimental. A pasta `main` original e seus arquivos antigos permanecem intactos após uma migração normal.
+
+
+## Diagnóstico de hardware administrativo
+
+A Administração SQLite inclui scanner DS18B20 (temperatura e ROM ID),
+listagem de GPIOs com valores **lógicos do runtime**, monitor serial de
+leitura e teste **virtual** de HIGH/LOW em pinos BCM não atribuídos.
+Isso **não** é comando físico de relé nem substitui teste elétrico com
+carga isolada. Leia o [manual de diagnóstico](14-diagnostico-hardware.md).

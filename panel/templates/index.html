@@ -1842,6 +1842,11 @@
 .admin-sqlite button {padding:9px;margin:5px 4px 5px 0;color:#fff;background:#233047;border:1px solid #566580;border-radius:5px;cursor:pointer}
 .admin-sqlite button:disabled {opacity:.4;cursor:not-allowed}
 #sqlAuditText {white-space:pre-wrap;word-break:break-word;max-height:250px;overflow:auto}
+.sql-diagnostics{margin-top:18px}
+.sql-note{color:#b8c8de;font-size:12px;line-height:1.5}
+.sql-diagnostic-results{background:#0e1422;border:1px solid #344258;border-radius:6px;padding:10px;min-height:35px;max-height:230px;overflow:auto;font-size:12px;white-space:pre-wrap;word-break:break-word}
+.sql-diag-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #344258}
+.sql-diag-row button{font-size:12px;white-space:nowrap}
 </style></head>
 
 <body>
@@ -1929,9 +1934,9 @@
                 <label>Nome <input name="name" required></label>
                 <label>Papel <select name="role"><option value="sensor">Sensor</option><option value="actuator">Atuador</option></select></label>
                 <label>Tipo <select name="subtype"><option value="temperature">Temperatura</option><option value="digital">Digital</option><option value="pwm">PWM</option><option value="analog">Analógico</option></select></label>
-                <label>GPIO BCM <input name="pin" type="number" min="0" max="27" required></label>
+                <label>GPIO BCM <select name="pin" required></select></label>
                 <label>Driver <select name="driver"><option value="">Padrão</option><option value="ds18b20">DS18B20</option></select></label>
-                <label>Endereço ROM <input name="address"></label>
+                <label>Endereço ROM <input name="address" list="sqlRomOptions" autocomplete="off" placeholder="28-..."></label><datalist id="sqlRomOptions"></datalist>
                 <label>State topic <input name="state_topic"></label>
                 <label>Command topic <input name="command_topic"></label>
                 <label>Janela de potência (s) <input name="window_seconds" type="number" min="0" step="0.1"></label>
@@ -1940,8 +1945,8 @@
                 <label><input name="active_high" type="checkbox"> Active HIGH</label>
                 <h4>Fonte de aquecimento</h4>
                 <label>Participação <select name="participation"><option value="">Não protegida</option><option value="auxiliary">Auxiliar</option><option value="primary">Primária</option></select></label>
-                <label>Sensor térmico <input name="temperature_sensor"></label>
-                <label>Controlador PID <input name="controller_device"></label>
+                <label>Sensor térmico <select name="temperature_sensor"></select></label>
+                <label>Controlador PID <select name="controller_device"></select></label>
                 <label><input name="external_flame_cutoff" type="checkbox"> Possui corte independente de chama verificado</label>
                 <button type="submit">Atualizar no rascunho</button>
               </form>
@@ -1965,6 +1970,40 @@
               <pre id="sqlAuditText"></pre>
             </div>
           </div>
+          <section class="sql-panel sql-diagnostics" aria-labelledby="sqlDiagnosticsTitle">
+            <h3 id="sqlDiagnosticsTitle">Diagnóstico de hardware</h3>
+            <p class="sql-note">Leituras observacionais. O teste de nível GPIO é exclusivamente virtual e só funciona em simulação. Não aciona bombas, resistências nem GLP.</p>
+            <div class="sql-grid">
+              <div>
+                <h4>Scanner DS18B20 (1-Wire)</h4>
+                <button type="button" id="sqlScanTemp">Buscar sensores e ler temperatura</button>
+                <div id="sqlScanResults" class="sql-diagnostic-results" role="status" aria-live="polite"></div>
+                <p class="sql-note">Os endereços encontrados podem ser aplicados ao dispositivo selecionado em Endereço ROM.</p>
+              </div>
+              <div>
+                <h4>GPIO digital e analógico</h4>
+                <button type="button" id="sqlReadGpio">Ler estado lógico dos dispositivos</button>
+                <div id="sqlGpioResults" class="sql-diagnostic-results" role="status" aria-live="polite"></div>
+                <label>GPIO BCM livre para teste virtual <select id="sqlVirtualPin"></select></label>
+                <button type="button" id="sqlVirtualOn">Virtual: HIGH (1)</button>
+                <button type="button" id="sqlVirtualOff">Virtual: LOW (0)</button>
+                <p id="sqlVirtualStatus" class="sql-note"></p>
+              </div>
+              <div>
+                <h4>Monitor serial de leitura</h4>
+                <button type="button" id="sqlSerialPorts">Listar portas seriais</button>
+                <label>Porta detectada <select id="sqlSerialPort"></select></label>
+                <label>Baud rate <select id="sqlSerialBaud">
+                  <option value="9600">9600</option><option value="19200">19200</option>
+                  <option value="38400">38400</option><option value="57600">57600</option>
+                  <option value="115200">115200</option>
+                </select></label>
+                <button type="button" id="sqlSerialRead">Ler até 1024 bytes (somente leitura)</button>
+                <pre id="sqlSerialOutput" class="sql-diagnostic-results" aria-live="polite"></pre>
+                <p class="sql-note">A abertura da porta pode reiniciar alguns microcontroladores. Nenhum comando serial será enviado.</p>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
     </section>

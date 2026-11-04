@@ -16,6 +16,43 @@
   const f = name => $('sqlDeviceForm').elements.namedItem(name);
   const value = name => String(f(name).value || '').trim();
   const checked = name => f(name).checked;
+  function option(select, code, label) {
+    const entry = document.createElement('option');
+    entry.value = String(code);
+    entry.textContent = label;
+    select.appendChild(entry);
+    return entry;
+  }
+  function choices(name, entries, current, placeholder) {
+    const select = f(name); select.replaceChildren();
+    option(select, '', placeholder);
+    entries.forEach(entry => option(select, entry.id, entry.label));
+    if (current && !entries.some(entry => entry.id === current)) {
+      option(select, current, '⚠ Referência desconhecida: ' + current);
+    }
+    select.value = current || '';
+  }
+  function refreshReferences(device) {
+    const others = config.devices;
+    const sensors = others.filter(d => d.role === 'sensor' && d.subtype === 'temperature')
+      .map(d => ({id:d.id,label:d.name+' ('+d.id+')'}));
+    const controllers = others.filter(d => d.role === 'actuator' && d.id !== device.id
+      && Number(d.hardware?.window_seconds) > 0
+      && !d.hardware?.heating_source)
+      .map(d => ({id:d.id,label:d.name+' ('+d.id+')'}));
+    choices('temperature_sensor', sensors, device.hardware?.heating_source?.temperature_sensor || '',
+      'Selecione um sensor térmico');
+    choices('controller_device', controllers, device.hardware?.heating_source?.controller_device || '',
+      'Selecione o controlador principal');
+    const pins = f('pin'); pins.replaceChildren();
+    for (let bcm=0; bcm<=27; bcm++) {
+      const occupants=others.filter(d=> d.id!==device.id && Number(d.hardware?.pin)===bcm);
+      option(pins, bcm, 'GPIO '+bcm+(occupants.length?' | em uso: '+occupants.map(d=>d.id).join(', '):' | livre'));
+    }
+    pins.value = String(device.hardware?.pin ?? 4);
+    f('temperature_sensor').required = !!f('participation').value;
+    f('controller_device').required = f('participation').value === 'auxiliary';
+  }
   function showDevice() {
     const d = config.devices[selected], form = $('sqlDeviceForm');
     form.hidden = !d;
@@ -33,6 +70,7 @@
     f('temperature_sensor').value = d.hardware?.heating_source?.temperature_sensor || '';
     f('controller_device').value = d.hardware?.heating_source?.controller_device || '';
     f('external_flame_cutoff').checked = !!d.hardware?.heating_source?.external_flame_cutoff;
+    refreshReferences(d);
   }
   function drawList(index=selected) {
     const select = $('sqlDeviceSelect'); select.replaceChildren();
@@ -67,6 +105,11 @@
     catch(e){$('sqlEditor').hidden=true;msg(e.message);}
   });
   $('sqlReload').addEventListener('click',()=>load().catch(e=>msg(e.message)));
+  f('participation').addEventListener('change', () => {
+    const enabled = !!value('participation');
+    f('temperature_sensor').required=enabled;
+    f('controller_device').required=f('participation').value === 'auxiliary';
+  });
   $('sqlDeviceSelect').addEventListener('change',()=>{
     selected=Number($('sqlDeviceSelect').value);showDevice();
   });
@@ -89,6 +132,11 @@
     const d=config.devices[selected];
     const role=value('role');
     const hw={...(d.hardware||{}), pin:Number(value('pin'))};
+    if (value('participation') && (!value('temperature_sensor')
+      || (value('participation')==='auxiliary' && !value('controller_device')))) {
+      msg('Selecione um sensor térmico; fonte auxiliar exige controlador PID por janela.');
+      return;
+    }
     if(value('driver')) hw.driver=value('driver'); else delete hw.driver;
     if(value('address')) hw.address=value('address'); else delete hw.address;
     if(value('window_seconds'))hw.window_seconds=Number(value('window_seconds'));else delete hw.window_seconds;
@@ -155,6 +203,103 @@
       a.href=url;a.download=out.file;a.click();URL.revokeObjectURL(url);
       msg('Backup SQLite gerado: '+out.file);
     }catch(e){msg(e.message);}
+  });
+
+  // All diagnostics endpoints inherit the administrative token. These
+  // controls never call /api/devices/.../command or a physical GPIO backend.
+  const diagText = (id, message) => { $(id).textContent = message; };
+  const diagRow = (parent, text, buttonLabel, handler) => {
+    const line = document.createElement('div'); line.className='sql-diag-row';
+    const title = document.createElement('span'); title.textContent=text;
+    line.appendChild(title);
+    if (buttonLabel) {
+      const btn=document.createElement('button');btn.type='button';
+      btn.textContent=buttonLabel;btn.addEventListener('click',handler);
+      line.appendChild(btn);
+    }
+    parent.appendChild(line);
+  };
+  $('sqlScanTemp').addEventListener('click', async () => {
+    try {
+      const result=await api('diagnostics/temperature');
+      const area=$('sqlScanResults'), list=$('sqlRomOptions');
+      area.replaceChildren();list.replaceChildren();
+      if (!result.sensors.length) {
+        diagText('sqlScanResults',
+          'Nenhum DS18B20 detectado. No Raspberry Pi habilite o overlay 1-Wire e verifique fiação/GPIO4.');
+      }
+      result.sensors.forEach(sensor=>{
+        option(list,sensor.address,sensor.address);
+        const reading=sensor.temperature_c === null
+          ? (sensor.error || 'sem leitura')
+          : Number(sensor.temperature_c).toFixed(2)+' °C';
+        diagRow(area,sensor.address+' | '+reading+
+          (sensor.device_id?' | '+sensor.device_id:' | não cadastrado'),
+          'Usar ROM',()=>{
+            if (selected < 0){msg('Selecione primeiro um dispositivo.');return;}
+            f('address').value=sensor.address;
+            msg('ROM '+sensor.address+' preenchido no rascunho. Clique em Atualizar no rascunho para aplicar.');
+          });
+      });
+    }catch(e){diagText('sqlScanResults', e.message);}
+  });
+  $('sqlReadGpio').addEventListener('click', async () => {
+    try{
+      const data=await api('diagnostics/gpio');
+      const area=$('sqlGpioResults');area.replaceChildren();
+      data.devices.forEach(device=>{
+        const val=device.value===null?'sem leitura':String(device.value);
+        diagRow(area,'BCM '+device.pin+' | '+device.name+
+          ' | '+val+(device.unit||'')+(device.risk?' | risco':''));
+      });
+      diagRow(area,data.notice);
+      diagRow(area,data.analog);
+      const pins=$('sqlVirtualPin');pins.replaceChildren();
+      data.virtual_gpio.filter(pin=>!pin.assigned_to.length).forEach(pin=>{
+        option(pins,pin.pin,'BCM '+pin.pin+' | virtual '+(pin.level?'HIGH':'LOW'));
+      });
+      const allow=data.virtual_write_enabled && pins.options.length>0;
+      $('sqlVirtualOn').disabled=!allow;
+      $('sqlVirtualOff').disabled=!allow;
+      diagText('sqlVirtualStatus',data.virtual_write_enabled
+        ? 'Teste exclusivamente em memória, sem acionar os pinos físicos.'
+        : 'Acionamento virtual desativado: requer SIMULATION_ONLY=1.');
+    }catch(e){diagText('sqlGpioResults',e.message);}
+  });
+  async function setVirtual(level) {
+    const pin=Number($('sqlVirtualPin').value);
+    if(!$('sqlVirtualPin').options.length){return;}
+    try{
+      const result=await api('diagnostics/gpio/virtual','POST',{pin,level});
+      diagText('sqlVirtualStatus','GPIO BCM '+result.pin+': '+
+        (result.level?'HIGH':'LOW')+' (SOMENTE VIRTUAL)');
+      await $('sqlReadGpio').click();
+    }catch(e){diagText('sqlVirtualStatus',e.message);}
+  }
+  $('sqlVirtualOn').addEventListener('click',()=>setVirtual(true));
+  $('sqlVirtualOff').addEventListener('click',()=>setVirtual(false));
+  $('sqlVirtualOn').disabled=true;
+  $('sqlVirtualOff').disabled=true;
+  $('sqlSerialPorts').addEventListener('click',async()=>{
+    try{
+      const data=await api('diagnostics/serial/ports');
+      const select=$('sqlSerialPort');select.replaceChildren();
+      data.ports.forEach(port=>option(select,port.device,port.device+' | '+port.description));
+      diagText('sqlSerialOutput',data.message+
+        (data.ports.length?'':' Nenhuma porta serial disponível.'));
+    }catch(e){diagText('sqlSerialOutput',e.message);}
+  });
+  $('sqlSerialRead').addEventListener('click',async()=>{
+    if(!$('sqlSerialPort').value){
+      diagText('sqlSerialOutput','Liste e selecione uma porta serial primeiro.');return;
+    }
+    try{
+      const result=await api('diagnostics/serial/read','POST',{
+        port:$('sqlSerialPort').value, baudrate:Number($('sqlSerialBaud').value)
+      });
+      diagText('sqlSerialOutput',result.bytes_read+
+        ' bytes (somente leitura):\n'+(result.text||'(sem dados no período de leitura)'));
+    }catch(e){diagText('sqlSerialOutput',e.message);}
   });
   $('sqlAudit').addEventListener('click',async()=>{
     try{
