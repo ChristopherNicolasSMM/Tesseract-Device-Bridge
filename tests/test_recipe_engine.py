@@ -9,6 +9,7 @@ from recipe_engine.engine import RecipeEngine, RecipeEngineError
 from recipe_engine.models import Recipe
 from recipe_engine.state import RecipeState
 from control_settings import factory_settings, save_settings
+from storage import sqlite_store as store
 
 
 DEVICES_YAML = """
@@ -106,11 +107,32 @@ def setup(tmp_path, monkeypatch):
     state_path = tmp_path / "recipe_state.json"
     settings = factory_settings()
     settings["vessel_profiles"]["boil"] = "mash"
-    settings_path = tmp_path / "control_settings.json"
-    save_settings(settings, settings_path)
-    monkeypatch.setattr("control_settings.SETTINGS_PATH", settings_path)
+    # SQLite is the authoritative configuration store in this branch.
+    # The engine uses load_settings(None), so a legacy JSON override is ignored.
+    store.save_control(settings)
     # These lifecycle fixtures use 25/30 °C, not a boiling process.
     return runtime, recipe, state_path
+
+
+
+def test_sqlite_lifecycle_fixture_applies_30c_target_instead_of_100c(setup):
+    """Regression: lifecycle tests must seed SQLite, not the legacy JSON file."""
+    runtime, recipe, state_path = setup
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    assert store.load_control()["vessel_profiles"]["boil"] == "mash"
+    assert engine.target_temperature(recipe.steps[1]) == pytest.approx(30.0)
+    assert engine.control_settings["vessel_profiles"]["boil"] == "mash"
+
+
+def test_sqlite_boiling_profile_still_uses_configured_boil_temperature(setup):
+    """The fix must not change production boil-target semantics."""
+    runtime, recipe, state_path = setup
+    settings = store.load_control()
+    settings["vessel_profiles"]["boil"] = "boil"
+    settings["boil_temperature"] = 96.5
+    store.save_control(settings)
+    engine = RecipeEngine(runtime, recipe, state_path, now=1000.0)
+    assert engine.target_temperature(recipe.steps[1]) == pytest.approx(96.5)
 
 
 def test_fresh_engine_starts_idle(setup):
@@ -842,9 +864,9 @@ def alarm_setup(tmp_path, monkeypatch):
     state_path = tmp_path / "recipe_state.json"
     settings = factory_settings()
     settings["vessel_profiles"]["boil"] = "mash"
-    settings_path = tmp_path / "control_settings.json"
-    save_settings(settings, settings_path)
-    monkeypatch.setattr("control_settings.SETTINGS_PATH", settings_path)
+    # SQLite is the authoritative configuration store in this branch.
+    # The engine uses load_settings(None), so a legacy JSON override is ignored.
+    store.save_control(settings)
     # These lifecycle fixtures use 25/30 °C, not a boiling process.
     return runtime, recipe, state_path
 
