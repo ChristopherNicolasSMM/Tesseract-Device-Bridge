@@ -571,6 +571,13 @@ python -m pytest tests/ -v
 ```
 
 
+## Calibração individual e Python do Raspberry Pi
+
+A operação GPIO real fica presa ao **Python 3.9.x em uma venv**. A aba **Configurações**
+possui seções separadas de controle térmico e **calibração individual de sensores**,
+com offsets salvos em `data/private`, leitura bruta preservada e aplicação no próximo
+reinício. Veja o [manual de calibração](docs/manual/11-calibracao-sensores.md).
+
 ## Controle de temperatura configurável
 
 A aba **Configurações** reúne a curva de potência automática da mosturação, alertas de excesso e o perfil independente de fervura. Ajustes locais são preservados e passam a valer na próxima execução. Veja o [manual de configurações](docs/manual/05-configuracoes-temperatura.md). As janelas de acionamento e as prioridades de controle permanecem as existentes.

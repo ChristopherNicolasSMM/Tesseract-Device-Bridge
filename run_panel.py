@@ -24,6 +24,7 @@ from config import BridgeConfig, ConfigError
 from safety_lifecycle import safety_lifecycle
 from device_runtime import DeviceRuntime
 from gpio.simulated_backend import SimulatedGPIOBackend
+from python_runtime import require_python39_for_real
 from panel.app import create_panel_app
 
 from project_paths import DEFAULT_CONFIG_PATH, EXAMPLE_CONFIG_PATH
@@ -59,6 +60,7 @@ def main() -> None:
     config = BridgeConfig.load(config_path)
 
     if config.backend == "real":
+        require_python39_for_real()
         from gpio.real_backend import RealGPIOBackend  # implementado na Fase 5
         backend = RealGPIOBackend()
     else:

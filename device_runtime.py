@@ -51,6 +51,7 @@ from config import BridgeConfig, DeviceConfig
 from gpio.base import GPIOBackend
 from time_proportioning import TimeProportioningController
 from source_control import SourceControl
+from temperature_calibration import DEFAULT_CALIBRATION_PATH, load_calibrations
 
 # Mapeia (role, subtype) -> mode aceito por GPIOBackend.setup().
 # subtype=None cai no default de cada role (digital).
@@ -92,6 +93,9 @@ class DeviceState:
     # bombas) — None quando nunca foi definido explicitamente; caso
     # contrário, o último valor definido via set_manual_override().
     manual_override: Any | None = None
+    # Temperatura bruta preservada para auditoria; value é a temperatura corrigida.
+    raw_value: float | None = None
+    temperature_offset_c: float | None = None
 
 
 @dataclass
@@ -129,7 +133,7 @@ class DeviceRuntime:
     painel quanto o bridge MQTT usam.
     """
 
-    def __init__(self, config: BridgeConfig, backend: GPIOBackend) -> None:
+    def __init__(self, config: BridgeConfig, backend: GPIOBackend, *, calibration_path=None) -> None:
         self._io_lock = threading.RLock()
         self.emergency_reason = None
         self.shutdown_errors = {}
@@ -137,6 +141,10 @@ class DeviceRuntime:
         self._closed = False
         self._config = config
         self._backend = backend
+        self._calibration_path = calibration_path if calibration_path is not None else DEFAULT_CALIBRATION_PATH
+        # Falha fechada se o arquivo privado estiver inválido ou o ROM ID mudou.
+        # É carregado uma única vez, antes de configurar qualquer GPIO.
+        self._calibration = load_calibrations(config.devices, self._calibration_path)["sensors"]
 
         # Estado de controle de potência — um TPC por atuador com
         # hardware.window_seconds; populado em _setup_all().
@@ -481,7 +489,9 @@ class DeviceRuntime:
             cfg = device.hardware['heating_source']
             if self.emergency_reason:
                 control.stop(self.emergency_reason)
-            temperature = self.get_state(cfg['temperature_sensor']).value if control.lease_id else None
+            sensor_state = self.get_state(cfg['temperature_sensor']) if control.lease_id else None
+            # Para corte de proteção, nunca usar uma leitura inferior à bruta.
+            temperature = max(sensor_state.value, sensor_state.raw_value) if sensor_state else None
             controller = cfg.get('controller_device')
             context = self._automatic_telemetry.get(controller, {})
             controller_ok = (controller in self._tpc and self._resolve_effective_duty(controller)[1] == 'pid'
@@ -577,8 +587,15 @@ class DeviceRuntime:
     def list_device_configs(self) -> List[DeviceConfig]:
         return list(self._config.devices)
 
+    @property
+    def calibration_path(self):
+        return self._calibration_path
+
+    def active_temperature_offset(self, device_id):
+        return self._calibration.get(device_id, {}).get("offset_c", 0.0)
+
     def _state_of(self, device: DeviceConfig) -> DeviceState:
-        value = self._read(device)
+        value, raw_value = self._read(device)
         source = device.simulated if device.role == "sensor" else device.limits
         device_range = {
             "min": source.get("min", 0),
@@ -614,6 +631,8 @@ class DeviceRuntime:
             duty_enabled=duty_enabled,
             manual_duty_percent=manual_duty_percent,
             manual_override=manual_override,
+            raw_value=raw_value,
+            temperature_offset_c=self.active_temperature_offset(device.id) if device.role == "sensor" and device.subtype == "temperature" else None,
         )
 
 
@@ -683,7 +702,13 @@ class DeviceRuntime:
             if device.role == "sensor" and resolve_mode(device.role, device.subtype) == "input_analog":
                 if not isinstance(value, (float, int)) or isinstance(value, bool) or not math.isfinite(value):
                     raise DeviceRuntimeError(f"Sensor {device.id} retornou valor inválido: {value!r}")
-            return value
+            if device.role == "sensor" and device.subtype == "temperature":
+                raw_value = float(value)
+                corrected = raw_value + self.active_temperature_offset(device.id)
+                if not math.isfinite(corrected):
+                    raise DeviceRuntimeError(f"Sensor {device.id}: temperatura corrigida inválida.")
+                return corrected, raw_value
+            return value, None
         except BaseException as exc:
             self.trip(f"Falha de leitura em {device.id}: {exc}")
             raise

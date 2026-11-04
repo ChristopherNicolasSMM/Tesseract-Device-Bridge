@@ -63,5 +63,99 @@
     try { const result = await request('/api/control-settings/restore', {method:'POST'}); render(result.settings); $('controlSettingsMessage').textContent = result.note; }
     catch (error) { $('controlSettingsMessage').textContent = error.message; }
   });
+
+  // Calibração em armazenamento privado; alterações nunca atuam no GPIO em tempo real.
+  let calibrationSensors = [];
+  const calibrationPane = $('sensorCalibrationSection');
+  const thermalPane = $('thermalSettingsSection');
+  function showSettingsPane(which) {
+    const calibration = which === 'calibration';
+    calibrationPane.style.display = calibration ? '' : 'none';
+    thermalPane.style.display = calibration ? 'none' : '';
+    $('settingsThermalTab').setAttribute('aria-pressed', String(!calibration));
+    $('settingsCalibrationTab').setAttribute('aria-pressed', String(calibration));
+    if (calibration) loadCalibrations();
+  }
+  $('settingsThermalTab').addEventListener('click', () => showSettingsPane('thermal'));
+  $('settingsCalibrationTab').addEventListener('click', () => showSettingsPane('calibration'));
+  function formatC(value) {
+    return Number.isFinite(value) ? value.toFixed(2) + ' °C' : 'indisponível';
+  }
+  function renderCalibrations(sensors, maxOffset) {
+    calibrationSensors = sensors;
+    const list = $('sensorCalibrationList');
+    list.replaceChildren();
+    sensors.forEach(sensor => {
+      const row = document.createElement('div');
+      row.className = 'calibration-card';
+      const details = document.createElement('div');
+      const title = document.createElement('strong');
+      title.textContent = sensor.name + ' (' + sensor.id + ')';
+      const address = document.createElement('small');
+      address.textContent = 'Sensor físico: ' + (sensor.address || 'não informado');
+      const readings = document.createElement('small');
+      readings.textContent = 'Bruta: ' + formatC(sensor.raw_value) +
+        ' | Corrigida em uso: ' + formatC(sensor.value) +
+        ' | Offset ativo: ' + Number(sensor.active_offset_c).toFixed(2) + ' °C';
+      details.append(title, address, readings);
+      if (sensor.pending_restart) {
+        const pending = document.createElement('small');
+        pending.textContent = '⚠ Alteração pendente: reinicie o Bridge para aplicar.';
+        details.appendChild(pending);
+      }
+      const label = document.createElement('label');
+      label.textContent = 'Offset (°C): ';
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.step = '0.1';
+      input.min = -maxOffset;
+      input.max = maxOffset;
+      input.required = true;
+      input.value = sensor.configured_offset_c;
+      input.dataset.sensorId = sensor.id;
+      input.setAttribute('aria-label', 'Offset do sensor ' + sensor.name);
+      label.appendChild(input);
+      row.append(details, label);
+      list.appendChild(row);
+    });
+    if (!sensors.length) {
+      list.textContent = 'Nenhum sensor de temperatura foi configurado.';
+    }
+    $('saveSensorCalibration').disabled = sensors.length === 0;
+    $('zeroSensorCalibration').disabled = sensors.length === 0;
+  }
+  async function loadCalibrations() {
+    try {
+      const result = await request('/api/sensor-calibration');
+      renderCalibrations(result.sensors, result.max_absolute_offset_c);
+      $('sensorCalibrationMessage').textContent = '';
+    } catch (error) {
+      $('sensorCalibrationMessage').textContent = error.message;
+    }
+  }
+  $('saveSensorCalibration').addEventListener('click', async () => {
+    try {
+      const sensors = {};
+      $('sensorCalibrationList').querySelectorAll('input[data-sensor-id]').forEach(input => {
+        if (!input.value.trim() || !input.checkValidity()) throw new Error('Informe um offset válido para cada sensor.');
+        const sensor = calibrationSensors.find(s => s.id === input.dataset.sensorId);
+        sensors[sensor.id] = {address: sensor.address, offset_c: Number(input.value)};
+      });
+      const result = await request('/api/sensor-calibration', {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({schema: 1, sensors})
+      });
+      $('sensorCalibrationMessage').textContent = result.note;
+      await loadCalibrations();
+      $('sensorCalibrationMessage').textContent = result.note;
+    } catch (error) {
+      $('sensorCalibrationMessage').textContent = error.message;
+    }
+  });
+  $('zeroSensorCalibration').addEventListener('click', () => {
+    $('sensorCalibrationList').querySelectorAll('input[data-sensor-id]').forEach(input => { input.value = '0'; });
+    $('sensorCalibrationMessage').textContent = 'Campos zerados. Clique Salvar offsets para confirmar; reinicie para aplicar.';
+  });
+
   load();
 })();

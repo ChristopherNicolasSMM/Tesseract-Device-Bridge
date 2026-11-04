@@ -24,6 +24,7 @@ from flask import Blueprint, current_app, jsonify, request
 
 import data
 from control_settings import factory_settings, load_settings, save_settings
+from temperature_calibration import load_calibrations, save_calibrations, MAX_ABSOLUTE_OFFSET_C
 from device_runtime import DeviceRuntime, DeviceRuntimeError
 from recipe_engine.engine import RecipeEngine, RecipeEngineError
 from recipe_engine.models import RecipeError
@@ -514,3 +515,43 @@ def put_control_settings():
 def restore_control_settings():
     save_settings(factory_settings(), _settings_path())
     return jsonify(settings=factory_settings(), note="Padrões restaurados. Efetivo na próxima execução.")
+
+
+@bp.get("/sensor-calibration")
+def get_sensor_calibration():
+    """Leituras originais/corrigidas e ajustes ativos/pendentes, por ID e ROM."""
+    runtime = _runtime()
+    saved = load_calibrations(_bridge_config().devices, runtime.calibration_path)["sensors"]
+    sensors = []
+    for device in _bridge_config().devices:
+        if device.role != "sensor" or device.subtype != "temperature":
+            continue
+        state = runtime.get_state(device.id)
+        persisted = saved.get(device.id, {})
+        sensors.append({
+            "id": device.id,
+            "name": device.name,
+            "address": device.hardware.get("address"),
+            "raw_value": state.raw_value,
+            "value": state.value,
+            "active_offset_c": state.temperature_offset_c,
+            "configured_offset_c": persisted.get("offset_c", 0.0),
+            "pending_restart": persisted.get("offset_c", 0.0) != state.temperature_offset_c,
+        })
+    return jsonify(sensors=sensors, max_absolute_offset_c=MAX_ABSOLUTE_OFFSET_C,
+                   note="A temperatura corrigida controla PID, receitas, alarmes e telemetria.")
+
+
+@bp.put("/sensor-calibration")
+def put_sensor_calibration():
+    """Persiste sem trocar os valores de controle durante uma brassagem."""
+    engine = _recipe_engine()
+    if engine is not None and engine.state.status not in ("idle", "completed", "aborted"):
+        return jsonify(error="Finalize ou cancele a receita antes de alterar calibrações."), 409
+    try:
+        saved = save_calibrations(request.get_json(silent=True),
+                                  _bridge_config().devices, _runtime().calibration_path)
+    except (ValueError, TypeError) as exc:
+        return jsonify(error=str(exc)), 400
+    return jsonify(calibrations=saved, restart_required=True,
+                   note="Calibração salva. Só será aplicada ao reiniciar o Bridge, com as saídas desligadas.")

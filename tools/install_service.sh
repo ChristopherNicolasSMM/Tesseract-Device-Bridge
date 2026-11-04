@@ -201,6 +201,15 @@ fi
 
 PYTHON_VERSION="$("$PYTHON_BIN" --version 2>&1)"
 ok "Python: $PYTHON_BIN ($PYTHON_VERSION)"
+# Serviço de GPIO fica preso à venv Python 3.9 validada nesta instalação.
+if [ -z "$VENV_DIR" ]; then
+    error "É obrigatório utilizar .venv/ ou venv/ Python 3.9 no serviço."
+    exit 1
+fi
+if ! "$PYTHON_BIN" -c 'import sys; sys.exit(0 if sys.version_info[:2] == (3, 9) else 1)'; then
+    error "Serviço requer Python 3.9.x. Detectado: $PYTHON_VERSION. Recrie a venv com Python 3.9."
+    exit 1
+fi
 
 # ---- testar imports ----------------------------------------------------------
 titulo "=== Verificando dependências Python ==="

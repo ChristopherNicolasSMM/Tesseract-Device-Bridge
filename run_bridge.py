@@ -113,6 +113,7 @@ from config import BridgeConfig
 from safety_lifecycle import safety_lifecycle
 from device_runtime import DeviceRuntime
 from gpio.simulated_backend import SimulatedGPIOBackend
+from python_runtime import require_python39_for_real
 from panel.app import create_panel_app
 from recipe_engine.engine import RecipeEngine
 from recipe_engine.models import Recipe, RecipeError
@@ -193,6 +194,7 @@ def main() -> None:
         raise
 
     if config.backend == "real":
+        require_python39_for_real()
         try:
             from gpio.real_backend import RealGPIOBackend
             backend = RealGPIOBackend()

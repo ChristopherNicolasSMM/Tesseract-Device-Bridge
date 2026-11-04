@@ -1785,6 +1785,21 @@
       justify-content: flex-end;
       margin-top: 20px;
     }
+
+    .settings-subnav { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0 18px; }
+    .settings-subnav button { padding: 10px 16px; border: 1px solid #475569; color: inherit;
+      border-radius: 8px; background: #171f31; cursor: pointer; }
+    .settings-subnav button[aria-pressed="true"] { border-color: #d78743; background: #303048; }
+    .calibration-card { border: 1px solid #334155; border-radius: 10px; padding: 16px;
+      margin: 10px 0; background: #171f31; display: flex; gap: 16px;
+      flex-wrap: wrap; align-items: center; justify-content: space-between; }
+    .calibration-card strong, .calibration-card small { display: block; }
+    .calibration-card small { color: #b3c3dc; margin-top: 5px; }
+    .calibration-card label { display: flex; align-items: center; gap: 8px; }
+    .calibration-card input { width: 95px; padding: 7px; border: 1px solid #64748b;
+      background: #0f172a; color: #fff; border-radius: 5px; }
+    #sensorCalibrationSection button { margin-right: 10px; padding: 10px 16px;
+      border: 1px solid #64748b; border-radius: 6px; background: #1e293b; color: inherit; cursor: pointer; }
     #control-settings { max-width: 980px; }
     #control-settings h3 { margin: 24px 0 12px; }
     #control-settings p { margin: 12px 0; line-height: 1.6; }
@@ -1983,6 +1998,12 @@
     </section>
 
     <section id="control-settings" class="tab-pane">
+      <div class="section-title">⚙️ Configurações do Device Bridge</div>
+      <div class="settings-subnav" role="group" aria-label="Seções de configuração">
+        <button type="button" id="settingsThermalTab" aria-pressed="true">Controle térmico</button>
+        <button type="button" id="settingsCalibrationTab" aria-pressed="false">Calibração dos sensores</button>
+      </div>
+      <div id="thermalSettingsSection">
       <div class="section-title">⚙️ Controle de temperatura</div>
       <p>Configurações locais preservadas nas atualizações. Alterações entram na próxima execução, inclusive sem reiniciar o Bridge.</p>
       <p>A curva limita somente a potência automática. Comando manual e fail-safe mantêm suas prioridades.</p>
@@ -2003,6 +2024,19 @@
         <button type="button" id="controlRestore">Restaurar padrões de fábrica</button>
       </form>
       <p id="controlSettingsMessage" role="status"></p>
+      </div>
+      <div id="sensorCalibrationSection" style="display:none;">
+        <div class="section-title">🌡️ Calibração individual de temperatura</div>
+        <p>Temperatura corrigida = leitura original + offset (°C). Meça cada sensor com um termômetro de referência
+          estabilizado na mesma água, preferencialmente próximo da temperatura da mostura.
+          O ajuste vale para PID, receita, alarmes e telemetria, mas <strong>somente após reiniciar o Bridge</strong>.</p>
+        <p>O ajuste é vinculado ao ID e endereço físico do sensor. Trocas de sensor exigem nova calibração.
+          Não utilize o offset para disfarçar sensor ou cabeamento com defeito.</p>
+        <div id="sensorCalibrationList" aria-live="polite"></div>
+        <button type="button" id="saveSensorCalibration">Salvar offsets</button>
+        <button type="button" id="zeroSensorCalibration">Zerar campos</button>
+        <p id="sensorCalibrationMessage" role="status"></p>
+      </div>
     </section>
     <!-- CADASTRO DE RECEITAS -->
     <section id="cadastro" class="tab-pane">
