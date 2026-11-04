@@ -90,8 +90,21 @@ def _verify(path, snapshot):
 
 
 def validate_source(path):
-    """Read-only preflight; no file creation."""
-    return _legacy_snapshot(Path(path).resolve())
+    """Preflight all new model mappings without writing or creating files."""
+    snapshot = _legacy_snapshot(Path(path).resolve())
+    config, revision, recipes, profiles = snapshot
+
+    class NoWriteSession:
+        def add(self, _entity):
+            # SQLAlchemy model construction and primitive validation only.
+            pass
+
+    _config_to_orm(NoWriteSession(), config, revision)
+    for row in recipes:
+        _recipe_to_orm(row, json.loads(row["recipe_json"]))
+    for row in profiles:
+        _control_to_orm(row["key"], json.loads(row["value_json"]), row["revision"])
+    return snapshot
 
 
 def normalize_copy(*, source, destination):
@@ -107,7 +120,7 @@ def normalize_copy(*, source, destination):
         raise NormalizationError("Destino já existe; normalização não sobrescreve arquivos.")
     if source == destination:
         raise NormalizationError("Origem e destino não podem ser iguais.")
-    snapshot = _legacy_snapshot(source)
+    snapshot = validate_source(source)
     destination.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(str(destination), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     os.close(fd)

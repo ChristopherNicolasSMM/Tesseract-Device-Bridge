@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import inspect
 
 from storage import sqlite_store as store
-from storage.orm_normalize import normalize_copy, _legacy_snapshot, _config_from_orm, NormalizationError
+from storage.orm_normalize import normalize_copy, validate_source, _config_from_orm, NormalizationError
 from storage.models import session_scope, Device, Recipe, ControlProfile
 
 
@@ -60,3 +60,14 @@ def test_models_use_typed_columns_not_json():
         assert all("JSON" not in str(c.type).upper() for c in columns)
     assert "pin" in inspect(Device).columns
     assert "boil_temperature" in inspect(ControlProfile).columns
+
+
+def test_readonly_preflight_reports_unmapped_nested_hardware_before_any_copy(isolated_sqlite, tmp_path):
+    cfg = store.load_config()
+    cfg["devices"][0]["hardware"]["unsupported_complex"] = {"outer": {"inner": 1}}
+    store.apply_config(cfg)
+    before = isolated_sqlite.read_bytes()
+    with pytest.raises(NormalizationError, match="aninhada"):
+        validate_source(isolated_sqlite)
+    assert isolated_sqlite.read_bytes() == before
+    assert not (tmp_path / "normalized.sqlite3").exists()
