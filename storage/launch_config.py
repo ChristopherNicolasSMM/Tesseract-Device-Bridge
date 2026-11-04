@@ -10,7 +10,7 @@ import os
 
 from config import BridgeConfig
 from tesseract_bridge.infrastructure.env import flag, load_infra_env, port
-from storage import sqlite_store as store
+from storage import store_router as store
 from storage.migrate import StorageError
 
 
@@ -23,6 +23,7 @@ def load_runtime_config():
             "Importe os dados legados ou inicialize explicitamente com "
             "'python -m storage.cli init'."
         )
+    # This validates Alembic 0003 in ORM mode; never seeds legacy JSON tables.
     store.initialize(seed=True)
     raw = store.load_config()
     if flag("TESSERACT_BRIDGE_SIMULATION_ONLY", False):

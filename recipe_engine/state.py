@@ -1,5 +1,5 @@
 """
-Estado de execucao de uma receita - persistido em JSON a cada mudanca,
+Estado de execução de receita, persistido pelo backend selecionado (ORM/legado),
 pra sobreviver a um restart do processo (decisao registrada: ao cair,
 aplica failsafe em tudo e fica parado esperando confirmacao manual,
 nunca retoma sozinho).
@@ -14,7 +14,7 @@ import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import List, Optional
-from storage import sqlite_store as store
+from storage import store_router as store
 
 # Status possiveis:
 # - idle: nenhuma receita rodando.

@@ -5,7 +5,7 @@ import math
 import os
 import tempfile
 from pathlib import Path
-from storage import sqlite_store as store
+from storage import store_router as store
 
 DEFAULTS_PATH = Path(__file__).resolve().parent / "data" / "control_defaults.json"
 SETTINGS_PATH = Path(__file__).resolve().parent / "data" / "private" / "control_settings.json"

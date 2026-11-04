@@ -16,7 +16,7 @@ from flask import Blueprint, current_app, jsonify, request, send_file
 
 from config import BridgeConfig, ConfigError
 from recipe_engine.models import Recipe, RecipeError
-from storage import sqlite_store as store
+from storage import store_router as store
 from storage.migrate import StorageError
 
 bp = Blueprint("admin_sqlite", __name__, url_prefix="/api/admin")
@@ -100,12 +100,10 @@ def create_draft():
 def activate_draft(draft_id):
     try:
         _not_running()
-        with store.connection() as conn:
-            row = conn.execute("SELECT payload_json FROM configuration_drafts WHERE id=? AND status='draft'",
-                               (draft_id,)).fetchone()
-        if not row:
+        payload = store.load_draft(draft_id)
+        if payload is None:
             raise StorageError("Rascunho inexistente.")
-        _validated_config(__import__("json").loads(row[0]))
+        _validated_config(payload)
         revision = store.activate_draft(draft_id)
         return jsonify(revision=revision, restart_required=True,
                        note="Configuração aprovada no SQLite. Encerre o processo e reinicie apenas em condição segura.")
@@ -115,12 +113,7 @@ def activate_draft(draft_id):
 
 @bp.get("/audit")
 def get_audit():
-    with store.connection() as conn:
-        rows = [dict(row) for row in conn.execute(
-            "SELECT id,event_type,entity_id,details_json,created_at "
-            "FROM audit_events ORDER BY id DESC LIMIT 100"
-        )]
-    return jsonify(events=rows)
+    return jsonify(events=store.audit_events(100))
 
 
 @bp.get("/storage")
@@ -129,7 +122,7 @@ def storage_status():
     return jsonify(backend=config["backend"], devices=len(config["devices"]),
                    recipes=len(store.list_recipe_rows()),
                    revision=store.config_revision(),
-                   database=str(store.db_path()), mode="sqlite")
+                   database=str(store.db_path()), mode=store.storage_mode())
 
 
 @bp.post("/backup")

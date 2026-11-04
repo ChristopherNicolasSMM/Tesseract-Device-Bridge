@@ -74,6 +74,17 @@ A aprovação altera **o banco**, mas não troca automaticamente o mapeamento de
 | Caminho do banco, modo de teste, portas de override, token | `.env` ou variáveis de ambiente |
 | YAML/JSON antigos | **Somente importação**, jamais leitura operacional em runtime |
 
+## Backend ORM experimental
+
+A partir do patch de cutover em simulação, as APIs administrativas passam
+pela fachada `storage/store_router.py`. No modo ORM, rascunhos,
+revisões e eventos são registros relacionais, gravados na cópia
+normalizada, sem alterações no banco legado. O token e as regras de
+não alterar hardware durante sessões ativas permanecem obrigatórios.
+A implantação física continua pendente.
+
+Leia [Cutover ORM em simulação](../technical/10-cutover-orm-simulacao.md).
+
 ## 6. Restrições e homologação
 
 - A branch `feature/sqlite-full-migration` é a versão **2.0.0 em homologação**, não uma release física aprovada.

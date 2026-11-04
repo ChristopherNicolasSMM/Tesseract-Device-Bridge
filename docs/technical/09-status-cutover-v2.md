@@ -13,9 +13,9 @@
 | Primeiro esquema SQLAlchemy/Alembic | Validado em Windows | 7 dispositivos, 2 receitas e 2 perfis |
 | Revisão relacional `bridge_orm_0002` | **Validada pelo operador no Windows** | 7 dispositivos, 2 receitas, 2 perfis, 2 calibrações, receita ativa e sessão; auditoria OK |
 | Histórico/revisões/rascunhos `bridge_orm_0003` | Implementada, aguardando testes e auditoria local | Tabelas de histórico, nós tipados e correspondência de payloads, IDs e timestamps |
-| Serviços e repositórios ORM para toda escrita | Pendente | Transações, controle de revisão e testes de conflito |
-| Troca do runtime para ORM | Pendente | Seleção de backend explícita, sem gravação dupla e com fallback seguro |
-| Frontend administrativo v2 | Parcial | CRUD completo, autenticação/CSRF e tratamento seguro de erro |
+| Serviços e repositórios ORM para toda escrita | **Implementados; aguardando validação** | CRUD, transações e controle de revisão nas tabelas relacionais |
+| Troca do runtime para ORM | **Disponível apenas em simulação** | Seleção explícita `STORAGE_MODE=orm`, nunca hardware real |
+| Frontend administrativo v2 | **Integrado à fachada ORM experimental** | Validar endpoints, erros e proteção de acesso no Windows |
 | Remoção do esquema JSON legado | Pendente | Backup, migração conferida e rollback documentado |
 | Testes integrados e CI Python 3.9 | Pendente | Suíte completa e homologação em Windows/Linux |
 | Teste físico em Raspberry Pi | Pendente | GPIO isolado, GPIO real, sensores, GLP, emergência e recuperação |
@@ -48,6 +48,16 @@ A migração rejeita estruturas inválidas e compara todas as linhas do
 histórico com a origem, inclusive eventos de auditoria e manifestos.
 A fonte de dados operacionais **ainda é o SQLite legado** da branch:
 as novas tabelas continuam em uma cópia de validação.
+
+## Próxima entrega: backend ORM transacional (simulação)
+
+A camada `storage/store_router.py` delega o backend `legacy` ou
+`orm` e impede que o processo opere hardware real com ORM.
+A nova implementação usa serviços de escrita ORM em transações com
+bloqueio inicial para proteger revisão, histórico e receita ativa.
+Ainda não está homologada em hardware físico.
+
+Consulte o [procedimento detalhado](10-cutover-orm-simulacao.md).
 
 ## Homologar a nova cópia no Windows
 

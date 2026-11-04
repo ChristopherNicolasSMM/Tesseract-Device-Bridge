@@ -46,6 +46,11 @@ def session_scope(path, *, readonly=False):
     try:
         with SessionLocal() as session:
             try:
+                # SQLite's default deferred transaction does not serialize
+                # read-check-write updates. Take the write lock before any
+                # revision checks to prevent lost updates on competing admins.
+                if not readonly:
+                    session.connection().exec_driver_sql("BEGIN IMMEDIATE")
                 yield session
                 if readonly:
                     session.rollback()

@@ -342,3 +342,54 @@ def backup(destination):
             out.close()
     target.chmod(0o600)
     return target
+
+
+# Compatibility helpers consumed by both the legacy and ORM store facade.
+def load_draft(draft_id):
+    with connection() as conn:
+        row = conn.execute(
+            "SELECT payload_json FROM configuration_drafts WHERE id=? AND status='draft'",
+            (draft_id,),
+        ).fetchone()
+        return json.loads(row[0]) if row is not None else None
+
+
+def audit_events(limit=100):
+    with connection() as conn:
+        return [dict(row) for row in conn.execute(
+            "SELECT id,event_type,entity_id,details_json,created_at "
+            "FROM audit_events ORDER BY id DESC LIMIT ?",
+            (limit,),
+        )]
+
+
+def replace_entities(source, entries):
+    # The public/private bulk-replace API is kept in the service boundary
+    # so neither the UI nor data/__init__.py handles SQL directly.
+    if source not in ("public", "private"):
+        raise StorageError("Fonte de receita inválida.")
+    with connection(writable=True) as conn:
+        current = {r["id"]: r["revision"] for r in conn.execute(
+            "SELECT id,revision FROM recipes WHERE source=? AND editable=1", (source,)
+        )}
+        incoming = {source + ":" + item["id"]: item for item in entries}
+        for recipe_id in current:
+            if recipe_id not in incoming:
+                conn.execute("DELETE FROM recipes WHERE id=?", (recipe_id,))
+        for recipe_id, item in incoming.items():
+            if recipe_id in current:
+                next_revision = current[recipe_id] + 1
+                conn.execute(
+                    "UPDATE recipes SET recipe_json=?,revision=?,updated_at=CURRENT_TIMESTAMP "
+                    "WHERE id=?", (dumps(item["recipe"]), next_revision, recipe_id)
+                )
+            else:
+                next_revision = 1
+                conn.execute(
+                    "INSERT INTO recipes(id,source,editable,recipe_json) VALUES(?,?,1,?)",
+                    (recipe_id, source, dumps(item["recipe"]))
+                )
+            conn.execute(
+                "INSERT INTO recipe_revisions(recipe_id,revision,recipe_json) VALUES(?,?,?)",
+                (recipe_id, next_revision, dumps(item["recipe"]))
+            )

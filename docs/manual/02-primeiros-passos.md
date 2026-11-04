@@ -102,6 +102,13 @@ Para mudar nome, GPIO, sensor ou conectividade: **editar → atualizar o disposi
 
 **Para o primeiro teste**, altere somente o nome de um dispositivo, aprove a revisão, encerre a simulação, reinicie e confira o nome. Não habilite GPIO real, GLP ou saídas físicas.
 
+## Cutover ORM experimental
+
+A v2.0.0 oferece `TESSERACT_BRIDGE_STORAGE_MODE=orm`, exclusivamente
+para simulação e usando um banco normalizado `bridge_orm_0003`
+independente. **Não altere sua instalação principal nem faça GPIO real**.
+Veja [Guia de cutover em simulação](../technical/10-cutover-orm-simulacao.md).
+
 ## 7. Backup, retorno e serviço
 
 ```powershell

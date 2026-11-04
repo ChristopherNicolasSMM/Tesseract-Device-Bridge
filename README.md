@@ -42,6 +42,7 @@ do painel. Não exponha a interface à Internet.
 | Migração segura de YAML/JSON | [12 — Migração SQLite](docs/manual/12-sqlite-migracao.md) |
 | Administração SQLite | [13 — Administração](docs/manual/13-administracao-sqlite.md) |
 | Organização Python | [Estrutura e convenções](docs/technical/07-organizacao-python.md) |
+| Cutover ORM em simulação | [Ativação, testes e rollback](docs/technical/10-cutover-orm-simulacao.md) |
 | Situação e pendências do cutover | [Plano de aceite da 2.0.0](docs/technical/09-status-cutover-v2.md) |
 | Repositório ORM e auditoria | [Validação da cópia relacional](docs/technical/08-normalizacao-sqlalchemy.md) |
 | SQLAlchemy e normalização | [Models e migração](docs/technical/08-normalizacao-sqlalchemy.md) |

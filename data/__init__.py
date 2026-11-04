@@ -12,7 +12,7 @@ import unicodedata
 
 from config import BridgeConfig
 from recipe_engine.models import Recipe, RecipeError
-from storage import sqlite_store as store
+from storage import store_router as store
 from storage.migrate import StorageError
 
 logger = logging.getLogger("tesseract_bridge.data")
@@ -46,15 +46,7 @@ def write_entities(source, entity, entries):
         if item["id"] in ids:
             raise ValueError("ID de receita duplicado.")
         ids.add(item["id"])
-    with store.connection(writable=True) as conn:
-        conn.execute("DELETE FROM recipes WHERE source=? AND editable=1", (source,))
-        for item in entries:
-            global_id = source + ":" + item["id"]
-            conn.execute("INSERT INTO recipes(id,source,editable,recipe_json) VALUES(?,?,1,?)",
-                         (global_id, source, store.dumps(item["recipe"])))
-            conn.execute("INSERT INTO recipe_revisions(recipe_id,revision,recipe_json) VALUES(?,1,?)",
-                         (global_id, store.dumps(item["recipe"])))
-
+    store.replace_entities(source, entries)
 
 def list_recipes(bridge_config=None):
     entries = []

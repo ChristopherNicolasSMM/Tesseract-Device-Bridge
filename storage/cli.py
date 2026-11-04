@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from storage import sqlite_store as store
+from storage import store_router as store
 from tesseract_bridge.infrastructure.env import load_infra_env
 
 
@@ -28,8 +28,8 @@ def main():
                           "panel_runtime_host": effective.panel.host,
                           "panel_runtime_port": effective.panel.port,
                           "devices": len(config["devices"]),
-                          "storage_mode": "sqlite_legacy_json",
-                          "runtime_cutover_enabled": False,
+                          "storage_mode": store.storage_mode(),
+                          "runtime_cutover_enabled": store.storage_mode() == "orm",
                           "revision": store.config_revision(),
                           "recipes": len(store.list_recipe_rows())}, ensure_ascii=False, indent=2))
     elif args.command == "backup":
@@ -37,12 +37,16 @@ def main():
             p.error("backup exige --output")
         print("Backup:", store.backup(args.output))
     elif args.command == "orm-audit":
+        if store.storage_mode() != "legacy":
+            p.error("orm-audit exige STORAGE_MODE=legacy e DB de origem.")
         from storage.orm_audit import audit_copy
         if not args.candidate:
             p.error("orm-audit exige --candidate, sem alterar o .env")
         print(json.dumps(audit_copy(source=store.db_path(), candidate=args.candidate),
                          ensure_ascii=False, indent=2))
     elif args.command == "normalize":
+        if store.storage_mode() != "legacy":
+            p.error("normalize exige STORAGE_MODE=legacy e DB de origem.")
         from storage.orm_normalize import normalize_copy, validate_source
         original = store.db_path()
         if args.dry_run:

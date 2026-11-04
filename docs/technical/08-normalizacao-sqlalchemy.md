@@ -133,8 +133,9 @@ O novo `storage/repositories/orm.py` oferece leitura tipada da
 configuração, catálogo de receitas, calibrações, receita ativa,
 estado de sessão e perfis térmicos, além de um
 protótipo transacional para atualizar perfis na **cópia** com verificação
-de revisão. **Não está ligado ao frontend/runtime ainda**: isso
-evita que escritas no modelo novo e no antigo causem divergência.
+de revisão. Agora existe uma integração **opt-in em simulação** pela fachada
+`storage/store_router.py`. O modo padrão mantém o legado e o ORM
+não faz escrita dupla. Veja [Cutover em simulação](10-cutover-orm-simulacao.md).
 
 **Não** altere `TESSERACT_BRIDGE_DB` nem ative hardware real na cópia
 normalizada; o cutover ainda exige escrita transacional de todas as

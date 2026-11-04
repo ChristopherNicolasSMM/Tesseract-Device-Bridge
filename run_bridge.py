@@ -1,16 +1,11 @@
-"""
-Roda o bridge completo: MQTT (status agregado + comandos + publicação
-de sensores), painel manual opcional em paralelo (mesmo DeviceRuntime
-compartilhado), e RecipeEngine opcional (motor de receita autônomo —
-ver recipe_engine/) se um arquivo de receita existir.
+"""Tesseract Device Bridge 2.0.0: processo principal, MQTT, painel e receitas.
 
 Uso:
-    python run_bridge.py [caminho/para/devices.yml] [caminho/para/recipe.yml]
-    python run_bridge.py --debug   # ativa logs de nível DEBUG
+    python run_bridge.py [--debug]
 
-Receita é opcional — se `recipe.yml` (ou o caminho passado) não
-existir, o bridge roda normalmente sem motor de receita, exatamente
-como antes desta funcionalidade existir.
+Dispositivos e receitas vêm do SQLite. O modo ORM experimental requer
+STORAGE_MODE=orm, SIMULATION_ONLY=1 e banco normalizado Alembic 0003.
+O runtime rejeita argumentos YAML nesta versão.
 """
 
 # ===========================================================================

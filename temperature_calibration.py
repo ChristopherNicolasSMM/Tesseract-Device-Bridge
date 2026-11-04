@@ -13,7 +13,7 @@ import tempfile
 from pathlib import Path
 
 from tesseract_bridge.infrastructure.paths import DATA_DIR
-from storage import sqlite_store as store
+from storage import store_router as store
 
 DEFAULT_CALIBRATION_PATH = DATA_DIR / "private" / "sensor_calibration.json"
 MAX_ABSOLUTE_OFFSET_C = 5.0

@@ -1,15 +1,10 @@
-"""
-Roda o painel manual isoladamente, sem MQTT — útil para testar o
-hardware (real ou simulado) sem broker nem Tesseract de pé.
+"""Painel isolado do Device Bridge 2.0.0 para validação local.
 
 Uso:
-    python run_panel.py [caminho/para/devices.yml]
-    python run_panel.py --debug   # ativa logs de nível DEBUG
+    python run_panel.py [--debug]
 
-Se omitido, usa `data/public/devices.yml`. Se o arquivo não existir, é
-criado automaticamente a partir de `data/public/devices.yml.example`
-(cópia, nunca symlink) — assim o primeiro `python run_panel.py` depois
-em instalações novas, banco SQLite criado com configuração simulada segura.
+O backend do SQLite é selecionado no .env. ORM exige SIMULATION_ONLY=1
+e banco normalizado. YAML não é carregado no boot.
 """
 
 # Logging colorido antes de tudo — ver logging_config.py.
