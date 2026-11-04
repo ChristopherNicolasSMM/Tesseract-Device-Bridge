@@ -25,6 +25,8 @@ como antes desta funcionalidade existir.
 # Localização: /var/log/tesseract-bridge/boot.log
 # Fallback: ./logs/boot.log (se não tiver permissão em /var/log)
 # ===========================================================================
+from __future__ import annotations
+
 import os
 import sys
 import datetime

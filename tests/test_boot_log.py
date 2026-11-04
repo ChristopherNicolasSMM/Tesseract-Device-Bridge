@@ -14,6 +14,21 @@ import types
 
 import pytest
 
+def test_bridge_entrypoint_defers_annotations_for_python39():
+    """Keep Python 3.9 from evaluating str | None during the early boot log."""
+    import ast
+    from pathlib import Path
+
+    source = (Path(__file__).resolve().parents[1] / "run_bridge.py").read_text(encoding="utf-8")
+    module = ast.parse(source)
+    assert any(
+        isinstance(node, ast.ImportFrom)
+        and node.module == "__future__"
+        and any(alias.name == "annotations" for alias in node.names)
+        for node in module.body
+    ), "run_bridge.py must postpone annotations to support Python 3.9"
+
+
 
 def load_boot_log_fn(tmp_path, platform_name="posix"):
     """
@@ -47,7 +62,8 @@ def load_boot_log_fn(tmp_path, platform_name="posix"):
     )
 
     ns = {"os": os, "datetime": __import__("datetime"), "sys": sys}
-    exec(fn_source, ns)
+    # Match run_bridge.py: do not evaluate PEP 604 annotations on Python 3.9.
+    exec("from __future__ import annotations\n" + fn_source, ns)
     from functools import partial
     return partial(ns["_boot_log"], platform_name=platform_name)
 
