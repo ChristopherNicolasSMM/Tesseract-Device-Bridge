@@ -21,3 +21,9 @@ data/private/*
 # Qual receita fica ativa no próximo boot é escolha de operação local
 # ("o que eu vou brassar agora"), não configuração do projeto.
 data/active_recipe.txt
+# SQLite operacional e backups privados: nunca versionar
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+backups/
