@@ -312,6 +312,7 @@
     if(!$('sqlSerialPort').value){
       diagText('sqlSerialOutput','Liste e selecione uma porta serial primeiro.');return;
     }
+    if(!confirm('Abrir esta porta serial pode reiniciar o microcontrolador conectado. O equipamento está em condição segura para leitura?')) return;
     try{
       const result=await api('diagnostics/serial/read','POST',{
         port:$('sqlSerialPort').value, baudrate:Number($('sqlSerialBaud').value)
