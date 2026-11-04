@@ -26,6 +26,10 @@ from storage.mappers import (
     _control_to_orm, _control_from_orm,
 )
 from tesseract_bridge.infrastructure.paths import PROJECT_ROOT
+from storage.session_mapper import (
+    read_operational_snapshot, persist_operational_snapshot,
+    verify_operational_snapshot,
+)
 
 
 def _legacy_snapshot(path):
@@ -44,7 +48,7 @@ def _legacy_snapshot(path):
     return config, revision, rows, profiles
 
 
-def _backfill(path, snapshot):
+def _backfill(path, snapshot, operational):
     config, revision, recipes, profiles = snapshot
     with session_scope(path) as session:
         if session.get(BridgeSettings, 1) is not None:
@@ -54,9 +58,10 @@ def _backfill(path, snapshot):
             session.add(_recipe_to_orm(row, json.loads(row["recipe_json"])))
         for row in profiles:
             session.add(_control_to_orm(row["key"], json.loads(row["value_json"]), row["revision"]))
+        persist_operational_snapshot(session, operational)
 
 
-def _verify(path, snapshot):
+def _verify(path, snapshot, operational=None):
     config, revision, recipes, profiles = snapshot
     with session_scope(path, readonly=True) as session:
         normalized = _config_from_orm(session)
@@ -81,11 +86,13 @@ def _verify(path, snapshot):
             actual = session.get(ControlProfile, row["key"])
             if actual is None or _control_from_orm(actual) != json.loads(row["value_json"]):
                 raise NormalizationError("Parâmetro de controle divergente: " + row["key"])
+        extra = verify_operational_snapshot(session, operational) if operational is not None else {}
     return {
         "devices": len(config["devices"]),
         "recipes": len(recipes),
         "control_profiles": len(profiles),
         "revision": revision,
+        **extra,
     }
 
 
@@ -104,6 +111,9 @@ def validate_source(path):
         _recipe_to_orm(row, json.loads(row["recipe_json"]))
     for row in profiles:
         _control_to_orm(row["key"], json.loads(row["value_json"]), row["revision"])
+    read_operational_snapshot(
+        Path(path).resolve(), devices=BridgeConfig.from_dict(config).devices
+    )
     return snapshot
 
 
@@ -121,6 +131,9 @@ def normalize_copy(*, source, destination):
     if source == destination:
         raise NormalizationError("Origem e destino não podem ser iguais.")
     snapshot = validate_source(source)
+    operational = read_operational_snapshot(
+        source, devices=BridgeConfig.from_dict(snapshot[0]).devices
+    )
     destination.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(str(destination), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     os.close(fd)
@@ -128,11 +141,22 @@ def normalize_copy(*, source, destination):
         with sqlite3.connect(str(source)) as original:
             with sqlite3.connect(str(destination)) as copy:
                 original.backup(copy)
+        # A running process could have modified the legacy SQLite between
+        # our preflight and the online backup. Refuse a mixed-time snapshot.
+        copied_snapshot = _legacy_snapshot(destination)
+        copied_operational = read_operational_snapshot(
+            destination, devices=BridgeConfig.from_dict(copied_snapshot[0]).devices
+        )
+        if copied_snapshot != snapshot or copied_operational != operational:
+            raise NormalizationError(
+                "O banco de origem mudou durante a cópia; pare o Bridge "
+                "e repita em um NOVO arquivo de destino."
+            )
         cfg = AlembicConfig(str(PROJECT_ROOT / "alembic.ini"))
         cfg.attributes["db_path"] = destination
         command.upgrade(cfg, "head")
-        _backfill(destination, snapshot)
-        result = _verify(destination, snapshot)
+        _backfill(destination, snapshot, operational)
+        result = _verify(destination, snapshot, operational)
         # A copy, not the original, is modified by ORM schema and data migration.
         return {"source": str(source), "destination": str(destination), **result}
     except BaseException:

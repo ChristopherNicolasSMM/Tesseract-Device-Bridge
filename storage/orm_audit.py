@@ -12,6 +12,8 @@ from pathlib import Path
 
 from storage.orm_normalize import _legacy_snapshot, _verify, NormalizationError
 from storage.repositories.orm import NormalizedRepository
+from storage.session_mapper import read_operational_snapshot
+from config import BridgeConfig
 
 
 # These remain in the original schema until normalized models are implemented.
@@ -65,7 +67,20 @@ def audit_copy(*, source, candidate):
                 raise NormalizationError("Falha de integridade SQLite: " + str(path))
 
     snapshot = _legacy_snapshot(original)
-    counts = _verify(normalized, snapshot)
+    with _read_only_connection(normalized) as target:
+        alembic = target.execute(
+            "SELECT version_num FROM alembic_version"
+        ).fetchone()
+        if not alembic or alembic[0] != "bridge_orm_0002":
+            raise NormalizationError(
+                "Cópia normalizada com revisão antiga. Gere uma NOVA cópia "
+                "com 'normalize --output ...normalized-v2.sqlite3'; "
+                "não sobrescreva o arquivo anterior."
+            )
+    operational = read_operational_snapshot(
+        original, devices=BridgeConfig.from_dict(snapshot[0]).devices
+    )
+    counts = _verify(normalized, snapshot, operational)
     repo = NormalizedRepository(normalized)
     # Strong guard against missing core model records.
     if len(repo.configuration()["devices"]) != counts["devices"]:
@@ -88,14 +103,14 @@ def audit_copy(*, source, candidate):
         alembic = target.execute(
             "SELECT version_num FROM alembic_version"
         ).fetchone()
-        if not alembic or alembic[0] != "bridge_orm_0001":
+        if not alembic or alembic[0] != "bridge_orm_0002":
             raise NormalizationError("Versão Alembic inesperada na cópia.")
 
     return {
         "result": "OK",
         "source": str(original),
         "candidate": str(normalized),
-        "alembic": "bridge_orm_0001",
+        "alembic": "bridge_orm_0002",
         **counts,
         "legacy_preserved_rows": preserved,
         "runtime_cutover_enabled": False,

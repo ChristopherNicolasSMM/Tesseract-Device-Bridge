@@ -21,6 +21,7 @@ na main nem validação física final no Raspberry Pi.**
 - Documentação e manual separados para o fluxo SQLite 2.0.0.
 - Fundação relacional SQLAlchemy/Alembic com normalização somente em cópia, ainda sem cutover do runtime.
 - Repositório ORM para leitura tipada e auditoria independente `orm-audit`, com comparação dos dados de legado antes da transição.
+- Revisão `bridge_orm_0002`: calibrações, receita ativa, estado de sessão, alarmes e snapshot térmico normalizados em tabelas relacionais na cópia; runtime ainda em esquema legado.
 - Reorganização incremental em `tesseract_bridge/{infrastructure,control,safety,integrations}`, sem alterar o motor de receitas nem a lógica física.
 
 ### Compatibilidade e cuidados
@@ -36,5 +37,8 @@ na main nem validação física final no Raspberry Pi.**
 - Informado pelo operador: 12 testes de infraestrutura do `.env` passaram,
   banco importado localizado corretamente, com 7 dispositivos e 2 receitas
   visualizados no painel simulado.
+- Informado pelo operador: 23 testes passaram em Windows, `normalize --dry-run`
+  e `orm-audit` da cópia Alembic 0001 concluíram com status OK e conferência
+  de 7 dispositivos, 2 receitas e 2 perfis térmicos.
 - Demais testes e o sistema de CI precisam de validação completa; este registro
   não afirma que a suíte integral passou.

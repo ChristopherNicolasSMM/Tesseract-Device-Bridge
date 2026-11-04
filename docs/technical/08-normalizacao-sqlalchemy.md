@@ -43,12 +43,18 @@ objetos desconhecidos/aninhados **não são convertidos em JSON opaco**.
 O conversor recusa campos não mapeados, informando exatamente qual
 model precisa ser ampliado, em vez de perder informação silenciosamente.
 
-Os **arquivos antigos, auditoria/revisões históricas e estado de sessão**
-ainda existem no esquema legado para rollback. Não foram apagados ou
-convertidos nesta primeira entrega: falta projetar o histórico imutável,
-as filas de alarmes, as revisões e os snapshots de recuperação em models
-próprios. A intenção é eliminar os campos JSON operacionais depois da
-validação completa, sem remover evidências antes da migração.
+A revisão **bridge_orm_0002** acrescenta a normalização de
+**calibrações (ROM ID e offset), receita ativa, estado de execução, alarmes
+pendentes, alarmes de lúpulo já disparados e snapshot dos parâmetros térmicos**.
+São tabelas relacionadas, com campos tipados, e o snapshot térmico da sessão
+é independente do perfil editável para a próxima brassagem.
+
+As **revisões históricas de configuração e receitas, rascunhos
+administrativos, eventos de auditoria e manifestos de importação**
+continuam no esquema legado por enquanto. Não foram apagados:
+a etapa seguinte deve modelar o histórico imutável e implementar a
+substituição das escritas do runtime por repositórios ORM.
+A intenção é remover campos JSON somente após validação completa.
 
 ## Processo seguro de migração (Windows)
 
@@ -68,7 +74,7 @@ python -m storage.cli normalize --dry-run
 **Converter para uma CÓPIA independente**:
 
 ```powershell
-python -m storage.cli normalize --output ./data/private/normalized-candidate.sqlite3
+python -m storage.cli normalize --output ./data/private/normalized-v2.sqlite3
 ```
 
 A ferramenta lê o banco selecionado no `.env` (como
@@ -93,7 +99,7 @@ Após o `normalize --output` ter criado a cópia (sem alterar o banco
 `imported.sqlite3`), execute:
 
 ```powershell
-python -m storage.cli orm-audit --candidate ./data/private/normalized-candidate.sqlite3
+python -m storage.cli orm-audit --candidate ./data/private/normalized-v2.sqlite3
 ```
 
 A auditoria é **somente leitura**. Compara as entidades do ORM com as
@@ -101,20 +107,21 @@ configurações e receitas originais, os perfis térmicos e os dados históricos
 que ainda aguardam modelos: seleção de receita, calibrações, estado de
 sessão, rascunhos, revisões e auditoria.
 
-O resultado deve conter `"result": "OK"`, os quantitativos de
+O resultado deve conter `"result": "OK"`, a revisão
+`"alembic": "bridge_orm_0002"`, os quantitativos de
 dispositivos/receitas e `"runtime_cutover_enabled": false`.
 Ela interrompe com erro caso identifique divergência ou banco ausente.
 Não imprime segredos MQTT.
 
 O novo `storage/repositories/orm.py` oferece leitura tipada da
-configuração, catálogo de receitas e perfis térmicos, além de um
+configuração, catálogo de receitas, calibrações, receita ativa,
+estado de sessão e perfis térmicos, além de um
 protótipo transacional para atualizar perfis na **cópia** com verificação
 de revisão. **Não está ligado ao frontend/runtime ainda**: isso
 evita que escritas no modelo novo e no antigo causem divergência.
 
 **Não** altere `TESSERACT_BRIDGE_DB` nem ative hardware real na cópia
-normalizada; o cutover exigirá completar os models de histórico,
-estado de sessão e o caminho administrativo com gravação atômica.
+normalizada; o cutover exigirá completar os models de histórico e o caminho administrativo com gravação atômica.
 
 ## Depois da homologação do conversor
 
@@ -135,3 +142,8 @@ python -m storage.cli status
 
 Testes elétricos e de recuperação no Raspberry Pi continuam pendentes.
 Não executar a v2.0.0 física em paralelo com a instalação estável.
+
+**Compatibilidade com cópia anterior:** `normalized-candidate.sqlite3`
+criada com `bridge_orm_0001` continua preservada; para conferir os novos
+dados, gere outra cópia com o caminho `normalized-v2.sqlite3`.
+Não altere `TESSERACT_BRIDGE_DB` no `.env` durante o teste.

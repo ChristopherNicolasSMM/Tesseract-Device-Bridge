@@ -28,6 +28,8 @@ def main():
                           "panel_runtime_host": effective.panel.host,
                           "panel_runtime_port": effective.panel.port,
                           "devices": len(config["devices"]),
+                          "storage_mode": "sqlite_legacy_json",
+                          "runtime_cutover_enabled": False,
                           "revision": store.config_revision(),
                           "recipes": len(store.list_recipe_rows())}, ensure_ascii=False, indent=2))
     elif args.command == "backup":

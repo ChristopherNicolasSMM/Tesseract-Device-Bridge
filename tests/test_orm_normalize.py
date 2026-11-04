@@ -31,7 +31,7 @@ def test_copy_preserves_source_and_normalizes_all_known_entities(isolated_sqlite
         assert session.get(ControlProfile, "control").boil_temperature == 96.3
         assert _config_from_orm(session)["backend"] == "simulated"
     with sqlite3.connect(str(destination)) as conn:
-        assert conn.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "bridge_orm_0001"
+        assert conn.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "bridge_orm_0002"
 
 
 def test_copy_does_not_overwrite_existing_destination(isolated_sqlite, tmp_path):

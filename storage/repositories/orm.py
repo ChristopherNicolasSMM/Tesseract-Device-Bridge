@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from config import BridgeConfig
@@ -24,8 +24,12 @@ from storage.models import (
     BridgeSettings,
     ControlProfile,
     Recipe,
+    ActiveRecipe,
+    SensorCalibration,
+    SessionState,
     session_scope,
 )
+from storage.session_mapper import state_from_orm
 
 
 class RepositoryError(RuntimeError):
@@ -46,6 +50,14 @@ class NormalizedRepository:
             with session_scope(self.path, readonly=True) as session:
                 if session.get(BridgeSettings, 1) is None:
                     raise RepositoryError("Modelos relacionais não inicializados. Execute normalize.")
+                version = session.execute(
+                    text("SELECT version_num FROM alembic_version")
+                ).scalar_one_or_none()
+                if version != "bridge_orm_0002":
+                    raise RepositoryError(
+                        "Cópia ORM de revisão antiga; normalize uma NOVA cópia "
+                        "com o código atualizado antes de utilizá-la."
+                    )
         except SQLAlchemyError as exc:
             raise RepositoryError(
                 "Banco sem tabelas ORM. Normalize uma cópia antes de utilizar os repositórios."
@@ -86,6 +98,28 @@ class NormalizedRepository:
                 "editable": bool(entity.editable), "revision": entity.revision,
                 "recipe": _recipe_from_orm(entity),
             }
+
+    def active_recipe(self):
+        with session_scope(self.path, readonly=True) as session:
+            row = session.get(ActiveRecipe, 1)
+            return row.recipe_id if row is not None else None
+
+    def calibrations(self):
+        with session_scope(self.path, readonly=True) as session:
+            return {"schema": 1, "sensors": {
+                row.sensor_id: {
+                    "address": row.address,
+                    "offset_c": row.offset_c,
+                } for row in session.scalars(
+                    select(SensorCalibration).order_by(SensorCalibration.sensor_id)
+                )
+            }}
+
+    def session_state(self):
+        """Read-only execution snapshot, never an automatic hardware resume."""
+        with session_scope(self.path, readonly=True) as session:
+            row = session.get(SessionState, 1)
+            return state_from_orm(row) if row is not None else None
 
     def control_profile(self, key="control"):
         with session_scope(self.path, readonly=True) as session:

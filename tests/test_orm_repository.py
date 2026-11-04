@@ -29,6 +29,11 @@ def test_repository_reads_all_normalized_domains(isolated_sqlite, tmp_path):
     assert len(repo.list_recipes()) == 1
     assert repo.control_profile("control")["boil_temperature"] == 100.0
     assert repo.control_profile("control_factory")["boil_temperature"] == 100.0
+    assert repo.active_recipe() is None
+    assert repo.calibrations()["sensors"] == {}
+    assert repo.session_state() == {
+        "status": "paused_after_crash", "recipe_name": "Trial"
+    }
     assert audit_copy(source=isolated_sqlite, candidate=candidate)["result"] == "OK"
 
 
