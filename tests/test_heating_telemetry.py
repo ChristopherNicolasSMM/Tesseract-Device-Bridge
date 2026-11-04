@@ -50,7 +50,7 @@ def test_publisher_matches_shared_contract_and_preserves_window(tmp_path):
         topic,payload=bridge._mqtt.publish.call_args.args
         assert topic.endswith('actuators/mash_heater/state')
         actual=json.loads(payload)
-        fixture=json.loads((Path(__file__).parent/'fixtures/heating_telemetry_v1.json').read_text())
+        fixture=json.loads((Path(__file__).parent/'fixtures/heating_telemetry_v1.json').read_text(encoding="utf-8"))
         actual['heating']['observed_at']=fixture['heating']['observed_at']
         assert actual==fixture
         assert bridge._mqtt.publish.call_args.kwargs=={'qos':0,'retain':False}

@@ -147,7 +147,12 @@ def test_publisher_matches_shared_source_fixture(tmp_path):
         c=r._sources['gas'];c.boot_id='source-contract-boot';c.arm_token='source-contract-token'
         b.publish_sensor_states()
         actual=json.loads(b._mqtt.publish.call_args.args[1])
-        expected=json.loads((Path(__file__).parent/'fixtures/heat_source_v1.json').read_text())
+        expected=json.loads((Path(__file__).parent/'fixtures/heat_source_v1.json').read_text(encoding="utf-8"))
+        # Explicit UTF-8 is required on Windows, where the locale default
+        # may decode the accented Portuguese reason as mojibake.
+        assert expected["heat_source"]["reason"] == (
+            "Desabilitado; habilitação explícita necessária"
+        )
         actual['heat_source']['observed_at']=expected['heat_source']['observed_at']
         # Keep the entire GLP safety protocol contract strict. A compact,
         # field-level diff is much more useful than pytest's truncated dict.

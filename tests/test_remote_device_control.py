@@ -143,7 +143,7 @@ def test_shared_control_contract(setup):
     bridge._remote_control.boot_id='control-contract-boot'
     bridge.publish_sensor_states()
     actual=next(json.loads(c.args[1]) for c in bridge._mqtt.publish.call_args_list if 'heating' in json.loads(c.args[1]))
-    fixture=json.loads((Path(__file__).parent/'fixtures/device_control_v1.json').read_text())
+    fixture=json.loads((Path(__file__).parent/'fixtures/device_control_v1.json').read_text(encoding="utf-8"))
     actual['control']['observed_at']=fixture['control']['observed_at']
     assert {'value':actual['value'],'control':actual['control']}==fixture
 
