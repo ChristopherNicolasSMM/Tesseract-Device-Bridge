@@ -83,6 +83,10 @@ def initialize(*, path=None, seed=True):
                 "INSERT OR IGNORE INTO settings(key,value_json) VALUES('control',?)",
                 (dumps(DEFAULT_CONTROL_SETTINGS),)
             )
+            conn.execute(
+                "INSERT OR IGNORE INTO settings(key,value_json) VALUES('control_factory',?)",
+                (dumps(DEFAULT_CONTROL_SETTINGS),)
+            )
     return target
 
 
@@ -255,6 +259,14 @@ def set_active_recipe(recipe_id):
             "ON CONFLICT(id) DO UPDATE SET recipe_id=excluded.recipe_id",
             (recipe_id,)
         )
+
+
+def load_factory_defaults():
+    with connection() as conn:
+        row = conn.execute("SELECT value_json FROM settings WHERE key='control_factory'").fetchone()
+        if row is None:
+            raise StorageError("Padrões de fábrica não inicializados no SQLite.")
+        return json.loads(row[0])
 
 
 def load_control():

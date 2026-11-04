@@ -12,6 +12,10 @@ SETTINGS_PATH = Path(__file__).resolve().parent / "data" / "private" / "control_
 
 
 def factory_settings():
+    # The migrated factory profile is stored in SQLite; code constants are
+    # used only while validating an import before a database exists.
+    if store.db_path().is_file():
+        return copy.deepcopy(store.load_factory_defaults())
     return copy.deepcopy(store.DEFAULT_CONTROL_SETTINGS)
 
 
