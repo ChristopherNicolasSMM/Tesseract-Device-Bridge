@@ -546,7 +546,7 @@ def get_sensor_calibration():
 def put_sensor_calibration():
     """Persiste sem trocar os valores de controle durante uma brassagem."""
     engine = _recipe_engine()
-    if engine is not None and engine.state.status not in ("idle", "completed", "aborted"):
+    if engine is not None and engine.state.status not in ("idle", "finished", "aborted"):
         return jsonify(error="Finalize ou cancele a receita antes de alterar calibrações."), 409
     try:
         saved = save_calibrations(request.get_json(silent=True),

@@ -9,7 +9,7 @@ Uso:
 Se omitido, usa `data/public/devices.yml`. Se o arquivo não existir, é
 criado automaticamente a partir de `data/public/devices.yml.example`
 (cópia, nunca symlink) — assim o primeiro `python run_panel.py` depois
-de um clone novo já funciona, sem passo manual de "copie o exemplo".
+em instalações novas, banco SQLite criado com configuração simulada segura.
 """
 
 # Logging colorido antes de tudo — ver logging_config.py.
@@ -17,10 +17,7 @@ import sys
 from logging_config import setup_logging
 setup_logging(debug="--debug" in sys.argv)
 
-import shutil
-from pathlib import Path
-
-from config import BridgeConfig, ConfigError
+from config import BridgeConfig
 from safety_lifecycle import safety_lifecycle
 from device_runtime import DeviceRuntime
 from gpio.simulated_backend import SimulatedGPIOBackend
@@ -28,29 +25,6 @@ from python_runtime import require_python39_for_real
 from panel.app import create_panel_app
 
 from storage import sqlite_store as store
-
-
-def ensure_config_file(path: str) -> None:
-    """
-    Garante que `path` existe antes de tentar carregar. Se não existir,
-    copia `devices.yml.example` para esse caminho. Se o exemplo também
-    não existir, levanta ConfigError com mensagem explícita em vez de
-    deixar o erro de cópia subir cru.
-    """
-    config_path = Path(path)
-    if config_path.exists():
-        return
-
-    example_path = Path(EXAMPLE_CONFIG_PATH)
-    if not example_path.exists():
-        raise ConfigError(
-            f"'{config_path}' não existe e '{example_path}' (modelo padrão) "
-            f"também não foi encontrado — não há como criar automaticamente."
-        )
-
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(example_path, config_path)
-    print(f"'{config_path}' não encontrado — criado a partir de '{example_path}'.")
 
 
 def main() -> None:

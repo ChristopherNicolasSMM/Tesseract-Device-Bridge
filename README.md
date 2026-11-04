@@ -1,3 +1,13 @@
+# Versão SQLite experimental
+
+> A branch `feature/sqlite-full-migration` utiliza SQLite como fonte de dados.
+> **Não substitua a instalação estável ainda.** Homologue em simulação e não
+> execute duas instâncias com GPIO real ao mesmo tempo.
+>
+> [Manual de migração, importação e testes](docs/manual/12-sqlite-migracao.md)
+
+---
+
 # tesseract-device-bridge
 
 > Ponte entre hardware físico (GPIO de um Raspberry Pi) e automação de

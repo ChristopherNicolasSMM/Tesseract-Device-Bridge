@@ -119,6 +119,7 @@ from recipe_engine.engine import RecipeEngine
 from recipe_engine.models import Recipe, RecipeError
 from project_paths import DEFAULT_RECIPE_STATE_PATH
 from storage import sqlite_store as store
+from storage.launch_config import load_runtime_config
 
 logger = logging.getLogger("tesseract_bridge.run_bridge")
 
@@ -184,10 +185,8 @@ def main() -> None:
 
     _boot_log(f"main() iniciado")
     _boot_log(f"SQLite: {db_file}")
-    store.initialize(seed=True)
     try:
-        config = BridgeConfig.from_dict(store.load_config())
-        config.validate()
+        config = load_runtime_config()
         _boot_log(f"SQLite validado — backend={config.backend}")
     except Exception as e:
         _boot_log(f"ERRO ao carregar configuração SQLite: {e}")

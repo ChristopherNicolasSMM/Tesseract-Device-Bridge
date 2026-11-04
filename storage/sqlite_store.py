@@ -315,6 +315,8 @@ def backup(destination):
     source = db_path()
     target = Path(destination)
     target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists():
+        raise StorageError("Backup já existe; escolha um arquivo novo: " + str(target))
     with connection() as conn:
         out = sqlite3.connect(str(target))
         try:
