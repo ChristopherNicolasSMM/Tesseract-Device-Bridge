@@ -32,6 +32,18 @@
     }
     select.value = current || '';
   }
+  function refreshSubtypeOptions(reset=false) {
+    const type=f('subtype'), previous=reset?'':type.value;
+    const available=f('role').value==='sensor'
+      ? ['temperature','digital','analog'] : ['digital','pwm'];
+    type.replaceChildren();
+    const labels={temperature:'Temperatura',digital:'Digital',analog:'Analógico',pwm:'PWM'};
+    available.forEach(kind=>option(type,kind,labels[kind]));
+    if(previous && !available.includes(previous)){
+      option(type,previous,'⚠ Tipo incomum: '+previous);
+    }
+    type.value=previous || available[0];
+  }
   function refreshReferences(device) {
     const others = config.devices;
     const sensors = others.filter(d => d.role === 'sensor' && d.subtype === 'temperature')
@@ -45,9 +57,13 @@
     choices('controller_device', controllers, device.hardware?.heating_source?.controller_device || '',
       'Selecione o controlador principal');
     const pins = f('pin'); pins.replaceChildren();
+    const reserved={0:'EEPROM HAT',1:'EEPROM HAT',2:'I2C SDA',3:'I2C SCL',
+      4:'1-Wire',14:'UART TX',15:'UART RX'};
     for (let bcm=0; bcm<=27; bcm++) {
       const occupants=others.filter(d=> d.id!==device.id && Number(d.hardware?.pin)===bcm);
-      option(pins, bcm, 'GPIO '+bcm+(occupants.length?' | em uso: '+occupants.map(d=>d.id).join(', '):' | livre'));
+      const note=occupants.length ? ' | em uso: '+occupants.map(d=>d.id).join(', ')
+        : (reserved[bcm]?' | '+reserved[bcm]:' | livre');
+      option(pins, bcm, 'GPIO '+bcm+note);
     }
     pins.value = String(device.hardware?.pin ?? 4);
     f('temperature_sensor').required = !!f('participation').value;
@@ -59,6 +75,7 @@
     if (!d) return;
     for (const field of ['id','name','role','subtype','state_topic','command_topic'])
       f(field).value = d[field] || '';
+    refreshSubtypeOptions();
     f('pin').value = d.hardware?.pin ?? '';
     f('driver').value = d.hardware?.driver || '';
     f('address').value = d.hardware?.address || '';
@@ -105,6 +122,7 @@
     catch(e){$('sqlEditor').hidden=true;msg(e.message);}
   });
   $('sqlReload').addEventListener('click',()=>load().catch(e=>msg(e.message)));
+  f('role').addEventListener('change',()=>refreshSubtypeOptions(true));
   f('participation').addEventListener('change', () => {
     const enabled = !!value('participation');
     f('temperature_sensor').required=enabled;
@@ -243,7 +261,7 @@
       });
     }catch(e){diagText('sqlScanResults', e.message);}
   });
-  $('sqlReadGpio').addEventListener('click', async () => {
+  const readGpio = async () => {
     try{
       const data=await api('diagnostics/gpio');
       const area=$('sqlGpioResults');area.replaceChildren();
@@ -265,15 +283,16 @@
         ? 'Teste exclusivamente em memória, sem acionar os pinos físicos.'
         : 'Acionamento virtual desativado: requer SIMULATION_ONLY=1.');
     }catch(e){diagText('sqlGpioResults',e.message);}
-  });
+  };
+  $('sqlReadGpio').addEventListener('click', readGpio);
   async function setVirtual(level) {
     const pin=Number($('sqlVirtualPin').value);
     if(!$('sqlVirtualPin').options.length){return;}
     try{
       const result=await api('diagnostics/gpio/virtual','POST',{pin,level});
+      await readGpio();
       diagText('sqlVirtualStatus','GPIO BCM '+result.pin+': '+
         (result.level?'HIGH':'LOW')+' (SOMENTE VIRTUAL)');
-      await $('sqlReadGpio').click();
     }catch(e){diagText('sqlVirtualStatus',e.message);}
   }
   $('sqlVirtualOn').addEventListener('click',()=>setVirtual(true));
