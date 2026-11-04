@@ -23,7 +23,7 @@ from storage.models import (
 )
 from storage.mappers import (
     _config_from_orm, _config_to_orm, _recipe_to_orm, _recipe_from_orm,
-    _control_to_orm, _control_from_orm,
+    _populate_recipe_children, _control_to_orm, _control_from_orm,
 )
 from storage.history_mapper import _document, decode_document
 from storage.session_mapper import state_to_orm, state_from_orm
@@ -192,12 +192,9 @@ class OrmStore(NormalizedRepository):
         for item in list(row.steps):
             row.steps.remove(item)
         session.flush()
-        fresh = _recipe_to_orm(
-            {"id": original_id, "source": row.source, "editable": row.editable,
-             "revision": row.revision}, payload
-        )
-        row.vessels = fresh.vessels
-        row.steps = fresh.steps
+        # Keep the persistent parent. Reattaching children from a *new*
+        # Recipe instance would cascade-add that parent and violate UNIQUE(id).
+        _populate_recipe_children(row, payload)
         session.add(RecipeRevision(
             recipe_id=original_id, revision=row.revision,
             created_at=_timestamp(), document=_document("recipe_revision", payload),

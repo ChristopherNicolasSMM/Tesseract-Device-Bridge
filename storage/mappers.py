@@ -212,12 +212,14 @@ def _config_from_orm(session):
     return config
 
 
-def _recipe_to_orm(row, raw):
-    _expect_fields(raw, {"name", "vessels", "steps"}, f"receita {row['id']}")
-    item = Recipe(
-        id=row["id"], source=row["source"], editable=bool(row["editable"]),
-        name=raw["name"], revision=row["revision"],
-    )
+def _populate_recipe_children(item, raw):
+    """Fill a *managed* Recipe with typed children, never create a second parent.
+
+    For an update the managed row and its identity key must be preserved:
+    active_recipe points at that same primary key. Fresh children can only
+    be attached after old collections have been flushed/deleted.
+    """
+    _expect_fields(raw, {"name", "vessels", "steps"}, f"receita {item.id}")
     for position, v in enumerate(raw["vessels"]):
         _expect_fields(v, {
             "id", "name", "heater_device_id", "sensor_device_id", "pid", "order",
@@ -233,7 +235,7 @@ def _recipe_to_orm(row, raw):
     for position, step in enumerate(raw["steps"]):
         _expect_fields(step, {
             "vessel", "target_temp", "hold_minutes", "pumps", "label", "hop_alarms",
-        }, f"etapa {position} da receita {row['id']}")
+        }, f"etapa {position} da receita {item.id}")
         entry = RecipeStep(
             position=position, vessel_id=step["vessel"], target_temp=step["target_temp"],
             hold_minutes=step["hold_minutes"], label=step.get("label"),
@@ -248,6 +250,14 @@ def _recipe_to_orm(row, raw):
             ))
         item.steps.append(entry)
     return item
+
+
+def _recipe_to_orm(row, raw):
+    item = Recipe(
+        id=row["id"], source=row["source"], editable=bool(row["editable"]),
+        name=raw["name"], revision=row["revision"],
+    )
+    return _populate_recipe_children(item, raw)
 
 
 def _recipe_from_orm(item):

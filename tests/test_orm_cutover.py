@@ -217,3 +217,19 @@ def test_high_level_recipe_service_uses_orm(normalized):
     data.update_recipe(name, recipe("Receita Editada"), cfg)
     assert data.get_active_recipe_id() == name
     assert data.load_active_recipe(cfg).name == "Receita Editada"
+
+
+def test_recipe_update_has_no_identity_conflict_warnings(normalized):
+    import warnings
+    from sqlalchemy.exc import SAWarning
+    from tests.test_data_store import recipe
+    store.create_recipe("private:stable", "private", recipe("Before"))
+    store.set_active_recipe("private:stable")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", SAWarning)
+        store.update_recipe("private:stable", recipe("After"))
+        store.replace_entities("private", [{
+            "id": "stable", "recipe": recipe("After again")
+        }])
+    assert store.recipe_row("private:stable")["revision"] == 3
+    assert store.get_active_recipe() == "private:stable"
