@@ -119,6 +119,7 @@ from recipe_engine.engine import RecipeEngine
 from recipe_engine.models import Recipe, RecipeError
 from project_paths import DEFAULT_RECIPE_STATE_PATH
 from storage import sqlite_store as store
+from infra_env import load_infra_env
 from storage.launch_config import load_runtime_config
 
 logger = logging.getLogger("tesseract_bridge.run_bridge")
@@ -173,6 +174,7 @@ def load_recipe_engine(runtime: DeviceRuntime, config: BridgeConfig, recipe_path
 
 
 def main() -> None:
+    load_infra_env()
     # Filtrar args que não são caminhos de arquivo (ex.: --debug)
     file_args = [a for a in sys.argv[1:] if not a.startswith("-")]
     if file_args:

@@ -24,16 +24,16 @@ from gpio.simulated_backend import SimulatedGPIOBackend
 from python_runtime import require_python39_for_real
 from panel.app import create_panel_app
 
-from storage import sqlite_store as store
+from storage.launch_config import load_runtime_config
 
 
 def main() -> None:
     file_args = [arg for arg in sys.argv[1:] if not arg.startswith("-")]
     if file_args:
         raise SystemExit("Arquivo YAML não é aceito no runtime SQLite.")
-    store.initialize(seed=True)
-    config = BridgeConfig.from_dict(store.load_config())
-    config.validate()
+    # Use exactly the same SQLite path, simulation guard and port overrides
+    # as run_bridge.py; a second clone must not activate physical GPIO.
+    config = load_runtime_config()
 
     if config.backend == "real":
         require_python39_for_real()

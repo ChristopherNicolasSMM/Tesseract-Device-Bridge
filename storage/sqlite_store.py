@@ -12,7 +12,7 @@ import sqlite3
 from pathlib import Path
 
 from storage.migrate import apply_migrations, check_schema, StorageError
-from project_paths import DATA_DIR
+from project_paths import DATA_DIR, PROJECT_ROOT
 
 DEFAULT_DB = DATA_DIR / "private" / "bridge.sqlite3"
 
@@ -40,7 +40,12 @@ INITIAL_CONFIG = {
 
 
 def db_path():
-    return Path(os.environ.get("TESSERACT_BRIDGE_DB", str(DEFAULT_DB))).expanduser().resolve()
+    # Relative infrastructure paths are anchored to this installation, not
+    # to the caller's current working directory (Windows and systemd alike).
+    selected = Path(os.environ.get("TESSERACT_BRIDGE_DB", str(DEFAULT_DB))).expanduser()
+    if not selected.is_absolute():
+        selected = PROJECT_ROOT / selected
+    return selected.resolve()
 
 
 def dumps(value):

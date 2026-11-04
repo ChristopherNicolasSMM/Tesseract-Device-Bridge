@@ -27,3 +27,7 @@ data/active_recipe.txt
 *.sqlite3-wal
 *.sqlite3-shm
 backups/
+
+# Exemplos de infraestrutura são compartilháveis, .env real é privado
+.env.*
+!.env.example
