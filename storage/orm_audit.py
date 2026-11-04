@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 from storage.orm_normalize import _legacy_snapshot, _verify, NormalizationError
@@ -63,12 +64,12 @@ def audit_copy(*, source, candidate):
         raise NormalizationError("Origem ou cópia ORM inexistente.")
 
     for path in (original, normalized):
-        with _read_only_connection(path) as connection:
+        with closing(_read_only_connection(path)) as connection:
             if connection.execute("PRAGMA quick_check").fetchone()[0] != "ok":
                 raise NormalizationError("Falha de integridade SQLite: " + str(path))
 
     snapshot = _legacy_snapshot(original)
-    with _read_only_connection(normalized) as target:
+    with closing(_read_only_connection(normalized)) as target:
         alembic = target.execute(
             "SELECT version_num FROM alembic_version"
         ).fetchone()
@@ -93,7 +94,7 @@ def audit_copy(*, source, candidate):
         raise NormalizationError("Revisão de configuração ORM divergente.")
 
     preserved = {}
-    with _read_only_connection(original) as legacy, _read_only_connection(normalized) as target:
+    with closing(_read_only_connection(original)) as legacy, closing(_read_only_connection(normalized)) as target:
         for table in LEGACY_PRESERVED_TABLES:
             src = _table_digest(legacy, table)
             dst = _table_digest(target, table)

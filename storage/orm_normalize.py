@@ -8,6 +8,9 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import tempfile
+import warnings
+from contextlib import closing
 from dataclasses import asdict
 from pathlib import Path
 
@@ -61,6 +64,11 @@ def _backfill(path, snapshot, operational, history):
             session.add(_recipe_to_orm(row, json.loads(row["recipe_json"])))
         for row in profiles:
             session.add(_control_to_orm(row["key"], json.loads(row["value_json"]), row["revision"]))
+        # SQLAlchemy does not guarantee flush order across independent mapped
+        # objects when no ORM relationship expresses the FK dependency.
+        # ActiveRecipe.recipe_id references bridge_recipes_v2.id, so flush
+        # its parents now, still inside the SAME transaction.
+        session.flush()
         persist_operational_snapshot(session, operational)
         persist_history(session, history)
 
@@ -143,19 +151,29 @@ def normalize_copy(*, source, destination):
     )
     history = read_history_snapshot(source)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(str(destination), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    # Build in a private file, not at the final name. On Windows a SQLite
+    # failure can retain a connection via an exception traceback; the caller
+    # must never encounter an incomplete DB at the advertised destination.
+    fd, staging_name = tempfile.mkstemp(
+        prefix="." + destination.name + ".",
+        suffix=".partial",
+        dir=str(destination.parent),
+    )
     os.close(fd)
+    staging = Path(staging_name)
     try:
-        with sqlite3.connect(str(source)) as original:
-            with sqlite3.connect(str(destination)) as copy:
+        # sqlite3.Connection.__exit__ does NOT close the connection; closing
+        # is essential before cleanup/rename on Windows.
+        with closing(sqlite3.connect(str(source))) as original:
+            with closing(sqlite3.connect(str(staging))) as copy:
                 original.backup(copy)
         # A running process could have modified the legacy SQLite between
         # our preflight and the online backup. Refuse a mixed-time snapshot.
-        copied_snapshot = _legacy_snapshot(destination)
+        copied_snapshot = _legacy_snapshot(staging)
         copied_operational = read_operational_snapshot(
-            destination, devices=BridgeConfig.from_dict(copied_snapshot[0]).devices
+            staging, devices=BridgeConfig.from_dict(copied_snapshot[0]).devices
         )
-        copied_history = read_history_snapshot(destination)
+        copied_history = read_history_snapshot(staging)
         if (copied_snapshot != snapshot or copied_operational != operational
                 or copied_history != history):
             raise NormalizationError(
@@ -163,13 +181,24 @@ def normalize_copy(*, source, destination):
                 "e repita em um NOVO arquivo de destino."
             )
         cfg = AlembicConfig(str(PROJECT_ROOT / "alembic.ini"))
-        cfg.attributes["db_path"] = destination
+        cfg.attributes["db_path"] = staging
         command.upgrade(cfg, "head")
-        _backfill(destination, snapshot, operational, history)
-        result = _verify(destination, snapshot, operational, history)
-        # A copy, not the original, is modified by ORM schema and data migration.
+        _backfill(staging, snapshot, operational, history)
+        result = _verify(staging, snapshot, operational, history)
+        # Atomic exclusive publication. A hard link fails if another process
+        # created destination; unlike os.replace, it never overwrites it.
+        # Staging and destination live in the same directory/filesystem.
+        os.link(str(staging), str(destination))
         return {"source": str(source), "destination": str(destination), **result}
-    except BaseException:
-        if destination.exists():
-            destination.unlink()
-        raise
+    finally:
+        try:
+            staging.unlink(missing_ok=True)
+        except OSError as exc:
+            # Never replace the migration's original error with a Windows
+            # sharing violation. The .partial is not a valid final DB.
+            warnings.warn(
+                f"Não foi possível apagar arquivo temporário {staging}; "
+                "feche conexões/terminal e remova-o manualmente. "
+                f"Motivo: {exc}",
+                RuntimeWarning,
+            )

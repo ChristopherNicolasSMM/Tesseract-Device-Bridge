@@ -71,3 +71,35 @@ def test_readonly_preflight_reports_unmapped_nested_hardware_before_any_copy(iso
         validate_source(isolated_sqlite)
     assert isolated_sqlite.read_bytes() == before
     assert not (tmp_path / "normalized.sqlite3").exists()
+
+
+def test_failed_backfill_never_publishes_candidate(isolated_sqlite, tmp_path, monkeypatch):
+    """Even a database/SQLAlchemy failure must not publish partial migrations."""
+    from storage import orm_normalize
+    destination = tmp_path / "candidate-not-created.sqlite3"
+    original = isolated_sqlite.read_bytes()
+
+    def broken_backfill(*_args):
+        raise RuntimeError("falha intencional na gravação relacional")
+
+    monkeypatch.setattr(orm_normalize, "_backfill", broken_backfill)
+    with pytest.raises(RuntimeError, match="falha intencional"):
+        normalize_copy(source=isolated_sqlite, destination=destination)
+    assert not destination.exists()
+    assert isolated_sqlite.read_bytes() == original
+
+
+def test_referenced_active_recipe_preserves_foreign_keys(isolated_sqlite, tmp_path):
+    """The active recipe FK must stay ON, and refer to a persisted Recipe."""
+    from tests.test_data_store import config, recipe
+    import sqlite3
+    config()
+    store.create_recipe("private:fk-test", "private", recipe("FK Test"))
+    store.set_active_recipe("private:fk-test")
+    destination = tmp_path / "with-active-recipe.sqlite3"
+    normalize_copy(source=isolated_sqlite, destination=destination)
+    with sqlite3.connect(str(destination)) as db:
+        assert db.execute("PRAGMA foreign_key_check").fetchall() == []
+        assert db.execute(
+            "SELECT recipe_id FROM bridge_active_recipe_v2 WHERE id=1"
+        ).fetchone()[0] == "private:fk-test"

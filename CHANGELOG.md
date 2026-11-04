@@ -23,6 +23,7 @@ na main nem validação física final no Raspberry Pi.**
 - Repositório ORM para leitura tipada e auditoria independente `orm-audit`, com comparação dos dados de legado antes da transição.
 - Revisão `bridge_orm_0002`: calibrações, receita ativa, estado de sessão, alarmes e snapshot térmico normalizados em tabelas relacionais na cópia; runtime ainda em esquema legado.
 - Revisão `bridge_orm_0003`: revisões históricas, rascunhos, auditoria, manifestos e migrações legadas com metadados tipados e documentos históricos em nós relacionais, ainda sem cutover do runtime.
+- Corrigida a ordem de flush ORM antes da receita ativa (FK), além do fechamento explícito de conexões SQLite e publicação exclusiva da migração somente após validação, evitando mascarar erros de banco com WinError 32.
 - Reorganização incremental em `tesseract_bridge/{infrastructure,control,safety,integrations}`, sem alterar o motor de receitas nem a lógica física.
 
 ### Compatibilidade e cuidados

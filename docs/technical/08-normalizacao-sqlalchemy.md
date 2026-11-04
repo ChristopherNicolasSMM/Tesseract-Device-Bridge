@@ -95,7 +95,12 @@ os objetos reconstruídos aos dados anteriores.
 - Não remove nem altera a base de origem.
 - O destino não pode existir anteriormente.
 - Se detectar campo não representado no ORM ou divergência, a conversão
-  falha e a cópia incompleta é removida.
+  falha sem publicar um banco de destino. A ferramenta trabalha em arquivo
+  temporário privado (`.partial`) e publica o destino somente após conferir
+  todos os registros, preservando FKs e a atomicidade da transação. No
+  Windows, caso uma falha mantenha uma conexão aberta, pode restar um
+  arquivo temporário `.partial`: feche os processos e remova apenas esse
+  arquivo, nunca o banco original.
 - A normalização não ativa GPIO, não altera PID, não retoma sessão e
   **não muda automaticamente o banco do seu `.env`**.
 - A execução do Bridge ainda usa as tabelas anteriores; não indique o
