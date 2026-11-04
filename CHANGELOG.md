@@ -24,6 +24,7 @@ na main nem validação física final no Raspberry Pi.**
 - Revisão `bridge_orm_0002`: calibrações, receita ativa, estado de sessão, alarmes e snapshot térmico normalizados em tabelas relacionais na cópia; runtime ainda em esquema legado.
 - Revisão `bridge_orm_0003`: revisões históricas, rascunhos, auditoria, manifestos e migrações legadas com metadados tipados e documentos históricos em nós relacionais.
 - Backend SQLAlchemy com repositórios transacionais de escrita por domínio e fachada de persistência selecionável; modo ORM estritamente experimental e simulado, sem escrita dupla.
+- Auditoria ORM: diagnóstico explícito de timestamps de sessão quando origem ou cópia foram alteradas após a normalização; comparação continua estrita, sem aceitação silenciosa de divergências. CLI apresenta erro legível sem traceback e com instrução para criar cópia nova.
 - Correção de edição de receita no ORM sem instanciar duplicata da chave primária; relacionamentos filho recriados no registro existente.
 - Cadastro administrativo: seletores derivados da configuração para sensores térmicos, controladores e pinos BCM; ROM IDs do scanner disponíveis para preenchimento.
 - Diagnóstico administrativo: scanner DS18B20, inventário lógico de GPIO, teste GPIO exclusivamente virtual e monitor serial somente leitura, todos protegidos pelo token.

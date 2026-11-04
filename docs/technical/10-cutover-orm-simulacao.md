@@ -70,6 +70,30 @@ O retorno precisa indicar `result=OK`,
 não existir, crie-a com `normalize --output` em um nome novo
 antes de executar auditoria.
 
+**Importante:** a auditoria de equivalência só é válida para uma
+cópia recém-criada e ainda não utilizada para operar o Bridge.
+O estado da sessão em `imported.sqlite3` é mutável e seu timestamp
+é atualizado quando o runtime salva a sessão. Se ele mudar após a
+normalização, `orm-audit` rejeitará corretamente a comparação.
+Não use `--candidate` apontando para um banco `orm-sandbox.sqlite3`
+que já foi editado pelo runtime.
+
+Se ocorrer `Timestamp do estado de sessão divergente`:
+
+1. Pare o Bridge e feche os processos que gravam nos bancos.
+2. Confirme `storage_mode=legacy` e `db=...imported.sqlite3`
+   com `python -m storage.cli status`.
+3. Gere outra cópia, com nome ainda inexistente:
+   `python -m storage.cli normalize --output ./data/private/normalized-v3-recheck.sqlite3`.
+4. Audite **imediatamente**:
+   `python -m storage.cli orm-audit --candidate ./data/private/normalized-v3-recheck.sqlite3`.
+5. Preserve `normalized-v3.sqlite3` e os snapshots anteriores;
+   não sobrescreva nenhum arquivo validado.
+
+Esta é uma nova comparação pontual de dados mutáveis, e não
+uma migração Alembic adicional. Não é necessário alterar models,
+timestamps ou permissões do SQLite para que a auditoria passe.
+
 **Crie uma cópia de trabalho para o cutover**, preservando também
 a `normalized-v3.sqlite3` que passou na auditoria:
 

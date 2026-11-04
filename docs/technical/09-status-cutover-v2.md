@@ -78,6 +78,11 @@ As cópias anteriores (`normalized-candidate.sqlite3` na 0001 e
 `normalized-v2.sqlite3` na 0002) permanecem arquivadas.
 A auditoria atual exige `normalized-v3.sqlite3` com a revisão
 **0003**. Use um destino novo; jamais sobrescreva cópias validadas.
+Pare o Bridge e **audite imediatamente a nova cópia**; se a origem ou
+a cópia tiver sido usada desde a normalização, o timestamp de
+`session_state` pode mudar legitimamente e a comparação falhar.
+Nesse caso, crie outro candidato com nome distinto, sem excluir o
+anterior. O auditor apresenta os três timestamps para diagnóstico.
 
 A auditoria 0003 deve retornar `result=OK`,
 `alembic=bridge_orm_0003` e `runtime_cutover_enabled=false`.

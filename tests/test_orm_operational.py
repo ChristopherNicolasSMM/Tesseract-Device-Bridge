@@ -104,3 +104,82 @@ def test_repository_refuses_stale_orm_revision(isolated_sqlite, tmp_path):
         conn.execute("UPDATE alembic_version SET version_num='bridge_orm_0001'")
     with pytest.raises(RepositoryError, match="revisão antiga"):
         NormalizedRepository(candidate)
+
+
+def test_audit_explains_when_legacy_source_session_changes_after_copy(
+    isolated_sqlite, tmp_path
+):
+    candidate, _, _ = populated_candidate(isolated_sqlite, tmp_path)
+    import sqlite3
+    with sqlite3.connect(str(isolated_sqlite)) as conn:
+        conn.execute(
+            "UPDATE session_state SET updated_at=? WHERE id=1",
+            ("2099-01-01 12:00:00",),
+        )
+    with pytest.raises(NormalizationError, match="Origem alterada após a cópia ORM"):
+        audit_copy(source=isolated_sqlite, candidate=candidate)
+    with sqlite3.connect(str(candidate)) as conn:
+        expected = conn.execute(
+            "SELECT updated_at FROM bridge_session_state_v2 WHERE id=1"
+        ).fetchone()[0]
+        assert expected != "2099-01-01 12:00:00"
+
+
+def test_audit_explains_when_orm_runtime_changes_session_after_copy(
+    isolated_sqlite, tmp_path
+):
+    candidate, _, _ = populated_candidate(isolated_sqlite, tmp_path)
+    import sqlite3
+    with sqlite3.connect(str(candidate)) as conn:
+        conn.execute(
+            "UPDATE bridge_session_state_v2 SET updated_at=? WHERE id=1",
+            ("2099-02-02 12:00:00",),
+        )
+    with pytest.raises(NormalizationError, match="Estado relacional da cópia ORM diferente"):
+        audit_copy(source=isolated_sqlite, candidate=candidate)
+
+
+def test_audit_explains_when_candidate_legacy_snapshot_is_edited(
+    isolated_sqlite, tmp_path
+):
+    candidate, _, _ = populated_candidate(isolated_sqlite, tmp_path)
+    import sqlite3
+    with sqlite3.connect(str(candidate)) as conn:
+        conn.execute(
+            "UPDATE session_state SET updated_at=? WHERE id=1",
+            ("2099-03-03 12:00:00",),
+        )
+    with pytest.raises(NormalizationError, match="Snapshot legado da cópia ORM alterado"):
+        audit_copy(source=isolated_sqlite, candidate=candidate)
+
+
+
+def test_cli_orm_audit_prints_readable_error_without_traceback(
+    isolated_sqlite, tmp_path, monkeypatch
+):
+    import os
+    import sqlite3
+    import subprocess
+    import sys
+    from tesseract_bridge.infrastructure.paths import PROJECT_ROOT
+
+    candidate, _, _ = populated_candidate(isolated_sqlite, tmp_path)
+    with sqlite3.connect(str(isolated_sqlite)) as conn:
+        conn.execute(
+            "UPDATE session_state SET updated_at=? WHERE id=1",
+            ("2099-04-04 12:00:00",),
+        )
+
+    env = {**os.environ,
+           "TESSERACT_BRIDGE_DB": str(isolated_sqlite),
+           "TESSERACT_BRIDGE_STORAGE_MODE": "legacy"}
+    run = subprocess.run(
+        [sys.executable, "-m", "storage.cli", "orm-audit",
+         "--candidate", str(candidate)],
+        cwd=str(PROJECT_ROOT), env=env, capture_output=True,
+        text=True, timeout=30,
+    )
+    assert run.returncode == 2
+    assert "Auditoria ORM reprovada" in run.stderr
+    assert "Origem alterada após a cópia ORM" in run.stderr
+    assert "Traceback" not in run.stderr

@@ -40,10 +40,14 @@ def main():
         if store.storage_mode() != "legacy":
             p.error("orm-audit exige STORAGE_MODE=legacy e DB de origem.")
         from storage.orm_audit import audit_copy
+        from storage.mappers import NormalizationError
         if not args.candidate:
             p.error("orm-audit exige --candidate, sem alterar o .env")
-        print(json.dumps(audit_copy(source=store.db_path(), candidate=args.candidate),
-                         ensure_ascii=False, indent=2))
+        try:
+            result = audit_copy(source=store.db_path(), candidate=args.candidate)
+        except NormalizationError as exc:
+            p.exit(2, "Auditoria ORM reprovada: " + str(exc) + "\n")
+        print(json.dumps(result, ensure_ascii=False, indent=2))
     elif args.command == "normalize":
         if store.storage_mode() != "legacy":
             p.error("normalize exige STORAGE_MODE=legacy e DB de origem.")

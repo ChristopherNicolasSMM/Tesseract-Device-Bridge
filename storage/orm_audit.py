@@ -54,6 +54,63 @@ def _table_digest(connection, table):
     return len(rows), digest.hexdigest()
 
 
+
+def _session_timestamp(connection, table):
+    """Use fixed table identifiers only; never inspect or display session JSON."""
+    row = connection.execute(
+        "SELECT updated_at FROM " + table + " WHERE id=1"
+    ).fetchone()
+    return row[0] if row else None
+
+
+def _check_session_snapshot_age(source, candidate):
+    """Classify session divergence before comparing immutable ORM snapshots.
+
+    The audit is a strict migration equivalence check, NOT a consistency
+    comparison between a running source and its later-edited ORM clone.
+    Both files are opened read-only. No state contents are printed.
+    """
+    with closing(_read_only_connection(source)) as original:
+        original_time = _session_timestamp(original, "session_state")
+    with closing(_read_only_connection(candidate)) as normalized:
+        copied_time = _session_timestamp(normalized, "session_state")
+        orm_time = _session_timestamp(normalized, "bridge_session_state_v2")
+
+    if original_time != copied_time:
+        if copied_time == orm_time:
+            cause = (
+                "Origem alterada após a cópia ORM: a tabela legada preservada "
+                "e o modelo ORM concordam entre si, mas não com a origem."
+            )
+        elif original_time == orm_time:
+            cause = (
+                "Snapshot legado da cópia ORM alterado após a migração: "
+                "a origem concorda com o modelo ORM, mas não com a tabela legada."
+            )
+        else:
+            cause = (
+                "Origem e snapshot legado da cópia divergem; o modelo ORM "
+                "também tem outro timestamp. Ambos os bancos precisam ser "
+                "verificados antes de uma nova normalização."
+            )
+        raise NormalizationError(
+            f"{cause} Timestamps: origem={original_time!r}, "
+            f"cópia_legada={copied_time!r}, cópia_orm={orm_time!r}. "
+            "Pare o Bridge, confira o banco apontado pelo .env e gere uma "
+            "NOVA cópia com 'normalize --output ...' (outro nome); "
+            "não apague nem sobrescreva os bancos existentes."
+        )
+    if copied_time != orm_time:
+        raise NormalizationError(
+            "Estado relacional da cópia ORM diferente do snapshot feito "
+            f"na migração: timestamp legado={copied_time!r}, "
+            f"ORM={orm_time!r}. "
+            "A cópia candidata pode ter sido usada pelo runtime ORM ou "
+            "modificada após a migração. Preserve-a e gere uma NOVA "
+            "cópia para repetir a auditoria; não desative a comparação."
+        )
+
+
 def audit_copy(*, source, candidate):
     """Verify pre-existing and normalized data, without modifying either DB."""
     original = Path(source).expanduser().resolve()
@@ -79,6 +136,9 @@ def audit_copy(*, source, candidate):
                 "com 'normalize --output ...normalized-v3.sqlite3'; "
                 "não sobrescreva o arquivo anterior."
             )
+    # Check version before accessing _v2 tables: a real 0001 candidate
+    # may not contain the operational ORM model at all.
+    _check_session_snapshot_age(original, normalized)
     operational = read_operational_snapshot(
         original, devices=BridgeConfig.from_dict(snapshot[0]).devices
     )
