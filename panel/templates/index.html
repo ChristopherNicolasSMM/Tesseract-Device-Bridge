@@ -38,6 +38,24 @@
       --warning: #eab308;
       --radius: 12px;
       --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+      /* Popups nativos de select/input seguem o tema escuro (Windows Chromium). */
+      color-scheme: dark;
+    }
+
+    /* As opções do dropdown nativo não herdam o fundo do próprio select
+       de maneira consistente entre Chrome, Edge e sistemas operacionais. */
+    select {
+      color-scheme: dark;
+    }
+
+    select option,
+    select optgroup {
+      background-color: var(--bg-card);
+      color: var(--text-primary);
+    }
+
+    select option:disabled {
+      color: var(--text-secondary);
     }
 
     /* ===== SCROLLBAR ===== */
@@ -1806,7 +1824,11 @@
     #control-settings label { line-height: 2.7; }
     #control-settings input[type="number"], #control-settings select {
       padding: 7px; border: 1px solid #64748b; border-radius: 6px;
-      color: inherit; background: transparent; max-width: 160px;
+      color: var(--text-primary); background: var(--bg-card); max-width: 160px;
+    }
+    #control-settings select:focus-visible {
+      outline: 2px solid var(--accent-blue);
+      outline-offset: 2px;
     }
     #control-settings button { margin: 20px 12px 0 0; padding: 10px 16px;
       border: 1px solid #64748b; border-radius: 6px; cursor: pointer; }
