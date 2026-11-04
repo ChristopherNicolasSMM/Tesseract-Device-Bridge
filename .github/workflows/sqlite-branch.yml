@@ -24,6 +24,7 @@ jobs:
           tests/test_storage_legacy_import.py
           tests/test_package_layout.py
           tests/test_orm_normalize.py
+          tests/test_orm_repository.py
           tests/test_sqlite_admin.py
           tests/test_temperature_calibration.py
           tests/test_python_runtime.py

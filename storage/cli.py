@@ -10,9 +10,10 @@ from tesseract_bridge.infrastructure.env import load_infra_env
 def main():
     load_infra_env()
     p = argparse.ArgumentParser(description="Tesseract Device Bridge - SQLite")
-    p.add_argument("command", choices=("init", "status", "backup", "normalize"))
+    p.add_argument("command", choices=("init", "status", "backup", "normalize", "orm-audit"))
     p.add_argument("--output", help="Destino do backup ou NOVO banco normalizado")
     p.add_argument("--dry-run", action="store_true", help="Somente verificar a origem JSON, sem escrever")
+    p.add_argument("--candidate", help="Caminho da cópia normalizada para auditoria ORM")
     args = p.parse_args()
     if args.command == "init":
         print("Banco inicializado (simulado até configurar hardware):", store.initialize())
@@ -33,6 +34,12 @@ def main():
         if not args.output:
             p.error("backup exige --output")
         print("Backup:", store.backup(args.output))
+    elif args.command == "orm-audit":
+        from storage.orm_audit import audit_copy
+        if not args.candidate:
+            p.error("orm-audit exige --candidate, sem alterar o .env")
+        print(json.dumps(audit_copy(source=store.db_path(), candidate=args.candidate),
+                         ensure_ascii=False, indent=2))
     elif args.command == "normalize":
         from storage.orm_normalize import normalize_copy, validate_source
         original = store.db_path()

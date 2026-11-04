@@ -86,6 +86,36 @@ os objetos reconstruídos aos dados anteriores.
   `normalized-candidate.sqlite3` como fonte operacional nova
   esperando que os models ORM já estejam ativos no runtime.
 
+
+## Auditoria adicional antes de trocar a persistência
+
+Após o `normalize --output` ter criado a cópia (sem alterar o banco
+`imported.sqlite3`), execute:
+
+```powershell
+python -m storage.cli orm-audit --candidate ./data/private/normalized-candidate.sqlite3
+```
+
+A auditoria é **somente leitura**. Compara as entidades do ORM com as
+configurações e receitas originais, os perfis térmicos e os dados históricos
+que ainda aguardam modelos: seleção de receita, calibrações, estado de
+sessão, rascunhos, revisões e auditoria.
+
+O resultado deve conter `"result": "OK"`, os quantitativos de
+dispositivos/receitas e `"runtime_cutover_enabled": false`.
+Ela interrompe com erro caso identifique divergência ou banco ausente.
+Não imprime segredos MQTT.
+
+O novo `storage/repositories/orm.py` oferece leitura tipada da
+configuração, catálogo de receitas e perfis térmicos, além de um
+protótipo transacional para atualizar perfis na **cópia** com verificação
+de revisão. **Não está ligado ao frontend/runtime ainda**: isso
+evita que escritas no modelo novo e no antigo causem divergência.
+
+**Não** altere `TESSERACT_BRIDGE_DB` nem ative hardware real na cópia
+normalizada; o cutover exigirá completar os models de histórico,
+estado de sessão e o caminho administrativo com gravação atômica.
+
 ## Depois da homologação do conversor
 
 As próximas entregas trocarão os repositórios de devices, receitas,
@@ -99,7 +129,7 @@ e snapshots JSON equivalentes.
 
 ```powershell
 python -m compileall -q .
-python -m pytest -q tests/test_package_layout.py tests/test_orm_normalize.py
+python -m pytest -q tests/test_package_layout.py tests/test_orm_normalize.py tests/test_orm_repository.py
 python -m storage.cli status
 ```
 
