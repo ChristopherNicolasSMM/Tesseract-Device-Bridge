@@ -14,6 +14,7 @@ A integração com o Tesseract Core por MQTT é opcional.
 
 - **SQLite como fonte única de dados operacionais**: dispositivos, GPIOs,
   receitas, calibração, parâmetros térmicos, estados, revisões e auditoria.
+- **Serviços de domínio compartilhados** entre frontend e repositórios.
 - **Frontend administrativo** para cadastros e conectividade, com token,
   rascunhos, validação, aprovação e reinício controlado.
 - **Migração explícita** das instalações YAML/JSON, com backup e relatório;

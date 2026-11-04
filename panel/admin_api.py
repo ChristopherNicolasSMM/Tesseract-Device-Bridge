@@ -15,7 +15,8 @@ from pathlib import Path
 from flask import Blueprint, current_app, jsonify, request, send_file
 
 from config import BridgeConfig, ConfigError
-from recipe_engine.models import Recipe, RecipeError
+from recipe_engine.models import RecipeError
+from tesseract_bridge.services.validation import validate_configuration_document
 from storage import store_router as store
 from storage.migrate import StorageError
 
@@ -55,17 +56,13 @@ def _validated_config(payload):
     # Never expose the existing MQTT secret to the browser.
     if "mqtt" in payload and isinstance(payload["mqtt"], dict) and payload["mqtt"].get("password") is None:
         payload["mqtt"]["password"] = current["mqtt"].get("password")
-    cfg = BridgeConfig.from_dict(payload)
-    cfg.validate()
-    for row in store.list_recipe_rows():
-        try:
-            Recipe.from_dict(__import__("json").loads(row["recipe_json"])).validate(cfg)
-        except (RecipeError, ValueError, TypeError) as exc:
-            raise ValueError(f"Dispositivo incompatível com receita {row['id']}: {exc}") from exc
-    for sensor_id, entry in store.load_calibrations()["sensors"].items():
-        sensor = next((d for d in cfg.devices if d.id == sensor_id), None)
-        if sensor is None or sensor.hardware.get("address") != entry["address"]:
-            raise ValueError(f"Calibração de {sensor_id} inválida para esta revisão. Revise o sensor primeiro.")
+    recipes = [
+        (row["id"], __import__("json").loads(row["recipe_json"]))
+        for row in store.list_recipe_rows()
+    ]
+    validate_configuration_document(
+        payload, recipes, store.load_calibrations()["sensors"]
+    )
     return payload
 
 

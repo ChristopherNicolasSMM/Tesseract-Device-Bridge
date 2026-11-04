@@ -12,8 +12,10 @@ from sqlalchemy import select
 
 from config import BridgeConfig
 from control_settings import validate_settings
-from recipe_engine.models import Recipe as DomainRecipe
 from temperature_calibration import validate_calibrations
+from tesseract_bridge.services.validation import (
+    validate_configuration_document, validate_recipe_document,
+)
 from storage.models import (
     session_scope, BridgeSettings, MqttSettings, PanelSettings, Device,
     Recipe, ActiveRecipe, ControlProfile, SensorCalibration, SessionState,
@@ -46,17 +48,12 @@ def _recipe_rows(session):
 
 
 def _validate_config(session, raw):
-    parsed = BridgeConfig.from_dict(raw)
-    parsed.validate()
-    for item in _recipe_rows(session):
-        DomainRecipe.from_dict(_recipe_from_orm(item)).validate(parsed)
-    for calibration in session.scalars(select(SensorCalibration)):
-        sensor = next((dev for dev in parsed.devices if dev.id == calibration.sensor_id), None)
-        if sensor is None or sensor.hardware.get("address") != calibration.address:
-            raise StorageError(
-                "Calibração/ROM ID incompatível com configuração: " + calibration.sensor_id
-            )
-    return parsed
+    recipes = [(item.id, _recipe_from_orm(item)) for item in _recipe_rows(session)]
+    calibrations = {
+        row.sensor_id: {"address": row.address, "offset_c": row.offset_c}
+        for row in session.scalars(select(SensorCalibration))
+    }
+    return validate_configuration_document(raw, recipes, calibrations)
 
 
 def _audit(session, event_type, details, entity_id=None):
@@ -164,9 +161,9 @@ class OrmStore(NormalizedRepository):
             return self._row(row) if row is not None else None
 
     def _validated_recipe(self, session, payload):
-        domain = DomainRecipe.from_dict(payload)
-        domain.validate(BridgeConfig.from_dict(_config_from_orm(session)))
-        return domain
+        return validate_recipe_document(
+            payload, BridgeConfig.from_dict(_config_from_orm(session))
+        )
 
     def create_recipe(self, recipe_id, source, payload):
         with session_scope(self.path) as session:

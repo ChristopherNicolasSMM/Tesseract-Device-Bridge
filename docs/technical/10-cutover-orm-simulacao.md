@@ -20,6 +20,10 @@ mas **não há escrita dupla**. No modo ORM, a API de SQL direto da
 camada anterior fica bloqueada. O carregamento da configuração mantém
 um snapshot imutável no runtime até reinicialização supervisionada.
 
+Regras de compatibilidade entre configuração, receitas e calibrações
+foram centralizadas em `tesseract_bridge/services/validation.py`,
+compartilhadas por administração e repositórios.
+
 A conexão transacional inicia com `BEGIN IMMEDIATE` para serializar
 operações de leitura + verificação de revisão + escrita sob SQLite.
 Históricos de configurações, rascunhos, receitas e auditoria são
