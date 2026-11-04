@@ -5,6 +5,7 @@ The SQLite destination must be empty; all import writes are one transaction.
 """
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
@@ -15,7 +16,7 @@ from pathlib import Path
 
 import yaml
 
-from config import BridgeConfig
+from config import BridgeConfig, ConfigError
 from control_settings import validate_settings
 from recipe_engine.models import Recipe
 from recipe_engine.state import RecipeState
@@ -47,7 +48,65 @@ def _read_json(path, default=None):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def collect(source_dir, *, devices_file="data/public/devices.yml"):
+def _needs_remote_disable(device):
+    """ONLY the legacy digital/duty actuator missing its status topic.
+
+    Never auto-repair protected heating sources or malformed actuator wiring.
+    A status topic must not be invented because doing so can silently enable
+    remote control or publish on an unintended MQTT topic.
+    """
+    if not isinstance(device, dict):
+        return False
+    hw = device.get("hardware")
+    if not isinstance(hw, dict):
+        return False
+    return (
+        hw.get("remote_control") is True
+        and device.get("role") == "actuator"
+        and (device.get("subtype") == "digital" or "window_seconds" in hw)
+        and "heating_source" not in hw
+        and bool(device.get("command_topic"))
+        and not device.get("state_topic")
+    )
+
+
+def _normalize_legacy_config(original, *, disable_invalid_remote_control):
+    """No source writes; opt-in safety downgrade is visible and auditable."""
+    if not isinstance(original, dict):
+        raise LegacyImportError("devices.yml deve conter um objeto YAML.")
+    config = copy.deepcopy(original)
+    invalid = [d for d in config.get("devices", []) if _needs_remote_disable(d)]
+    if invalid and not disable_invalid_remote_control:
+        names = ", ".join(repr(d.get("id", "<sem ID>")) for d in invalid)
+        raise LegacyImportError(
+            f"Dispositivos legados com hardware.remote_control=true sem state_topic: {names}. "
+            "O novo schema exige state_topic para permitir ON/OFF remoto. "
+            "Opções: adicione um state_topic real à CÓPIA da origem, ou use "
+            "--disable-invalid-remote-control para importar esses dispositivos "
+            "com remote_control=false (sem alterar os arquivos de origem). "
+            "Nenhum controle remoto será habilitado automaticamente."
+        )
+    repairs = []
+    if disable_invalid_remote_control:
+        for device in invalid:
+            device["hardware"]["remote_control"] = False
+            repairs.append({
+                "device_id": device["id"],
+                "field": "hardware.remote_control",
+                "source_value": True,
+                "imported_value": False,
+                "reason": "missing_state_topic",
+            })
+    try:
+        validated = BridgeConfig.from_dict(config)
+        validated.validate()
+    except ConfigError as exc:
+        raise LegacyImportError(f"Configuração de dispositivos inválida: {exc}") from exc
+    return config, validated, repairs
+
+
+
+def collect(source_dir, *, devices_file="data/public/devices.yml", disable_invalid_remote_control=False):
     """Preflight all content before touching the destination DB."""
     root = Path(source_dir).resolve()
     if not root.is_dir():
@@ -58,9 +117,10 @@ def collect(source_dir, *, devices_file="data/public/devices.yml"):
     if not config_path.is_file():
         raise LegacyImportError("Configuração de dispositivos ausente: " + str(config_path))
     with config_path.open("r", encoding="utf-8") as stream:
-        config = yaml.safe_load(stream) or {}
-    parsed = BridgeConfig.from_dict(config)
-    parsed.validate()
+        original_config = yaml.safe_load(stream) or {}
+    config, parsed, repairs = _normalize_legacy_config(
+        original_config, disable_invalid_remote_control=disable_invalid_remote_control
+    )
 
     all_paths = {p for p in LEGACY_FILES if (root / p).is_file()}
     all_paths.add(config_path.relative_to(root).as_posix())
@@ -132,7 +192,7 @@ def collect(source_dir, *, devices_file="data/public/devices.yml"):
     return {
         "root": root, "file_hashes": file_hashes,
         "source_sha256": digest.hexdigest(),
-        "config": config, "recipes": recipes,
+        "config": config, "repairs": repairs, "recipes": recipes,
         "settings": settings, "defaults": defaults,
         "calibrations": calibrations, "state": state, "active_recipe": active_id,
         "counts": {
@@ -198,17 +258,23 @@ def import_snapshot(snapshot, *, destination):
                 conn.execute("INSERT INTO session_state(id,state_json) VALUES(1,?)",
                              (store.dumps(snapshot["state"]),))
             manifest = {"file_sha256": snapshot["file_hashes"],
-                        "counts": snapshot["counts"], "active_recipe": snapshot["active_recipe"]}
+                        "counts": snapshot["counts"], "active_recipe": snapshot["active_recipe"],
+                        "repairs": snapshot.get("repairs", [])}
             conn.execute(
                 "INSERT INTO legacy_imports(source_sha256,manifest_json) VALUES(?,?)",
                 (snapshot["source_sha256"], store.dumps(manifest))
             )
             conn.execute("INSERT INTO audit_events(event_type,details_json) VALUES('legacy_import',?)",
-                         (store.dumps({"digest": snapshot["source_sha256"], **snapshot["counts"]}),))
+                         (store.dumps({"digest": snapshot["source_sha256"],
+                                       "repairs": snapshot.get("repairs", []),
+                                       **snapshot["counts"]}),))
         with store.connection(path=destination) as conn:
             assert conn.execute("SELECT COUNT(*) FROM devices").fetchone()[0] == snapshot["counts"]["devices"]
             assert conn.execute("SELECT COUNT(*) FROM recipes").fetchone()[0] == snapshot["counts"]["recipes"]
             assert conn.execute("SELECT COUNT(*) FROM sensor_calibrations").fetchone()[0] == snapshot["counts"]["calibrations"]
+            imported = store._read_config(conn)[0]
+            if imported != snapshot["config"]:
+                raise LegacyImportError("Configuração importada diverge da revisão aprovada.")
             for recipe in snapshot["recipes"]:
                 row = conn.execute("SELECT recipe_json FROM recipes WHERE id=?", (recipe["id"],)).fetchone()
                 if row is None or json.loads(row[0]) != recipe["recipe"]:

@@ -27,14 +27,26 @@ def main():
     parser.add_argument("--backup-dir", help="Local privado onde salvar ZIP dos arquivos originais")
     parser.add_argument("--devices-file", default="data/public/devices.yml")
     parser.add_argument("--dry-run", action="store_true", help="Validar e inventariar, sem gravar")
+    parser.add_argument(
+        "--disable-invalid-remote-control", action="store_true",
+        help="Com consentimento explícito, importa atuadores sem state_topic com "
+             "hardware.remote_control=false; nunca habilita comandos nem altera YAML"
+    )
     args = parser.parse_args()
 
-    snapshot = collect(args.source, devices_file=args.devices_file)
+    snapshot = collect(
+        args.source, devices_file=args.devices_file,
+        disable_invalid_remote_control=args.disable_invalid_remote_control,
+    )
     print(json.dumps({"digest": snapshot["source_sha256"],
                       "counts": snapshot["counts"],
                       "files": sorted(snapshot["file_hashes"]),
-                      "active_recipe": snapshot["active_recipe"]},
+                      "active_recipe": snapshot["active_recipe"],
+                      "repairs": snapshot["repairs"]},
                      ensure_ascii=False, indent=2))
+    if snapshot["repairs"]:
+        print("ATENÇÃO: controle remoto DESABILITADO nos dispositivos listados em repairs. "
+              "Revise esses cadastros no frontend antes de ativar operação física.")
     if args.dry_run:
         print("Pré-validação concluída. Nenhum dado foi alterado.")
         return 0

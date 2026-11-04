@@ -90,3 +90,75 @@ def test_importer_detects_stale_rom_calibration(legacy_source):
         "demo_temperature":{"address":"28-not-this-device","offset_c":2.1}}}),encoding="utf-8")
     with pytest.raises(ValueError,match="recalibre"):
         collect(legacy_source)
+
+
+
+def test_legacy_remote_without_state_topic_rejected_by_default(legacy_source):
+    """The importer must never silently enable remote actuator commands."""
+    path = legacy_source / "data/public/devices.yml"
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    raw["devices"].append({
+        "id": "pump_b1", "name": "Bomba 1", "role": "actuator",
+        "subtype": "digital", "command_topic": "actuators/pump_b1/set",
+        "hardware": {"pin": 19, "remote_control": True},
+        "is_risk": True, "failsafe_value": False,
+    })
+    path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+    with pytest.raises(LegacyImportError, match="pump_b1"):
+        collect(legacy_source)
+
+
+def test_explicit_remote_downgrade_keeps_backup_original_and_sqlite_safe(legacy_source, tmp_path):
+    """An explicit downgrade is private to the SQLite import, fully auditable."""
+    import zipfile
+
+    path = legacy_source / "data/public/devices.yml"
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    raw["devices"].append({
+        "id": "pump_b1", "name": "Bomba 1", "role": "actuator",
+        "subtype": "digital", "command_topic": "actuators/pump_b1/set",
+        "hardware": {"pin": 19, "remote_control": True},
+        "is_risk": True, "failsafe_value": False,
+    })
+    path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+    original = path.read_bytes()
+    snapshot = collect(legacy_source, disable_invalid_remote_control=True)
+    assert snapshot["counts"]["devices"] == 3
+    assert snapshot["repairs"] == [{
+        "device_id": "pump_b1", "field": "hardware.remote_control",
+        "source_value": True, "imported_value": False,
+        "reason": "missing_state_topic",
+    }]
+    imported = next(d for d in snapshot["config"]["devices"] if d["id"] == "pump_b1")
+    assert imported["hardware"]["remote_control"] is False
+    assert path.read_bytes() == original
+    archive = archive_source(snapshot, tmp_path / "backup")
+    with zipfile.ZipFile(archive) as zipped:
+        assert zipped.read("data/public/devices.yml") == original
+    destination = tmp_path / "migrated.sqlite3"
+    import_snapshot(snapshot, destination=destination)
+    with store.connection(path=destination) as conn:
+        row = conn.execute(
+            "SELECT config_json FROM devices WHERE id='pump_b1'"
+        ).fetchone()
+        assert json.loads(row[0])["hardware"]["remote_control"] is False
+        manifest = json.loads(conn.execute(
+            "SELECT manifest_json FROM legacy_imports"
+        ).fetchone()[0])
+        assert manifest["repairs"] == snapshot["repairs"]
+    assert path.read_bytes() == original
+
+
+def test_explicit_remote_downgrade_does_not_bypass_other_safety_validation(legacy_source):
+    path = legacy_source / "data/public/devices.yml"
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    raw["devices"].append({
+        "id": "gas", "name": "Fonte de gás", "role": "actuator",
+        "subtype": "digital", "command_topic": "actuators/gas/set",
+        "hardware": {"pin": 19, "remote_control": True,
+                     "heating_source": {"participation": "auxiliary"}},
+        "is_risk": True, "failsafe_value": False,
+    })
+    path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+    with pytest.raises(LegacyImportError):
+        collect(legacy_source, disable_invalid_remote_control=True)

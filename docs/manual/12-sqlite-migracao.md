@@ -44,6 +44,34 @@ python tools/migrate_legacy_to_sqlite.py \
 Um ZIP privado é criado antes da importação. Ele pode conter senha MQTT e
 cadastros privados. Nunca o inclua no repositório ou compartilhe sem proteção.
 
+
+### Dispositivos legados com controle remoto incompleto
+
+Se o `--dry-run` indicar `hardware.remote_control=true` sem `state_topic`
+(como em `pump_b1`), o importador **recusa** a migração por padrão.
+Não é erro do SQLite: o schema atual exige tópicos de estado/comando para
+controle remoto explícito.
+
+Para preservar o controle remoto, adicione o `state_topic` **real** na cópia
+da configuração antiga e execute a validação novamente. Não invente um tópico
+que não seja publicado pelo seu dispositivo.
+
+Alternativamente, para importar com segurança sem editar o YAML antigo:
+
+```powershell
+python tools/migrate_legacy_to_sqlite.py --source ../Tesseract-Device-Bridge --db ./data/private/imported.sqlite3 --backup-dir ./backups --disable-invalid-remote-control --dry-run
+
+python tools/migrate_legacy_to_sqlite.py --source ../Tesseract-Device-Bridge --db ./data/private/imported.sqlite3 --backup-dir ./backups --disable-invalid-remote-control
+```
+
+Essa opção é **explícita**, vale apenas para atuadores digitais/por janela
+sem `state_topic` e sem `heating_source`, e importa esses dispositivos com
+`remote_control=false`. O original permanece intacto. O backup conserva
+os dados originais e o SQLite registra cada ajuste no manifesto/auditoria.
+Não desabilita verificações de failsafe, ROM ID, GPIO nem proteção de gás.
+Para reativar controle remoto, complete os dados pelo frontend, aprove
+uma revisão e reinicie o processo de forma segura.
+
 ## Simulação isolada, mesmo com dados de GPIO real importados
 
 ```bash
