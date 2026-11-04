@@ -26,6 +26,7 @@ na main nem validação física final no Raspberry Pi.**
 - Backend SQLAlchemy com repositórios transacionais de escrita por domínio e fachada de persistência selecionável; modo ORM estritamente experimental e simulado, sem escrita dupla.
 - Auditoria ORM: diagnóstico explícito de timestamps de sessão quando origem ou cópia foram alteradas após a normalização; comparação continua estrita, sem aceitação silenciosa de divergências. CLI apresenta erro legível sem traceback e com instrução para criar cópia nova.
 - Correção de edição de receita no ORM sem instanciar duplicata da chave primária; relacionamentos filho recriados no registro existente.
+- Validação de perfil térmico com defaults obtidos na própria sessão ORM e não no banco global selecionado pelo ambiente; fixture de testes isola o modo legacy mesmo quando o PowerShell está em modo ORM.
 - Cadastro administrativo: seletores derivados da configuração para sensores térmicos, controladores e pinos BCM; ROM IDs do scanner disponíveis para preenchimento.
 - Diagnóstico administrativo: scanner DS18B20, inventário lógico de GPIO, teste GPIO exclusivamente virtual e monitor serial somente leitura, todos protegidos pelo token.
 - Corrigida a ordem de flush ORM antes da receita ativa (FK), além do fechamento explícito de conexões SQLite e publicação exclusiva da migração somente após validação, evitando mascarar erros de banco com WinError 32.

@@ -4,6 +4,39 @@
 > Raspberry Pi físico ou cargas GLP. A `main` e `imported.sqlite3`
 > permanecem preservadas. O modo padrão continua sendo `legacy`.
 
+## 0. Como saber qual banco está ativo
+
+Execute `python -m storage.cli status` **antes** de qualquer auditoria.
+Se mostrar `storage_mode=orm` e `db=...normalized-v3.sqlite3`,
+essa cópia está selecionada para execução e pode ter sido alterada.
+**Não a use como nova fonte da auditoria e não a sobrescreva.**
+
+Para verificar uma migração a partir da origem legada, com o
+Bridge desligado, estabeleça a origem explicitamente apenas na
+sessão PowerShell atual:
+
+```powershell
+$env:TESSERACT_BRIDGE_STORAGE_MODE="legacy"
+$env:TESSERACT_BRIDGE_DB="./data/private/imported.sqlite3"
+python -m storage.cli status
+```
+
+Só depois gere um **novo destino inexistente** com
+`python -m storage.cli normalize --output <nome-novo>.sqlite3`
+e use `orm-audit --candidate <nome-novo>.sqlite3`.
+Mantenha `normalized-v3.sqlite3`, `orm-sandbox.sqlite3` e
+`imported.sqlite3` intactos. Para retomar o ORM, configure
+`STORAGE_MODE=orm`, `SIMULATION_ONLY=1` e o caminho da
+**cópia de trabalho**, não da cópia de auditoria.
+
+## Referências cruzadas na validação de controle térmico
+
+A validação de parâmetros utiliza os padrões de fábrica do
+**mesmo banco relacional** acessado pelo repositório.
+Assim, testes que constroem uma cópia ORM isolada não consultam
+a configuração global `.env` para encontrar `control_factory`.
+O modo ORM continua restrito à simulação e não existe escrita dupla.
+
 ## Arquitetura e contratos
 
 A v2.0.0 agora contém dois backends de persistência:

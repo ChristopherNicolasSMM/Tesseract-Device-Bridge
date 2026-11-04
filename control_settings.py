@@ -19,8 +19,13 @@ def factory_settings():
     return copy.deepcopy(store.DEFAULT_CONTROL_SETTINGS)
 
 
-def validate_settings(raw):
-    defaults = factory_settings()
+def validate_settings(raw, *, defaults=None):
+    """Validate without relying on process-global storage when defaults supplied.
+
+    Repositories working on an explicit database must pass the factory
+    profile from THAT database, never the process-selected store.
+    """
+    defaults = factory_settings() if defaults is None else defaults
     if not isinstance(raw, dict) or set(raw) != set(defaults):
         raise ValueError("Configuração deve conter exatamente os campos dos padrões de fábrica.")
     def number(value):

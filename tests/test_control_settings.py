@@ -103,3 +103,18 @@ def test_pid_external_ceiling_unwinds_integral():
     assert pid.compute(65,65.5,2,output_limit=30)<=30
     assert pid.compute(65,66,2,output_limit=0)==0
     assert pid.compute(65,65,2,output_limit=50)==0
+
+
+
+def test_validation_with_explicit_defaults_has_no_global_database_dependency(
+    isolated_sqlite, monkeypatch
+):
+    from storage import sqlite_store as legacy
+    defaults = legacy.load_factory_defaults()
+    current = legacy.load_control()
+    monkeypatch.setenv("TESSERACT_BRIDGE_STORAGE_MODE", "orm")
+    monkeypatch.setenv("TESSERACT_BRIDGE_SIMULATION_ONLY", "1")
+    monkeypatch.setenv("TESSERACT_BRIDGE_DB", str(isolated_sqlite))
+    result = validate_settings(current, defaults=defaults)
+    assert result == current
+    assert result is not current

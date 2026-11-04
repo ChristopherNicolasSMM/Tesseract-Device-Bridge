@@ -163,7 +163,6 @@ class NormalizedRepository:
         """
         if key != "control":
             raise RepositoryError("Somente o perfil operacional pode ser editado.")
-        value = validate_settings(payload)
         with session_scope(self.path) as session:
             previous = session.get(ControlProfile, key)
             if previous is None:
@@ -172,6 +171,12 @@ class NormalizedRepository:
                 raise RepositoryError(
                     "Revisão alterada por outro operador. Recarregue antes de salvar."
                 )
+            factory = session.get(ControlProfile, "control_factory")
+            if factory is None:
+                raise RepositoryError("Padrões de fábrica ausentes na cópia ORM.")
+            value = validate_settings(
+                payload, defaults=_control_from_orm(factory)
+            )
             next_revision = previous.revision + 1
             session.delete(previous)
             session.flush()

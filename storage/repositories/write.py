@@ -280,11 +280,16 @@ class OrmStore(NormalizedRepository):
         return self.control_profile("control")
 
     def save_control(self, payload):
-        value = validate_settings(payload)
         with session_scope(self.path) as session:
             current = session.get(ControlProfile, "control")
             if current is None:
                 raise StorageError("Perfil térmico ausente.")
+            factory = session.get(ControlProfile, "control_factory")
+            if factory is None:
+                raise StorageError("Padrões de fábrica ausentes na cópia ORM.")
+            value = validate_settings(
+                payload, defaults=_control_from_orm(factory)
+            )
             revision = current.revision + 1
             session.delete(current)
             session.flush()
