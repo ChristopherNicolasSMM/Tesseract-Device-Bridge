@@ -6,6 +6,8 @@ that execution, distinct from editable next-session control settings.
 """
 from __future__ import annotations
 
+import json
+
 from recipe_engine.state import RecipeState
 from temperature_calibration import validate_calibrations
 from storage import sqlite_store as store
