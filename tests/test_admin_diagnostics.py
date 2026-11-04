@@ -119,3 +119,20 @@ def test_admin_form_has_live_reference_selects():
         assert section in js
     assert "refreshReferences(d)" in js
     assert "diagnostics/gpio/virtual" in js
+
+
+def test_diagnostic_write_and_serial_blocked_when_stored_session_active(app_client, monkeypatch):
+    http, config, runtime = app_client
+    from storage import sqlite_store as legacy
+    legacy.save_session_state({"status": "paused_after_crash"})
+    available = next(pin for pin in service.BCM_PINS
+        if all(d.hardware.get("pin") != pin for d in config.devices))
+    virtual = http.post("/api/admin/diagnostics/gpio/virtual",
+        headers=auth(), json={"pin": available, "level": True})
+    assert virtual.status_code == 409
+    monkeypatch.setattr(service, "serial_read", lambda *_args: {
+        "text": "should not be called"
+    })
+    serial = http.post("/api/admin/diagnostics/serial/read",
+        headers=auth(), json={"port": "MOCK0", "baudrate": 9600})
+    assert serial.status_code == 409

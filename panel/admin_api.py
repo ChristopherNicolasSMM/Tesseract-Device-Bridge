@@ -42,7 +42,7 @@ def _not_running():
     if engine is not None and engine.state.status in ("ramping", "holding", "paused_manual", "paused_after_crash"):
         raise StorageError("Finalize/cancele a sessão e isole as saídas antes de alterar hardware.")
     state = store.load_session_state() or {}
-    if state.get("status") in ("ramping", "holding", "paused_manual"):
+    if state.get("status") in ("ramping", "holding", "paused_manual", "paused_after_crash"):
         raise StorageError("Estado de sessão ativa armazenado no banco; não é seguro aplicar configuração.")
     runtime = current_app.config.get("DEVICE_RUNTIME")
     if runtime is not None and runtime.emergency_reason:
@@ -149,4 +149,4 @@ def download_backup(filename):
 
 # Inherit the existing admin token authorization for diagnostics.
 from panel.admin_diagnostics import register_diagnostics
-register_diagnostics(bp)
+register_diagnostics(bp, _not_running)

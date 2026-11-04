@@ -6,12 +6,13 @@ admin-token before_request interlock.
 from __future__ import annotations
 
 from flask import current_app, jsonify, request
+from storage.migrate import StorageError
 
 from tesseract_bridge.diagnostics import service
 from tesseract_bridge.infrastructure.env import flag
 
 
-def register_diagnostics(blueprint):
+def register_diagnostics(blueprint, require_idle):
     def runtime_context():
         return (
             current_app.config["BRIDGE_CONFIG"],
@@ -39,11 +40,10 @@ def register_diagnostics(blueprint):
         config, runtime = runtime_context()
         if not flag("TESSERACT_BRIDGE_SIMULATION_ONLY", False) or config.backend != "simulated":
             return jsonify(error="Acionamento de testes permitido apenas em SIMULATION_ONLY=1."), 403
-        engine = current_app.config.get("RECIPE_ENGINE")
-        if runtime.emergency_reason or (
-            engine is not None and engine.state.status not in ("idle", "finished", "aborted")
-        ):
-            return jsonify(error="Operação indisponível durante sessão/emergência."), 409
+        try:
+            require_idle()
+        except StorageError as exc:
+            return jsonify(error=str(exc)), 409
         payload = request.get_json(silent=True)
         if not isinstance(payload, dict):
             return jsonify(error="JSON inválido."), 400
@@ -62,6 +62,12 @@ def register_diagnostics(blueprint):
 
     @blueprint.post("/diagnostics/serial/read")
     def diagnostic_serial_read():
+        # Opening a serial port may reset its attached microcontroller.
+        # Never permit this operation while a brewing session is active.
+        try:
+            require_idle()
+        except StorageError as exc:
+            return jsonify(error=str(exc)), 409
         payload = request.get_json(silent=True)
         if not isinstance(payload, dict):
             return jsonify(error="JSON inválido."), 400

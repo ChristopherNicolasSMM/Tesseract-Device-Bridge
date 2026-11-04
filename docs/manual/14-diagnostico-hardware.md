@@ -86,6 +86,8 @@ de dados, comandos arbitrários ou monitoramento contínuo.
 - O monitor utiliza `pyserial`, incluído em `requirements.txt`.
 - As portas precisam constar da enumeração do sistema operacional.
 - Cada leitura tem timeout de 200 ms e máximo de 1024 bytes.
+- A abertura de portas seriais e os testes GPIO virtuais são recusados
+  se houver sessão ativa, pausada após falha ou emergência.
 - Abrir uma porta USB/serial **pode reiniciar alguns
   microcontroladores**, mesmo sem enviar comandos. Use somente quando
   o dispositivo conectado puder ser interrompido com segurança.
