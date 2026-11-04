@@ -5,13 +5,14 @@ import math
 import os
 import tempfile
 from pathlib import Path
+from storage import sqlite_store as store
 
 DEFAULTS_PATH = Path(__file__).resolve().parent / "data" / "control_defaults.json"
 SETTINGS_PATH = Path(__file__).resolve().parent / "data" / "private" / "control_settings.json"
 
 
 def factory_settings():
-    return json.loads(DEFAULTS_PATH.read_text(encoding="utf-8"))
+    return copy.deepcopy(store.DEFAULT_CONTROL_SETTINGS)
 
 
 def validate_settings(raw):
@@ -49,13 +50,18 @@ def validate_settings(raw):
 
 
 def load_settings(path=None):
-    path = Path(path) if path is not None else SETTINGS_PATH
+    if path is None:
+        return validate_settings(store.load_control())
+    path = Path(path)
     return validate_settings(json.loads(path.read_text(encoding="utf-8"))) if path.exists() else factory_settings()
 
 
 def save_settings(raw, path=None):
     value = validate_settings(raw)
-    path = Path(path) if path is not None else SETTINGS_PATH
+    if path is None:
+        store.save_control(value)
+        return value
+    path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, name = tempfile.mkstemp(dir=path.parent, prefix=".control-", suffix=".tmp")
     try:

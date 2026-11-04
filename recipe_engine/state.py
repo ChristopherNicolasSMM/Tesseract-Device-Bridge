@@ -14,6 +14,7 @@ import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import List, Optional
+from storage import sqlite_store as store
 
 # Status possiveis:
 # - idle: nenhuma receita rodando.
@@ -95,13 +96,18 @@ class RecipeState:
             normalized.append(a if isinstance(a, AlarmEvent) else AlarmEvent(**a))
         self.pending_alarms = normalized
 
-    def save(self, path: str | Path) -> None:
+    def save(self, path: str | Path | None) -> None:
+        if path is None:
+            store.save_session_state(asdict(self))
+            return
         file_path = Path(path)
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_text(json.dumps(asdict(self), ensure_ascii=False, indent=2), encoding="utf-8")
 
     @classmethod
-    def load(cls, path: str | Path) -> "RecipeState":
+    def load(cls, path: str | Path | None) -> "RecipeState":
+        if path is None:
+            return cls(**(store.load_session_state() or {}))
         file_path = Path(path)
         if not file_path.exists():
             return cls()

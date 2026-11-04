@@ -1,56 +1,24 @@
-import os
-
+"""New boot setup uses SQLite only, without recreating YAML files."""
 import pytest
-
-from run_panel import ensure_config_file
-from config import ConfigError
+from storage import sqlite_store as store
 
 
-def test_ensure_config_file_creates_from_example_when_missing(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("run_panel.EXAMPLE_CONFIG_PATH", tmp_path / "data" / "public" / "devices.yml.example")
-
-    example_content = "backend: simulated\nmqtt:\n  enabled: false\npanel:\n  enabled: true\ndevices: []\n"
-    example_dir = tmp_path / "data" / "public"
-    example_dir.mkdir(parents=True)
-    (example_dir / "devices.yml.example").write_text(example_content, encoding="utf-8")
-
-    assert not (tmp_path / "devices.yml").exists()
-    ensure_config_file("devices.yml")
-
-    assert (tmp_path / "devices.yml").exists()
-    assert (tmp_path / "devices.yml").read_text(encoding="utf-8") == example_content
+def test_clean_database_bootstrap(isolated_sqlite):
+    assert isolated_sqlite.exists()
+    assert store.load_config()["backend"] == "simulated"
 
 
-def test_ensure_config_file_does_not_overwrite_existing(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("run_panel.EXAMPLE_CONFIG_PATH", tmp_path / "data" / "public" / "devices.yml.example")
-
-    (tmp_path / "devices.yml.example").write_text("backend: simulated\n", encoding="utf-8")
-    (tmp_path / "devices.yml").write_text("backend: real\n", encoding="utf-8")
-
-    ensure_config_file("devices.yml")
-
-    assert (tmp_path / "devices.yml").read_text(encoding="utf-8") == "backend: real\n"
+def test_bootstrap_does_not_overwrite_config(isolated_sqlite):
+    config=store.load_config()
+    config["devices"][0]["name"]="Alterado"
+    store.apply_config(config)
+    store.initialize()
+    assert store.load_config()["devices"][0]["name"]=="Alterado"
 
 
-def test_ensure_config_file_raises_when_example_also_missing(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("run_panel.EXAMPLE_CONFIG_PATH", tmp_path / "data" / "public" / "devices.yml.example")
-
-    with pytest.raises(ConfigError, match="modelo padrão"):
-        ensure_config_file("devices.yml")
-
-
-def test_ensure_config_file_creates_parent_dirs(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("run_panel.EXAMPLE_CONFIG_PATH", tmp_path / "data" / "public" / "devices.yml.example")
-
-    example_dir = tmp_path / "data" / "public"
-    example_dir.mkdir(parents=True)
-    (example_dir / "devices.yml.example").write_text("backend: simulated\n", encoding="utf-8")
-    nested_path = "config/nested/devices.yml"
-
-    ensure_config_file(nested_path)
-
-    assert (tmp_path / nested_path).exists()
+def test_missing_db_requires_explicit_initialize(tmp_path, monkeypatch):
+    target=tmp_path/"never-created.sqlite3"
+    monkeypatch.setenv("TESSERACT_BRIDGE_DB",str(target))
+    with pytest.raises(Exception,match="não encontrado"):
+        store.load_config()
+    assert not target.exists()

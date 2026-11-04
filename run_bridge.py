@@ -118,7 +118,7 @@ from panel.app import create_panel_app
 from recipe_engine.engine import RecipeEngine
 from recipe_engine.models import Recipe, RecipeError
 from project_paths import DEFAULT_RECIPE_STATE_PATH
-from run_panel import DEFAULT_CONFIG_PATH, ensure_config_file
+from storage import sqlite_store as store
 
 logger = logging.getLogger("tesseract_bridge.run_bridge")
 
@@ -160,7 +160,7 @@ def load_recipe_engine(runtime: DeviceRuntime, config: BridgeConfig, recipe_path
         logger.error("Receita inválida, motor de receita desabilitado: %s", exc)
         return None
 
-    engine = RecipeEngine(runtime, recipe, DEFAULT_RECIPE_STATE_PATH, now=time.time())
+    engine = RecipeEngine(runtime, recipe, None, now=time.time())
     if engine.state.status == "paused_after_crash":
         logger.warning(
             "Receita '%s' estava em execução quando o processo encerrou — "
@@ -174,23 +174,23 @@ def load_recipe_engine(runtime: DeviceRuntime, config: BridgeConfig, recipe_path
 def main() -> None:
     # Filtrar args que não são caminhos de arquivo (ex.: --debug)
     file_args = [a for a in sys.argv[1:] if not a.startswith("-")]
-    config_path = file_args[0] if len(file_args) > 0 else DEFAULT_CONFIG_PATH
+    if file_args:
+        raise SystemExit("Argumentos de YAML não são permitidos na versão SQLite. Use o importador legado.")
+    db_file = store.db_path()
     # Sem argumento explícito na CLI, recipe_path fica None -- resolvido
     # por data.load_active_recipe() dentro de load_recipe_engine(), não
     # mais um caminho fixo "recipe.yml".
-    recipe_path = file_args[1] if len(file_args) > 1 else None
+    recipe_path = None  # Todas as receitas são resolvidas no SQLite.
 
     _boot_log(f"main() iniciado")
-    _boot_log(f"config_path={config_path}  recipe_path={recipe_path or '(resolvido via data/)'}")
-    _boot_log(f"config_path existe: {os.path.exists(config_path)}")
-
-    ensure_config_file(config_path)
-
+    _boot_log(f"SQLite: {db_file}")
+    store.initialize(seed=True)
     try:
-        config = BridgeConfig.load(config_path)
-        _boot_log(f"devices.yml carregado OK — backend={config.backend}")
+        config = BridgeConfig.from_dict(store.load_config())
+        config.validate()
+        _boot_log(f"SQLite validado — backend={config.backend}")
     except Exception as e:
-        _boot_log(f"ERRO ao carregar devices.yml: {e}")
+        _boot_log(f"ERRO ao carregar configuração SQLite: {e}")
         raise
 
     if config.backend == "real":

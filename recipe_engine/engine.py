@@ -87,7 +87,7 @@ class RecipeEngine:
         self.thermal = {}
         self._runtime = runtime
         self._recipe = recipe
-        self._state_path = Path(state_path)
+        self._state_path = Path(state_path) if state_path is not None else None
         self._state = RecipeState.load(self._state_path)
         if self._state.control_settings is not None:
             from control_settings import validate_settings

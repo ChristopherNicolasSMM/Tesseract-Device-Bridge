@@ -13,6 +13,7 @@ import tempfile
 from pathlib import Path
 
 from project_paths import DATA_DIR
+from storage import sqlite_store as store
 
 DEFAULT_CALIBRATION_PATH = DATA_DIR / "private" / "sensor_calibration.json"
 MAX_ABSOLUTE_OFFSET_C = 5.0
@@ -54,7 +55,9 @@ def validate_calibrations(raw, devices):
 
 
 def load_calibrations(devices, path=None):
-    path = Path(path) if path is not None else DEFAULT_CALIBRATION_PATH
+    if path is None:
+        return validate_calibrations(store.load_calibrations(), devices)
+    path = Path(path)
     if not path.exists():
         return {"schema": 1, "sensors": {}}
     return validate_calibrations(json.loads(path.read_text(encoding="utf-8")), devices)
@@ -63,7 +66,10 @@ def load_calibrations(devices, path=None):
 def save_calibrations(raw, devices, path=None):
     """Valida antes de gravar e substitui o JSON atomicamente."""
     result = validate_calibrations(raw, devices)
-    path = Path(path) if path is not None else DEFAULT_CALIBRATION_PATH
+    if path is None:
+        store.save_calibrations(result)
+        return result
+    path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(dir=path.parent, prefix=".calibration-", suffix=".tmp")
     try:

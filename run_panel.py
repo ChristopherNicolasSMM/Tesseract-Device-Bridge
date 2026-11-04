@@ -27,7 +27,7 @@ from gpio.simulated_backend import SimulatedGPIOBackend
 from python_runtime import require_python39_for_real
 from panel.app import create_panel_app
 
-from project_paths import DEFAULT_CONFIG_PATH, EXAMPLE_CONFIG_PATH
+from storage import sqlite_store as store
 
 
 def ensure_config_file(path: str) -> None:
@@ -55,9 +55,11 @@ def ensure_config_file(path: str) -> None:
 
 def main() -> None:
     file_args = [arg for arg in sys.argv[1:] if not arg.startswith("-")]
-    config_path = file_args[0] if file_args else DEFAULT_CONFIG_PATH
-    ensure_config_file(config_path)
-    config = BridgeConfig.load(config_path)
+    if file_args:
+        raise SystemExit("Arquivo YAML não é aceito no runtime SQLite.")
+    store.initialize(seed=True)
+    config = BridgeConfig.from_dict(store.load_config())
+    config.validate()
 
     if config.backend == "real":
         require_python39_for_real()

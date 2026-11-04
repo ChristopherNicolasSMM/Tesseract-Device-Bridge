@@ -614,15 +614,7 @@ def client_with_data_dirs(tmp_path, monkeypatch):
     backend = SimulatedGPIOBackend()
     runtime = DeviceRuntime(config, backend)
 
-    public_dir = tmp_path / "data" / "public"
-    private_dir = tmp_path / "data" / "private"
-    public_dir.mkdir(parents=True)
-    private_dir.mkdir(parents=True)
-    monkeypatch.setattr(data, "PUBLIC_DIR", public_dir)
-    monkeypatch.setattr(data, "PRIVATE_DIR", private_dir)
-    monkeypatch.setattr(data, "BASE_RECIPE_PATH", public_dir / "receita_base.yaml")
-    monkeypatch.setattr(data, "ACTIVE_RECIPE_POINTER_PATH", tmp_path / "data" / "active_recipe.txt")
-    monkeypatch.setattr(data, "LEGACY_RECIPE_PATH", tmp_path / "recipe.yml")
+    # SQLite isolated by tests/conftest.py; no legacy YAML/JSON paths.
 
     app = create_panel_app(config, runtime)
     app.testing = True
@@ -724,16 +716,10 @@ def test_delete_recipe_unknown_returns_404(client_with_data_dirs):
 
 
 def test_active_recipe_id_reflects_effective_default(client_with_data_dirs):
-    """
-    Sem nenhum ponteiro definido, active_recipe_id deve refletir o
-    fallback efetivo (receita_base, se existir) -- não ficar sempre
-    null só porque ninguém clicou em nada ainda.
-    """
-    data.BASE_RECIPE_PATH.write_text(
-        "name: Base\nvessels: [{id: mash, name: Mash, heater_device_id: mash_heater, "
-        "sensor_device_id: mash_tun_temp, pid: {kp: 1.0, ki: 0.0, kd: 0.0}}]\n"
-        "steps: [{vessel: mash, target_temp: 60, hold_minutes: 5}]\n",
-        encoding="utf-8",
-    )
+    from storage import sqlite_store as store
+    with store.connection(writable=True) as conn:
+        body = _recipe_payload("Base")
+        conn.execute("INSERT INTO recipes(id,source,editable,recipe_json) VALUES('public:base','public',0,?)",
+                     (store.dumps(body),))
     res = client_with_data_dirs.get("/api/recipes")
     assert res.get_json()["active_recipe_id"] == data.BASE_RECIPE_ID

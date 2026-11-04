@@ -141,7 +141,7 @@ class DeviceRuntime:
         self._closed = False
         self._config = config
         self._backend = backend
-        self._calibration_path = calibration_path if calibration_path is not None else DEFAULT_CALIBRATION_PATH
+        self._calibration_path = calibration_path  # None = SQLite; explicit path only for isolated legacy tests
         # Falha fechada se o arquivo privado estiver inválido ou o ROM ID mudou.
         # É carregado uma única vez, antes de configurar qualquer GPIO.
         self._calibration = load_calibrations(config.devices, self._calibration_path)["sensors"]

@@ -18,6 +18,7 @@ from werkzeug.exceptions import HTTPException
 from config import BridgeConfig
 from device_runtime import DeviceRuntime
 from panel.api import bp as api_bp
+from panel.admin_api import bp as admin_bp
 from recipe_engine.engine import RecipeEngine
 
 
@@ -40,6 +41,7 @@ def create_panel_app(
     app.config["RECIPE_ENGINE"] = recipe_engine
 
     app.register_blueprint(api_bp)
+    app.register_blueprint(admin_bp)
 
     @app.before_request
     def emergency_interlock():

@@ -1811,7 +1811,16 @@
     #control-settings button { margin: 20px 12px 0 0; padding: 10px 16px;
       border: 1px solid #64748b; border-radius: 6px; cursor: pointer; }
   </style>
-</head>
+<style>
+.admin-sqlite { border-top: 1px solid #374151; margin-top:25px;padding:18px 0;}
+.sql-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:18px;margin-top:15px}
+.sql-panel {background:#171e2d;border:1px solid #344258;border-radius:9px;padding:15px}
+.admin-sqlite label {display:block;margin:9px 0;font-size:13px}
+.admin-sqlite input:not([type=checkbox]),.admin-sqlite select {width:100%;padding:8px;color:#fff;background:#0e1422;border:1px solid #566580;border-radius:5px}
+.admin-sqlite button {padding:9px;margin:5px 4px 5px 0;color:#fff;background:#233047;border:1px solid #566580;border-radius:5px;cursor:pointer}
+.admin-sqlite button:disabled {opacity:.4;cursor:not-allowed}
+#sqlAuditText {white-space:pre-wrap;word-break:break-word;max-height:250px;overflow:auto}
+</style></head>
 
 <body>
 
@@ -1878,9 +1887,64 @@
         </table>
       </div>
       <p style="margin-top: 16px; font-size: 13px; color: var(--text-secondary);">
-        ℹ️ Esta tabela reflete os dados em tempo real do bridge. Configurações avançadas (como mapeamento de GPIO) devem
-        ser ajustadas no arquivo <code>devices.yml</code> ou via variáveis de ambiente.
+        ℹ️ Inventário da configuração carregada em memória. Edite a próxima revisão abaixo e aplique após reinício seguro.
       </p>
+      <div id="adminSqlite" class="admin-sqlite">
+        <div class="section-title">🗄️ Administração SQLite</div>
+        <p>Edite os cadastros como rascunho. Alterações aprovadas só entram em funcionamento após reinício seguro.</p>
+        <label>Token de administrador <input type="password" id="sqlToken" autocomplete="off"></label>
+        <button type="button" id="sqlUnlock">Desbloquear</button>
+        <p id="sqlMessage" role="status"></p>
+        <div id="sqlEditor" hidden>
+          <div class="sql-grid">
+            <div class="sql-panel">
+              <h3>Dispositivos</h3>
+              <select id="sqlDeviceSelect"></select>
+              <button id="sqlAddDevice" type="button">Adicionar</button>
+              <button id="sqlDeleteDevice" type="button">Excluir do rascunho</button>
+              <form id="sqlDeviceForm">
+                <label>ID <input name="id" required></label>
+                <label>Nome <input name="name" required></label>
+                <label>Papel <select name="role"><option value="sensor">Sensor</option><option value="actuator">Atuador</option></select></label>
+                <label>Tipo <select name="subtype"><option value="temperature">Temperatura</option><option value="digital">Digital</option><option value="pwm">PWM</option><option value="analog">Analógico</option></select></label>
+                <label>GPIO BCM <input name="pin" type="number" min="0" max="27" required></label>
+                <label>Driver <select name="driver"><option value="">Padrão</option><option value="ds18b20">DS18B20</option></select></label>
+                <label>Endereço ROM <input name="address"></label>
+                <label>State topic <input name="state_topic"></label>
+                <label>Command topic <input name="command_topic"></label>
+                <label>Janela de potência (s) <input name="window_seconds" type="number" min="0" step="0.1"></label>
+                <label><input name="is_risk" type="checkbox"> Dispositivo de risco, failsafe OFF</label>
+                <label><input name="remote_control" type="checkbox"> Controle remoto autorizado</label>
+                <label><input name="active_high" type="checkbox"> Active HIGH</label>
+                <h4>Fonte de aquecimento</h4>
+                <label>Participação <select name="participation"><option value="">Não protegida</option><option value="auxiliary">Auxiliar</option><option value="primary">Primária</option></select></label>
+                <label>Sensor térmico <input name="temperature_sensor"></label>
+                <label>Controlador PID <input name="controller_device"></label>
+                <label><input name="external_flame_cutoff" type="checkbox"> Possui corte independente de chama verificado</label>
+                <button type="submit">Atualizar no rascunho</button>
+              </form>
+            </div>
+            <div class="sql-panel">
+              <h3>Conectividade e configuração</h3>
+              <label>Backend <select id="sqlBackend"><option value="simulated">Simulado</option><option value="real">Real (GPIO)</option></select></label>
+              <label><input id="sqlMqttEnabled" type="checkbox"> MQTT habilitado</label>
+              <label>Broker MQTT <input id="sqlMqttHost"></label>
+              <label>Porta MQTT <input type="number" id="sqlMqttPort"></label>
+              <label>Prefixo dos tópicos <input id="sqlMqttPrefix"></label>
+              <label>Senha MQTT (em branco mantém a atual) <input type="password" id="sqlMqttPassword"></label>
+              <label>Porta do painel <input type="number" id="sqlPanelPort"></label>
+              <p id="sqlRevision"></p>
+              <button id="sqlCreateDraft" type="button">Salvar rascunho validado</button>
+              <button id="sqlApplyDraft" type="button" disabled>Aprovar para próximo boot</button>
+              <button id="sqlReload" type="button">Recarregar</button>
+              <h3>Manutenção</h3>
+              <button id="sqlBackup" type="button">Backup SQLite</button>
+              <button id="sqlAudit" type="button">Auditoria</button>
+              <pre id="sqlAuditText"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- RECEITAS -->
@@ -1888,7 +1952,7 @@
       <div id="recipeEmpty" class="recipe-empty" style="display:none;">
         <div class="icon">🧪</div>
         <p>Nenhuma receita carregada neste bridge. Vá na aba <strong>📖 Cadastro</strong> e marque uma receita como
-          ativa (depois reinicie o bridge), ou edite <code>data/public/receita_base.yaml</code> diretamente.</p>
+          ativa (depois reinicie o bridge), o catálogo de receitas agora fica no SQLite.</p>
       </div>
 
       <div id="recipeContent" style="display:none;">
@@ -3596,6 +3660,7 @@
   </script>
 
 <script src="/static/control-settings.js"></script>
+<script src="/static/admin-sqlite.js"></script>
 </body>
 
 </html>
