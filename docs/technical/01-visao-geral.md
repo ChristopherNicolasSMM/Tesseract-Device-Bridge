@@ -14,6 +14,9 @@ objetos e snapshots em memória.
 
 ## Módulos da versão 2.0.0
 
+> A evolução de persistência relacional SQLAlchemy/Alembic foi iniciada, com [models e migração por cópia](08-normalizacao-sqlalchemy.md). Os repositórios operacionais anteriores permanecem ativos até homologação.
+
+
 > Consulte [Organização dos módulos](07-organizacao-python.md). O pacote interno `tesseract_bridge/` agrupa infraestrutura, segurança, controle e integrações, mantendo entrypoints na raiz.
 
 

@@ -19,6 +19,7 @@ na main nem validação física final no Raspberry Pi.**
   e modo `SIMULATION_ONLY` para homologação sem GPIO/MQTT reais.
 - Correção do tema escuro dos menus `select`.
 - Documentação e manual separados para o fluxo SQLite 2.0.0.
+- Fundação relacional SQLAlchemy/Alembic com normalização somente em cópia, ainda sem cutover do runtime.
 - Reorganização incremental em `tesseract_bridge/{infrastructure,control,safety,integrations}`, sem alterar o motor de receitas nem a lógica física.
 
 ### Compatibilidade e cuidados

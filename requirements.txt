@@ -4,3 +4,5 @@ paho-mqtt>=1.6
 Flask>=3.0,<3.2
 pytest>=8.0,<9.0
 gpiozero>=2.0   # só necessário com backend=real (devices.yml); roda em modo mock para testes sem Pi
+SQLAlchemy>=2.0,<2.1
+alembic>=1.16,<1.17

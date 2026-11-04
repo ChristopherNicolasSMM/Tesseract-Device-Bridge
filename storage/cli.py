@@ -10,8 +10,9 @@ from tesseract_bridge.infrastructure.env import load_infra_env
 def main():
     load_infra_env()
     p = argparse.ArgumentParser(description="Tesseract Device Bridge - SQLite")
-    p.add_argument("command", choices=("init", "status", "backup"))
-    p.add_argument("--output", help="Destino do backup consistente do SQLite")
+    p.add_argument("command", choices=("init", "status", "backup", "normalize"))
+    p.add_argument("--output", help="Destino do backup ou NOVO banco normalizado")
+    p.add_argument("--dry-run", action="store_true", help="Somente verificar a origem JSON, sem escrever")
     args = p.parse_args()
     if args.command == "init":
         print("Banco inicializado (simulado até configurar hardware):", store.initialize())
@@ -32,6 +33,19 @@ def main():
         if not args.output:
             p.error("backup exige --output")
         print("Backup:", store.backup(args.output))
+    elif args.command == "normalize":
+        from storage.orm_normalize import normalize_copy, validate_source
+        original = store.db_path()
+        if args.dry_run:
+            config, revision, recipes, profiles = validate_source(original)
+            print(json.dumps({"source": str(original), "devices": len(config["devices"]),
+                              "recipes": len(recipes), "control_profiles": len(profiles),
+                              "revision": revision, "dry_run": True}, ensure_ascii=False, indent=2))
+        else:
+            if not args.output:
+                p.error("normalize exige --output para gerar um NOVO arquivo (nunca sobrescreve).")
+            print(json.dumps(normalize_copy(source=original, destination=args.output),
+                             ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
