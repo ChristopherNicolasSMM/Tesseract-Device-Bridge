@@ -1,4 +1,4 @@
-# Calibração individual de temperatura (Device Bridge)
+# Calibração individual de temperatura | Device Bridge 2.0.0
 
 ## Ambiente de execução do Raspberry Pi
 
@@ -34,10 +34,11 @@ Acesse **Configurações → Calibração dos sensores**. Cada cartão mostra le
 bruta, corrigida, offset ativo, offset a aplicar e identificação física ROM.
 Altere apenas os sensores calibrados e clique em **Salvar offsets**.
 
-O arquivo `data/private/sensor_calibration.json` é persistido atomicamente,
-ignorado pelo Git e vinculado ao ID do dispositivo **e** endereço físico DS18B20.
-Se o ROM mudar, o Bridge recusa iniciar até a calibração ser revista, evitando
-reutilizar o ajuste do sensor antigo.
+Os offsets são persistidos na tabela `sensor_calibrations` do **SQLite**,
+vinculados ao ID do dispositivo **e** ao endereço físico DS18B20. O arquivo
+`data/private/sensor_calibration.json` é apenas um formato de importação da
+instalação anterior. Se o ROM mudar, a revisão deve ser corrigida e validada;
+não reutilize offsets de outro sensor.
 
 O ajuste é carregado **uma única vez no boot**. Após salvar, encerre qualquer
 sessão, mantenha atuadores desligados e reinicie o Bridge conscientemente.

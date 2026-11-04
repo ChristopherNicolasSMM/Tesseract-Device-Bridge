@@ -1,6 +1,6 @@
-# Configurações de temperatura
+# Configurações de temperatura | Device Bridge 2.0.0
 
-Abra a aba **Configurações** no painel local (`http://IP-DO-BRIDGE:8088/`).
+Abra a aba **Configurações → Controle térmico**. No Windows simulado, utilize `http://127.0.0.1:8089/` ou a porta mostrada em `python -m storage.cli status`.
 
 ## Mosturação
 
@@ -33,14 +33,14 @@ Acima de **alvo +3 °C**, o painel exibe **Acima do previsto** em vermelho e emi
 
 ## Salvar e restaurar
 
-- **Salvar configurações** persiste ajustes locais em `data/private/control_settings.json` por substituição atômica. Não é necessário reiniciar.
+- **Salvar configurações** grava os parâmetros na tabela `settings` do SQLite. Não é necessário reiniciar para cadastrar ajustes.
 - Alterações entram na **próxima execução iniciada por Iniciar**, não em uma simples retomada.
-- Uma execução guarda seu snapshot de configuração no estado persistido, inclusive para recuperação após queda.
-- **Restaurar padrões de fábrica** restaura os valores versionados em `data/control_defaults.json`, com a mesma regra de próxima execução.
-- Faça backup de `data/private/` junto aos dados locais.
+- Uma execução guarda seu snapshot de configuração no estado persistido no SQLite, inclusive para recuperação após queda.
+- **Restaurar padrões de fábrica** utiliza os valores `control_factory` do SQLite, com a mesma regra de próxima execução.
+- Faça backup consistente do SQLite via `python -m storage.cli backup --output backups/controle.sqlite3`.
 
 ## Validação após aplicar
 
 Reinicie o Bridge para carregar o novo código. Confira perfis, temperatura local e potência de fervura antes de iniciar. Em backend simulado, injete temperaturas em torno do alvo e confira os limites e o alerta. A validação em Raspberry Pi, com água e posteriormente mostura, ainda é necessária para ajustar a curva à inércia da planta.
 
-Sem migração de banco. Testes: `python -m pytest -q`.
+A 2.0.0 usa migração do banco SQLite. Consulte [Migração](12-sqlite-migracao.md) e [Administração](13-administracao-sqlite.md).

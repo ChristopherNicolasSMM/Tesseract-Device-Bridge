@@ -1,227 +1,137 @@
-# 04 — Modelo de Dados
+# 04 — Modelo de dados SQLite | 2.0.0
 
-> **Navegação:** [Visão Geral](01-visao-geral.md) | [C4 Diagrams](02-diagrama-c4.md) | [Fluxos](03-fluxos.md) | [Casos de Uso](05-casos-de-uso.md) | [Manutenção](06-manutencao-e-expansao.md)
+> **Estado da versão:** em homologação na branch
+> `feature/sqlite-full-migration`. Esquema real em
+> `storage/migrations/0001_initial.sql` e `0002_indexes.sql`.
+> Os desenhos YAML/JSON anteriores são referência histórica da 1.x,
+> não fonte de dados operacional da 2.0.0.
 
-O bridge não usa banco de dados relacional. O estado é mantido em:
-- **`devices.yml`** — mapeamento de hardware (editado uma vez, raramente muda)
-- **`recipe.yml`** — definição do processo (editado por receita)
-- **`recipe_state.json`** — estado de execução em tempo real (escrito pelo bridge a cada transição)
-
-Os diagramas abaixo usam notação ER para explicitar as relações entre entidades.
-
----
-
-## MER — `devices.yml`
+## Visão relacional
 
 ```mermaid
 erDiagram
-    BridgeConfig {
-        string backend "simulated | real — nunca autodetectado"
-    }
-    MqttConfig {
-        bool enabled "false = sem cliente MQTT nenhum"
-        string host "hostname ou IP do broker"
-        int port "default 1883"
-        string username "null = sem autenticação"
-        string password "null = sem autenticação"
-        string client_id "identificador único no broker"
-        string topic_prefix "prefixo de todos os tópicos ex: brewery"
-        int reconnect_interval_seconds "intervalo entre tentativas de reconexão"
-    }
-    PanelConfig {
-        bool enabled "false = sem servidor web"
-        string host "0.0.0.0 = aceita de qualquer IP da rede"
-        int port "default 8088"
-    }
-    Device {
-        string id "único — referenciado por recipe.yml e pelo broker"
-        string name "texto livre de exibição no painel"
-        string role "sensor | actuator"
-        string subtype "temperature | digital | pwm | analog"
-        string state_topic "sensores: tópico MQTT de publicação do valor"
-        string command_topic "atuadores: tópico MQTT de recepção de comandos"
-        bool is_risk "true = incluído no failsafe automático (LWT + watchdog)"
-        float failsafe_value "valor aplicado em failsafe (coercido pelo subtype)"
-        int failsafe_timeout_seconds "opcional — timeout local em segundos"
-    }
-    HardwareConfig {
-        int pin "número BCM do pino GPIO"
-        string driver "opcional — ds18b20 para sensores 1-Wire"
-        string address "ROM ID do DS18B20 ex: 28-0000071234ab (obrigatório se driver=ds18b20)"
-        bool active_high "opcional, default true — true: HIGH=ligado (NPN/MAZZA), false: LOW=ligado (relé active-low)"
-        int pwm_frequency "opcional, default 100Hz — só mode=pwm"
-    }
-    SimulatedConfig {
-        float initial_value "valor inicial no backend simulado (bancada/testes)"
-    }
-
-    BridgeConfig ||--|| MqttConfig : "mqtt:"
-    BridgeConfig ||--|| PanelConfig : "panel:"
-    BridgeConfig ||--|{ Device : "devices: []"
-    Device ||--|| HardwareConfig : "hardware:"
-    Device ||--o| SimulatedConfig : "simulated: (opcional)"
+  system_config ||--o{ configuration_revisions : "snapshot"
+  system_config ||--o{ devices : "config aprovada"
+  configuration_revisions ||--o{ configuration_drafts : "origem"
+  recipes ||--o{ recipe_revisions : "historico"
+  recipes ||--o| active_recipe : "selecionada"
+  legacy_imports ||--o{ audit_events : "registra eventos"
+  settings ||--o{ audit_events : "operacao"
+  system_config {
+    integer id PK
+    text config_json
+    integer revision
+    text updated_at
+  }
+  devices {
+    text id PK
+    integer position
+    text config_json
+  }
+  configuration_revisions {
+    integer revision PK
+    text snapshot_json
+    text action
+    text created_at
+  }
+  configuration_drafts {
+    integer id PK
+    text payload_json
+    integer base_revision
+    text status
+  }
+  recipes {
+    text id PK
+    text source
+    integer editable
+    text recipe_json
+    integer revision
+  }
+  recipe_revisions {
+    text recipe_id
+    integer revision
+    text recipe_json
+  }
+  active_recipe {
+    integer id PK
+    text recipe_id FK
+  }
+  settings {
+    text key PK
+    text value_json
+    integer revision
+  }
+  sensor_calibrations {
+    text sensor_id PK
+    text address
+    real offset_c
+  }
+  session_state {
+    integer id PK
+    text state_json
+  }
+  legacy_imports {
+    text source_sha256 PK
+    text manifest_json
+  }
+  audit_events {
+    integer id PK
+    text event_type
+    text entity_id
+    text details_json
+  }
 ```
 
-### Regras de validação de `devices.yml`
+*As linhas acima resumem vínculos conceituais. Nem todos são chaves
+estrangeiras físicas no SQLite; consulte os scripts SQL para constraints
+exatas. Em particular, a seleção da receita usa FK e a tabela de revisões
+de receita não possui FK declarada.*
 
-| Campo | Regra | Erro |
+## Entidades e responsabilidades
+
+| Tabela | Conteúdo | Observações |
 |---|---|---|
-| `id` | Único em todo o arquivo | `ConfigError: id duplicado` |
-| `pin` | Único, **exceto** quando `driver: ds18b20` + `address` único | `ConfigError: pino duplicado` |
-| `address` | Obrigatório quando `driver: ds18b20` | `ConfigError: driver 'ds18b20' requer hardware.address` |
-| `active_high` | Deve ser bool (`true`/`false`), **nunca string** (`'false'`) | `ConfigError: deve ser booleano` |
-| `failsafe_value` | Coercido pelo `subtype`: `digital`→bool, `pwm`/`temperature`→float | `ConfigError` em tipo incompatível |
-| `command_topic` | Obrigatório em `actuator`, proibido em `sensor` | `ConfigError` |
-| `state_topic` | Obrigatório em `sensor`, opcional em `actuator` | `ConfigError` |
+| `schema_migrations` | versão, nome, checksum SHA-256 e momento da execução | Detecta alteração de arquivo SQL já aplicado |
+| `system_config` | MQTT, backend, painel e revisão aprovada em JSON | Linha única `id=1` |
+| `devices` | IDs, ordem e configuração física completa | Dados operacionais |
+| `configuration_revisions` | snapshots da configuração e ação de origem | Histórico de revisões |
+| `configuration_drafts` | rascunho e revisão-base | Status `draft/applied/discarded` |
+| `recipes` | ID `public:...`/`private:...`, dados de receita, versão, editabilidade | `public:base` é protegida |
+| `recipe_revisions` | versões anteriores das receitas | Não é histórico completo de sessão |
+| `active_recipe` | receita escolhida para próximo boot | ID de receita como FK |
+| `settings` | parâmetros de controle e padrão de fábrica | Chaves `control` e `control_factory` |
+| `sensor_calibrations` | ROM ID, sensor e offset (−5 a +5 °C) | Não aplicar automaticamente após troca física |
+| `session_state` | snapshot persistido da sessão | Recuperação segura; jamais religar atuadores após falha |
+| `audit_events` | eventos administrativos persistidos | Não registra toda leitura GPIO |
+| `legacy_imports` | manifesto da importação e hashes da origem | Permite conferir a proveniência |
 
-### active_high: quando usar cada valor
+## Fluxos e integridade
 
-```
-MAZZA Handmade (saídas NPN):
-  GPIO → Base NPN → HIGH no pino → transistor conduz → relé fecha → carga liga
-  active_high: true  ← HIGH = ligado (default, pode omitir)
+- **Controle em tempo real:** SQLite não é chamado a cada ciclo de PID/GPIO.
+- **Revisões:** o operador cria rascunho, valida configurações, aprova e
+  reinicia quando seguro. A execução ativa permanece no snapshot anterior.
+- **Receita:** `public:base` continua protegida; receitas normais mantêm
+  `public:` ou `private:` como identificadores lógicos, **não** pastas
+  distintas no Git.
+- **Parâmetros:** o estado de uma execução de receita conserva o snapshot
+  de configurações aplicadas. Alterar formulário térmico não altera a
+  sessão já em andamento.
+- **Calibração:** ROM ID e offset devem corresponder ao sensor físico;
+  correção só entra no próximo boot.
+- **Falha:** banco ausente/corrompido não deve liberar saídas físicas;
+  retomar estados interrompidos requer decisão explícita e fail-safe.
+- **Importação:** somente `tools/migrate_legacy_to_sqlite.py` acessa
+  YAML/JSON antigos. A origem e o backup são preservados.
 
-Módulo relé "azul" do AliExpress (optoacoplador invertido):
-  GPIO → Optoacoplador → LOW no pino → relé fecha → carga liga
-  active_high: false  ← LOW = ligado
-```
+## Migração e durabilidade
 
----
+Arquivos SQL versionados são aplicados antes da operação. Conexões SQLite
+usam `foreign_keys=ON`, `busy_timeout`, journal DELETE e
+`synchronous=FULL`. O backup utiliza a API nativa do SQLite.
 
-## MER — `recipe.yml`
+O banco não deve ser versionado no Git. Mantenha cópias externas,
+conferência de integridade e permissões restritas. Em serviços systemd,
+verifique a identidade do usuário que escreve no diretório privado.
 
-```mermaid
-erDiagram
-    Recipe {
-        string name "nome livre da receita ex: Pilsen Clássica"
-    }
-    Vessel {
-        string id "referência estável — usada em steps.vessel"
-        string name "texto livre de exibição ex: Mostura"
-        int order "opcional — ordem de exibição na UI (default: posição na lista)"
-        string heater_device_id "FK para Device.id (devices.yml)"
-        string sensor_device_id "FK para Device.id (devices.yml)"
-        float window_seconds "janela de time-proportioning em segundos"
-    }
-    PidGains {
-        float kp "ganho proporcional"
-        float ki "ganho integral (anti-windup por clamping)"
-        float kd "ganho derivativo"
-    }
-    Step {
-        string vessel "FK para Vessel.id"
-        float target_temp "temperatura alvo em graus Celsius"
-        float hold_minutes "tempo de patamar depois de atingir target_temp"
-        string label "opcional — texto exibido na timeline do painel"
-    }
-    HopAlarm {
-        float minutes_remaining "contagem regressiva pro FIM do patamar (convenção cervejeira)"
-        string label "texto do alarme ex: Lúpulo Amargor - 30g Magnum"
-    }
-    StepPump {
-        string device_id "FK para Device.id (actuator na role)"
-    }
-
-    Recipe ||--|{ Vessel : "vessels: [] (lista, não dict)"
-    Recipe ||--|{ Step : "steps: []"
-    Vessel ||--|| PidGains : "pid:"
-    Step ||--o{ HopAlarm : "hop_alarms: [] (opcional)"
-    Step ||--o{ StepPump : "pumps: [] (opcional)"
-    Step }|--|| Vessel : "vessel: (FK por id)"
-    Vessel }|--|| Device : "heater_device_id (FK externa)"
-    Vessel }|--|| Device : "sensor_device_id (FK externa)"
-    StepPump }|--|| Device : "device_id (FK externa)"
-```
-
-### Regras de validação de `recipe.yml`
-
-| Campo | Regra | Erro |
-|---|---|---|
-| `vessels` | Lista (não dict) — `id` é a chave estável | `RecipeError: campo vessels` |
-| `Vessel.id` | Único dentro da receita | `RecipeError: id duplicado` |
-| `Step.vessel` | Deve existir em `vessels[].id` | `RecipeError: vessel não declarada` |
-| `heater_device_id` | Deve existir em `devices.yml` | `RecipeError: não existe no devices.yml` |
-| `sensor_device_id` | Deve existir em `devices.yml` | `RecipeError: não existe no devices.yml` |
-| `pumps[]` | Cada id deve existir em `devices.yml` | `RecipeError: pump não existe` |
-| `hop_alarm.minutes_remaining` | `≥ 0` e `≤ hold_minutes` | `RecipeError: negativo` ou `nunca dispararia` |
-
-### Ciclo de vida da validação
-
-```mermaid
-flowchart LR
-    A[Recipe.load] --> B[yaml.safe_load]
-    B --> C[Recipe.from_dict\nvalida estrutura]
-    C --> D[Vessel.from_dict\npara cada vessel]
-    D --> E[PidGains\nkp ki kd]
-    C --> F[Step.from_dict\npara cada step]
-    F --> G[HopAlarm.from_dict\npara cada alarme]
-    C --> H[recipe.validate\nbridge_config]
-    H --> I[vessel.validate_against\nverifica device_ids]
-    H --> J[step.validate_against\nverifica vessel ids\ne pump ids]
-    J --> K[hopAlarm.validate_against\nverifica minutes_remaining ≤ hold_minutes]
-    I --> L([Recipe pronta])
-    K --> L
-```
-
----
-
-## MER — `recipe_state.json`
-
-Estado de execução persistido em disco. Sobrevive a `kill -9` e quedas de energia. Carregado pelo construtor do `RecipeEngine` na inicialização — se o status for `ramping` ou `holding`, crash recovery é disparado automaticamente.
-
-```mermaid
-erDiagram
-    RecipeState {
-        string recipe_name "nome da receita em execução (null = idle)"
-        string status "idle | ramping | holding | paused_manual | paused_after_crash | finished | aborted"
-        int step_index "índice da etapa atual em Recipe.steps (0-based)"
-        float step_started_at "epoch Unix do início da etapa atual (null = idle)"
-        float hold_started_at "epoch Unix quando target_temp foi atingido (null fora de holding)"
-        float hold_elapsed_seconds_at_pause "segundos de patamar decorridos antes da pausa (preservado em resume)"
-        string paused_from_status "status anterior à pausa: ramping ou holding"
-        float recipe_started_at "epoch Unix do início de toda a execução (null = idle)"
-        float total_elapsed_seconds_frozen "snapshot do tempo total ao terminar ou cancelar"
-        int next_alarm_id "contador monotônico — nunca reutilizado, evita ambiguidade de id"
-    }
-    AlarmEvent {
-        int id "ID único monotônico"
-        string type "vessel_start | vessel_end | hop_addition"
-        string label "texto exibido no banner do painel"
-        float fired_at "epoch Unix do disparo"
-    }
-    FiredHopAlarmKey {
-        string key "formato: step_index:alarm_index — zerado quando a etapa reinicia"
-    }
-
-    RecipeState ||--o{ AlarmEvent : "pending_alarms: [] (confirmados saem da lista)"
-    RecipeState ||--o{ FiredHopAlarmKey : "fired_hop_alarm_keys: [] (evita duplo disparo)"
-```
-
-### Transições de status
-
-```mermaid
-stateDiagram-v2
-    [*] --> idle
-
-    idle --> ramping : start()
-    ramping --> holding : sensor >= target_temp
-    holding --> ramping : avança para próxima etapa (mesma ou outra vasilha)
-    holding --> finished : última etapa concluída
-
-    ramping --> paused_manual : pause()
-    holding --> paused_manual : pause()
-    ramping --> paused_after_crash : crash recovery no construtor
-    holding --> paused_after_crash : crash recovery no construtor
-
-    paused_manual --> ramping : resume() (paused_from_status=ramping)
-    paused_manual --> holding : resume() (paused_from_status=holding)
-    paused_after_crash --> ramping : resume() (paused_from_status=ramping)
-    paused_after_crash --> holding : resume() (paused_from_status=holding)
-
-    ramping --> aborted : abort()
-    holding --> aborted : abort()
-    paused_manual --> aborted : abort()
-    paused_after_crash --> aborted : abort()
-    finished --> ramping : start() (reinicia do zero)
-    aborted --> ramping : start() (reinicia do zero)
-```
+Mais detalhes: [administração](../manual/13-administracao-sqlite.md) e
+[importação](../manual/12-sqlite-migracao.md).

@@ -1,209 +1,126 @@
-# 04 — Perguntas Frequentes
+# 04 — Perguntas frequentes | versão 2.0.0
 
-> **Navegação:** [Manual](01-introducao.md) | [Primeiros Passos](02-primeiros-passos.md) | [Funcionalidades](03-funcionalidades.md)
+> [Primeiros passos](02-primeiros-passos.md) ·
+> [Administração SQLite](13-administracao-sqlite.md) ·
+> [Migração](12-sqlite-migracao.md)
 
----
+## Por que o inventário e a Administração SQLite estão na mesma aba?
 
-## O painel não abre no celular
+O **inventário** é a configuração **em execução**, em memória, e é
+somente leitura. A **Administração SQLite** permite editar o cadastro
+persistido, salvar rascunhos, validar e aprovar novas revisões. A
+aprovação não aciona GPIO: somente um próximo boot seguro utiliza a
+nova revisão. Não é uma ferramenta de execução livre de comandos SQL.
 
-Verifique se o celular e o Pi estão na mesma rede Wi-Fi. O endereço é `http://<ip-do-pi>:8088`. Para saber o IP do Pi:
+## Qual token devo informar?
 
-```bash
-hostname -I
+O valor de `TESSERACT_BRIDGE_ADMIN_TOKEN` no arquivo `.env`
+ou no ambiente do processo. Gere com
+`python -c "import secrets; print(secrets.token_urlsafe(32))"`.
+Reinicie após alterar o token. O token é uma credencial da API
+administrativa, **não** a senha do banco SQLite.
+
+## O botão Desbloquear não funciona
+
+Cheque se a variável existe, tem pelo menos 16 caracteres e foi
+carregada pelo processo. Token incorreto retorna **401**;
+variável ausente retorna **503**. Não publique seu token em prints
+ou logs. Verifique o console do navegador para erros de rede.
+O token é mantido somente na memória da página após desbloqueio.
+
+## Para que serve o arquivo .env?
+
+Define infraestrutura, não receitas, GPIO ou PID:
+
+```dotenv
+TESSERACT_BRIDGE_DB=./data/private/imported.sqlite3
+TESSERACT_BRIDGE_SIMULATION_ONLY=1
+TESSERACT_BRIDGE_TEST_PANEL_PORT=8089
+TESSERACT_BRIDGE_ADMIN_TOKEN=SEU_SEGREDO
 ```
 
-Se ainda não abrir, confirme se o bridge está rodando. Deve aparecer "Painel disponível em http://0.0.0.0:8088" no terminal ou via:
+`SIMULATION_ONLY=1` força o backend simulado, desativa MQTT e
+escuta em `127.0.0.1` na porta de teste. Em Windows PowerShell não
+é necessário usar `export`: `python-dotenv` carrega o arquivo.
+Variáveis já definidas no sistema têm prioridade sobre o `.env`.
 
-```bash
-sudo systemctl status tesseract-bridge
-```
+## O painel não abre no outro computador/celular
 
----
+Em simulação isolada, o host é **127.0.0.1**, disponível somente na
+própria máquina. Não é defeito da rede. Para abrir na LAN seria
+necessário configurar outro modo e avaliar autenticação, HTTPS e
+controle de acesso. **Não exponha o painel diretamente na Internet.**
 
-## O atuador não liga, mas `raspi-gpio` funciona
+Se estiver em produção homologada com host de LAN, confira a porta
+via `python -m storage.cli status` e o firewall.
 
-Esse é o sintoma de backend GPIO errado. O `raspi-gpio` acessa `/dev/gpiomem` diretamente — sem biblioteca Python — enquanto o bridge usa o `gpiozero`, que precisa escolher um "pin factory" (backend). Se o backend errado for escolhido, o setup funciona mas os pinos não respondem.
+## Como verifico se a importação terminou corretamente?
 
-**Como diagnosticar:**
+Execute `python -m storage.cli status`. Confira o caminho do SQLite,
+a contagem de dispositivos e receitas e a revisão. Na UI, verifique
+Gerenciamento e Cadastro. A presença dos registros não comprova
+sozinha a calibração e as ligações físicas: revise IDs, ROM IDs, GPIOs,
+referências de receita e parâmetros antes de qualquer teste real.
 
-```bash
-python tools/gpio_test.py
-# Escolha [4] — mostra qual backend está ativo
-```
+## Aparece "Banco SQLite inexistente"
 
-**O que instalar conforme o resultado:**
+O `TESSERACT_BRIDGE_DB` aponta para um arquivo ainda não criado.
+A importação só gera o SQLite na execução **sem** `--dry-run`.
+Para instalação vazia use `bridge.sqlite3` e execute
+`python -m storage.cli init`. Não substitua uma instalação importada
+por um banco vazio por engano.
 
-| Backend mostrado | Problema | Solução |
-|---|---|---|
-| `lgpio` | No Raspbian/Bullseye, lgpio pode não ter permissão certa | `pip install RPi.GPIO` |
-| `RPi.GPIO` | Deveria funcionar — checar permissão | `sudo usermod -a -G gpio $USER` (logout e login) |
-| `default automático` | Nenhum backend instalado | `pip install RPi.GPIO` |
+## O importador rejeita pump_b1 com remote_control
 
-**Testar pino específico:**
+Se `remote_control: true` não possui `state_topic`, o schema
+recusa o cadastro. Corrija o tópico real na cópia de origem ou use
+`--disable-invalid-remote-control`, que **desliga** a permissão
+remota no SQLite, mantém o arquivo antigo intacto e registra o ajuste.
+Não invente tópicos nem contorne intertravamentos.
 
-```bash
-python tools/gpio_test.py
-# [1] Testar saída → pino 17 → active_high: true → modo manual
-```
+## Como adiciono ou escolho outra receita?
 
-Se o relé não responder nem com o gpio_test, o problema pode ser permissão de acesso ao GPIO (`sudo` resolve temporariamente para confirmar):
+Use a aba **Cadastro**, duplicando uma receita (inclusive a protegida
+`public:base`). Escolha a classificação **pública/privada** do
+cadastro e selecione a receita para o próximo boot.
 
-```bash
-sudo python tools/gpio_test.py
-```
+Na 2.0.0, os dois tipos ficam no mesmo SQLite. **Pública não implica
+publicação automática no Git**. A troca da receita ativa exige
+reiniciar o processo em segurança.
 
----
+## Ajustei a potência mas a execução atual não mudou
 
-## O sensor está mostrando temperatura errada ou zero
+O motor usa snapshot de parâmetros para cada execução. Salvar o perfil
+térmico altera a **próxima execução iniciada**, não uma etapa já em
+andamento. Alterações de hardware e calibração entram no próximo boot
+seguro.
 
-**1. Endereço errado no `devices.yml`:**
+## Posso manter o Bridge antigo e o SQLite no mesmo Raspberry Pi?
 
-```bash
-python -m gpio.ds18b20_scan
-```
+Somente se o clone experimental estiver isolado, em
+`TESSERACT_BRIDGE_SIMULATION_ONLY=1`, com MQTT desligado, host local
+e porta diferente. **Nunca dois processos em modo real disputando
+os mesmos GPIOs/atuadores.**
 
-Compare os endereços com o que está em `devices.yml`. Se diferente, corrija e reinicie o bridge.
+## Como diagnosticar sensor/atuador que não responde?
 
-**2. 1-Wire não habilitado:**
+Confirme `backend_runtime` em `python -m storage.cli status`.
+Na simulação nenhum GPIO é acionado. Em homologação real,
+confira ROM ID (`python -m gpio.ds18b20_scan`), cabeamento,
+alimentação, polaridade e fail-safe. Não bypass as proteções.
+Para instruções de bancada veja [Calibração](11-calibracao-sensores.md)
+e [Segurança](06-desligamento-emergencia.md).
 
-Verifique se existe a linha abaixo em `/boot/firmware/config.txt` (ou `/boot/config.txt` em versões antigas):
+## O sistema voltou em estado de queda ou emergência
 
-```
-dtoverlay=w1-gpio
-```
+O retorno seguro bloqueia as saídas. Verifique fisicamente conexões,
+líquidos, resistências, bombas e sensores **antes** de confirmar qualquer
+retomada manual. Nunca habilite retomada automática de atuadores após
+falta de energia.
 
-Se não existir, adicione, salve e reinicie o Pi.
+## O serviço do Raspberry Pi não inicia
 
-**3. Conexão física:** verifique o cabo do sensor e o resistor pull-up de 4.7kΩ (já incluso na placa MAZZA; em sensor avulso, é necessário colocar).
-
----
-
-## O que significa "Subindo" vs "Em patamar"?
-
-- **Subindo**: o sistema está aquecendo para atingir a temperatura alvo. O cronômetro mostra o tempo decorrido.
-- **Em patamar**: a temperatura alvo foi atingida e o sistema está mantendo-a. O cronômetro mostra o tempo **restante** — quando chegar a zero, avança para a próxima etapa automaticamente.
-
----
-
-## O banner vermelho de queda de energia apareceu sem o Pi ter caído
-
-Acontece quando:
-- O processo foi encerrado de qualquer forma que não seja `CTRL+C` limpo (incluindo `kill -9`, corte de energia ou `sudo systemctl stop`)
-- O Tesseract Core aplicou failsafe via MQTT remotamente
-
-Isso é comportamento esperado e seguro — o sistema prefere parar tudo a retomar cegamente. Verifique fisicamente o equipamento e clique em **Retomar**.
-
----
-
-## Posso pausar a brassagem e retomar horas depois?
-
-Sim. O sistema preserva o tempo de patamar já decorrido. Mas atenção: pausar a mostura por muito tempo pode afetar o perfil enzimático — isso é uma questão de técnica cervejeira, não do sistema.
-
----
-
-## O serviço não inicia no boot
-
-Verifique se está habilitado:
-
-```bash
-sudo systemctl is-enabled tesseract-bridge
-# Deve mostrar: enabled
-```
-
-Se mostrar `disabled`:
-```bash
-sudo systemctl enable tesseract-bridge
-```
-
-Veja os logs para entender o erro:
-```bash
-bash tools/logs.sh --boot
-```
-
-Erros comuns:
-- `data/public/devices.yml` não encontrado → o padrão é resolvido junto à instalação, independentemente do diretório atual. Confira a presença de `data/public/devices.yml.example` e as permissões do usuário do serviço. Veja [caminhos Windows/Raspberry Pi](07-windows-raspberry-caminhos.md).
-- `ModuleNotFoundError` → o Python do serviço não tem os pacotes instalados. Se usar virtualenv, o script detecta `.venv/` automaticamente. Senão, garanta que o `pip install -r requirements.txt` foi feito com o mesmo Python que o serviço usa.
-
----
-
-## O terminal de logs não abre automaticamente no boot do desktop
-
-O arquivo de autostart do LXDE pode ter sido criado para outro usuário ou não foi criado. Verifique:
-
-```bash
-ls ~/.config/autostart/tesseract-bridge-logs.desktop
-```
-
-Se não existir, crie manualmente ou reinstale o serviço:
-
-```bash
-sudo bash tools/install_service.sh
-# Responda S quando perguntar sobre autostart LXDE
-```
-
----
-
-## O som do alarme não toca
-
-Navegadores bloqueiam áudio automático até o usuário interagir com a página. **Solução**: clique em qualquer lugar na página após abrir o painel — isso desbloqueia o áudio. Ou use **⚙️ Alarmes → Testar som** logo após abrir, que serve como primeiro clique.
-
----
-
-## Como adiciono uma nova receita?
-
-**Pelo painel** (jeito recomendado): aba **📖 Cadastro** → clique em **🧬 Duplicar** em qualquer receita existente (inclusive a base) → ajuste o nome e as etapas → escolha se salva como 🔒 privada (só nesta máquina) ou 🌐 pública (vai pro repositório) → **💾 Salvar**. Depois, clique em **▶ Usar esta** e reinicie o bridge — ver [Funcionalidades — Aba Cadastro](03-funcionalidades.md#aba-cadastro) pra detalhes.
-
-**Editando o arquivo diretamente** (avançado): suas receitas ficam em `data/`, não mais em `recipe.yml` na raiz.
-
-**Receita-base** (`data/public/receita_base.yaml`): é a que já vem migrada, sempre disponível como padrão — não editável pelo sistema de cadastro (edite o YAML na mão se quiser mudar ela mesma).
-
-**Receitas cadastradas**: vivem em `data/public/receita.json` (versionadas, vão pro repositório) ou `data/private/receita.json` (só na sua máquina, nunca versionadas) — cada arquivo é uma **lista** com todas as receitas daquela pasta. Formato:
-
-```json
-[
-  {
-    "id": "minha-receita",
-    "recipe": { "name": "...", "vessels": [...], "steps": [...] }
-  }
-]
-```
-
-(o conteúdo de `"recipe"` segue o mesmo schema do `recipe.yml.example`.)
-
-**Trocar qual receita fica ativa** exige reiniciar o processo (o bridge carrega a receita ativa só uma vez, no boot):
-
-```bash
-curl -X POST http://localhost:8088/api/recipes/active -H "Content-Type: application/json" -d '{"id": "private:minha-receita"}'
-sudo systemctl restart tesseract-bridge
-```
-
-Pra ver todas as receitas disponíveis (com validação contra o `devices.yml` carregado):
-
-```bash
-curl http://localhost:8088/api/recipes
-```
-
-Ou valide manualmente antes de marcar como ativa:
-
-```bash
-python3 -c "
-from config import BridgeConfig
-import data
-config = BridgeConfig.load('data/public/devices.yml')
-recipe = data.load_recipe_by_id('private:minha-receita', config)
-print('OK:', recipe.name, recipe.step_count(), 'etapas')
-"
-```
-
----
-
-## Posso usar sem o Tesseract Core / sem MQTT?
-
-Sim. No `devices.yml`:
-
-```yaml
-mqtt:
-  enabled: false
-```
-
-O painel, o motor de receita e todos os alarmes funcionam normalmente. Você só perde a integração com o servidor Tesseract (histórico, RBAC, sync de receitas). Para brassagem caseira autônoma, não faz diferença nenhuma.
+Confira a venv com Python **3.9.x**, permissões em `data/private`,
+variáveis de ambiente e logs do processo. O systemd e o watchdog devem
+usar a porta correta e o usuário da instalação. Não instale a branch
+experimental em substituição à principal sem homologação.

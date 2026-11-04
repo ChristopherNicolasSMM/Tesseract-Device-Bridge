@@ -1,195 +1,113 @@
-# Versão SQLite experimental
+# Tesseract Device Bridge 2.0.0
 
-> A branch `feature/sqlite-full-migration` utiliza SQLite como fonte de dados.
-> **Não substitua a instalação estável ainda.** Homologue em simulação e não
-> execute duas instâncias com GPIO real ao mesmo tempo.
->
-> [Manual de migração, importação e testes](docs/manual/12-sqlite-migracao.md)
+> **Status:** versão 2.0.0 **em homologação** na branch
+> `feature/sqlite-full-migration`. A `main` continua sendo a instalação
+> estável anterior. Não faça merge nem ative GPIO real antes de validar
+> sensores, bombas, resistências, failsafe e GLP com o hardware isolado.
 
----
+O Device Bridge é a aplicação local de automação física do Tesseract:
+interpreta sensores, executa receitas, controla temperatura por PID e
+potência por janela, e gerencia atuadores com intertravamentos de segurança.
+A integração com o Tesseract Core por MQTT é opcional.
 
-# tesseract-device-bridge
+## O que muda na versão 2.0.0
 
-> Ponte entre hardware físico (GPIO de um Raspberry Pi) e automação de
-> processo — com ou sem rede.
+- **SQLite como fonte única de dados operacionais**: dispositivos, GPIOs,
+  receitas, calibração, parâmetros térmicos, estados, revisões e auditoria.
+- **Frontend administrativo** para cadastros e conectividade, com token,
+  rascunhos, validação, aprovação e reinício controlado.
+- **Migração explícita** das instalações YAML/JSON, com backup e relatório;
+  os arquivos antigos não são utilizados pelo runtime 2.0.0.
+- **`.env` de infraestrutura**: caminho do banco, modo de simulação,
+  porta do painel, host de override e token administrativo.
+- **Controle GPIO/PID em memória**: nenhuma consulta SQLite no ciclo
+  crítico de controle.
 
-## Documentação
+A área **Gerenciamento** possui dois blocos: *Inventário de Dispositivos*
+(somente leitura do snapshot atual) e *Administração SQLite*
+(alteração persistida em rascunhos). Ela **não** é um editor SQL genérico.
+O token administrativo protege `/api/admin/*`, não todos os endpoints
+do painel. Não exponha a interface à Internet.
 
-| | |
-|---|---|
-| **📖 Manual do usuário** | [Introdução](docs/manual/01-introducao.md) · [Primeiros passos](docs/manual/02-primeiros-passos.md) · [Funcionalidades](docs/manual/03-funcionalidades.md) · [FAQ](docs/manual/04-perguntas-frequentes.md) |
-| **🔧 Documentação técnica** | [Visão geral](docs/technical/01-visao-geral.md) · [Diagramas C4](docs/technical/02-diagrama-c4.md) · [Fluxos](docs/technical/03-fluxos.md) · [Modelo de dados (ER/MER)](docs/technical/04-modelo-de-dados.md) · [Casos de uso](docs/technical/05-casos-de-uso.md) · [Manutenção e expansão](docs/technical/06-manutencao-e-expansao.md) |
-| **📋 Backlog** | [BACKLOG.md](BACKLOG.md) — histórico de sessão e pendências |
-
-**Acesso rápido por tema:**
+## Documentação oficial da versão 2.0.0
 
 | Tema | Documento |
 |---|---|
-| Como funciona o GPIO / active_high / relés NPN | [Manutenção](docs/technical/06-manutencao-e-expansao.md) · [Modelo de dados](docs/technical/04-modelo-de-dados.md) |
-| Diagnosticar pino que não responde | [FAQ](docs/manual/04-perguntas-frequentes.md#o-atuador-não-liga-mas-raspi-gpio-funciona) · [UC08](docs/technical/05-casos-de-uso.md#uc08--diagnosticar-gpio-com-gpio_testpy) |
-| Instalar como serviço systemd | [Primeiros passos §7](docs/manual/02-primeiros-passos.md#7-instalar-como-serviço-recomendado-para-uso-regular) · [UC09](docs/technical/05-casos-de-uso.md#uc09--instalar-como-serviço-systemd) |
-| Diagrama de contexto / containers | [C4](docs/technical/02-diagrama-c4.md) |
-| Fluxo de execução de receita | [Fluxos §3](docs/technical/03-fluxos.md#fluxo-3--execução-de-receita-caminho-feliz) |
-| Crash recovery / queda de energia | [Fluxos §4](docs/technical/03-fluxos.md#fluxo-4--recuperação-de-crash-queda-de-energia--kill--9) · [UC06](docs/technical/05-casos-de-uso.md#uc06--recuperação-após-queda-de-energia) |
-| Schema do devices.yml e recipe.yml | [Modelo de dados](docs/technical/04-modelo-de-dados.md) |
-| Onde ficam as receitas (data/, public/private) | [Visão geral rápida](#modelagem-do-processo-data) · [Manutenção](docs/technical/06-manutencao-e-expansao.md#armazenamento-de-receitas-data) |
-| Adaptar para irrigação / outro domínio | [Manutenção](docs/technical/06-manutencao-e-expansao.md#adaptar-para-um-novo-domínio-de-automação) |
-| Logs coloridos | [Visão geral](docs/technical/01-visao-geral.md#logs-coloridos) · [Funcionalidades](docs/manual/03-funcionalidades.md#logs-do-sistema) |
+| Introdução e visão geral | [01 — Introdução](docs/manual/01-introducao.md) |
+| Instalação no Windows/Raspberry Pi e `.env` | [02 — Primeiros passos](docs/manual/02-primeiros-passos.md) |
+| Telas, cadastros e operação | [03 — Funcionalidades](docs/manual/03-funcionalidades.md) |
+| Problemas comuns | [04 — Perguntas frequentes](docs/manual/04-perguntas-frequentes.md) |
+| Perfis térmicos | [05 — Temperatura](docs/manual/05-configuracoes-temperatura.md) |
+| Calibração | [11 — Sensores](docs/manual/11-calibracao-sensores.md) |
+| Migração segura de YAML/JSON | [12 — Migração SQLite](docs/manual/12-sqlite-migracao.md) |
+| Administração SQLite | [13 — Administração](docs/manual/13-administracao-sqlite.md) |
+| Arquitetura e persistência | [Visão geral técnica](docs/technical/01-visao-geral.md) · [Modelo de dados](docs/technical/04-modelo-de-dados.md) |
+| Histórico da versão | [CHANGELOG](CHANGELOG.md) |
 
----
+## Uso rápido no Windows (modo seguro)
 
-## O que é este projeto
-
-Este repositório é a **metade física** do [Tesseract](https://github.com/ChristopherNicolasSMM/Tesseract):
-roda dentro do Raspberry Pi (ou qualquer máquina Linux com GPIO),
-falando diretamente com sensores e atuadores, e se conecta ao
-Tesseract via MQTT quando disponível. Ele nasceu com um objetivo
-concreto — **controlar uma mostura de cervejaria caseira** (PID de
-temperatura por vasilha, bombas, timers de lupulagem) — mas a
-arquitetura **não tem nada de cervejeiro embutido no núcleo**. Tudo
-que é específico de brassagem vive em dois lugares isolados:
-
-- **`devices.yml`** — descreve *o que está fisicamente ligado em quais
-  pinos* (sensores, relés, bombas). Trocar o domínio é trocar este
-  arquivo.
-- **`data/`** (receitas) — descreve *o processo a automatizar* (vasilhas,
-  etapas, alvos, alarmes). Também é só configuração — sem banco de dados.
-
-O núcleo (`gpio/`, `device_runtime.py`, `bridge.py`,
-`recipe_engine/`) não sabe o que é "mostura" ou "lúpulo" — ele sabe
-ler sensores, acionar atuadores, rodar PID + time-proportioning por
-"vasilha" (qualquer coisa controlada por um sensor + um aquecedor/atuador
-+ um alvo), e disparar alarmes por etapa. **Isso significa que dá pra
-reaproveitar o projeto inteiro pra controlar qualquer sistema que siga
-o mesmo padrão "sensor → controlador → atuador, em etapas com um
-alvo"** — irrigação por zona (umidade do solo → válvula), estufa
-(temperatura/umidade → ventilação/aquecimento), tanque de processo
-industrial, etc. — sem tocar no núcleo, só escrevendo um `devices.yml`
-e um `recipe.yml` novos (e, se o domínio precisar de um tipo de sensor
-diferente do DS18B20, implementando um driver novo em `gpio/`, seguindo
-o padrão já estabelecido por `ds18b20_driver.py`).
-
-Essa generalidade é o que torna o projeto uma base razoável pra
-integrar com plataformas de automação agrícola maiores (ex.: Conecta
-Agro e similares) — o bridge já resolve a parte difícil e repetitiva
-(leitura confiável de sensores 1-Wire, controle PID com proteção
-contra falha, recuperação de queda de energia, alarmes programáveis,
-painel web pronto) e deixa só a modelagem do processo (`data/`, receitas)
-e o mapeamento de hardware (`devices.yml`) como trabalho específico de
-cada novo domínio.
-
-## Por que existe separado do Tesseract
-
-Não é um Addon do Tesseract nem segue as skills 00–04 dele — é um
-processo Python independente, com seu próprio repositório, pensado
-pra rodar isolado no hardware (inclusive **sem internet/MQTT
-nenhum**, em modo só-painel-local). A compatibilidade com o
-`addon_device_manager` do Tesseract é por convenção de protocolo
-(tópicos MQTT, formato de payload), nunca por dependência de código.
-
----
-
-## Visão geral rápida
-
-```
-devices.yml   -> agora dentro de data/public/ (ver abaixo) — o que está
-                 ligado em qual pino (hardware real)
-data/         -> devices.yml + o processo a automatizar (receitas —
-                 opcional, sem nenhuma disponível o bridge ainda
-                 funciona como painel manual + ponte MQTT pura)
-
-run_panel.py  -> só o painel web, sem MQTT, sem motor de receita
-                 (bom pra testar hardware isolado na bancada)
-run_bridge.py -> processo completo: painel + MQTT (se habilitado) +
-                 motor de receita (se houver alguma receita disponível)
+```powershell
+git clone --branch feature/sqlite-full-migration --single-branch https://github.com/ChristopherNicolasSMM/Tesseract-Device-Bridge.git Tesseract-Device-Bridge-SQLite
+cd Tesseract-Device-Bridge-SQLite
+py -3.9 -m venv venv
+.\venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
+notepad .env
 ```
 
-| Camada | Arquivo(s) | Especificidade de domínio? |
-|---|---|---|
-| GPIO abstrato | `gpio/base.py`, `simulated_backend.py`, `real_backend.py` | Nenhuma |
-| Drivers de sensor | `gpio/ds18b20_driver.py` (+ scan CLI) | Nenhuma (1-Wire genérico) |
-| Config de hardware | `config.py`, `data/public/devices.yml` | Só o que você descrever |
-| Runtime de device | `device_runtime.py` | Nenhuma |
-| Ponte MQTT | `mqtt_client.py`, `status_handler.py`, `failsafe_watchdog.py`, `bridge.py` | Nenhuma |
-| Painel web | `panel/` | Genérico (lista sensores/atuadores quaisquer) + aba "Receitas" |
-| Motor de processo | `recipe_engine/` | Nenhuma — "vasilha" é só um nome, pode ser zona de irrigação, estufa, tanque |
-| Armazenamento de receitas | `data/` | Nenhuma (formato genérico) — o **conteúdo** de cada receita é onde mora a especificidade de domínio |
+Para instalação limpa, use `TESSERACT_BRIDGE_DB=./data/private/bridge.sqlite3`
+e `python -m storage.cli init`. Para importar uma instalação antiga,
+use `imported.sqlite3` e siga [o migrador](docs/manual/12-sqlite-migracao.md).
 
-### Modelagem do processo (`data/`)
+No `.env`, mantenha `TESSERACT_BRIDGE_SIMULATION_ONLY=1` e
+`TESSERACT_BRIDGE_TEST_PANEL_PORT=8089`. Após existir o banco:
 
-Receitas não vivem mais num único `recipe.yml` fixo — ficam em `data/`,
-sem banco de dados, tudo em arquivo:
-
-```
-data/
-├── public/
-│   ├── receita_base.yaml   # migração do antigo recipe.yml — sempre disponível,
-│   │                       # NÃO editável pelo sistema de cadastro, mas
-│   │                       # selecionável normalmente pra brassar
-│   └── receita.json        # lista de receitas cadastradas — VAI commitado
-└── private/
-    └── receita.json        # mesma coisa, mas NUNCA commitado (gitignored)
-```
-
-`public`/`private` só diferem em versionamento — o sistema lê as duas
-igualmente. Cada `receita.json` é uma **lista** (não um arquivo por
-receita):
-
-```json
-[
-  { "id": "minha-receita", "recipe": { "name": "...", "vessels": [...], "steps": [...] } }
-]
-```
-
-```
-GET  /api/recipes                 -> lista todas (base + public/receita.json + private/receita.json), validadas
-POST /api/recipes/active          -> {"id": "private:minha-receita"} marca ativa pro PRÓXIMO boot (troca de receita exige restart)
-```
-
-Sem nenhum cadastro em `receita.json`, o bridge usa
-`data/public/receita_base.yaml` automaticamente — zero configuração
-necessária pra já funcionar. Tela de cadastro pelo painel ainda não
-existe (edição manual do JSON por enquanto) — ver `BACKLOG.md`.
-
----
-
-## Instalação e primeiro uso
-
-```bash
-git clone <este-repositorio>
-cd tesseract-device-bridge
-pip install -r requirements.txt
-
-# Só painel, pra testar hardware (cria data/public/devices.yml a partir do exemplo automaticamente):
-python run_panel.py
-# abrir http://localhost:8088
-
-# Processo completo (painel + MQTT se habilitado + receita se existir):
-cp data/public/devices.yml.example data/public/devices.yml   # ajuste pinos/sensores reais
-# receita já vem pronta em data/public/receita_base.yaml — edite ela
-# direto se quiser, ou cadastre outras em data/{public,private}/receita.json
+```powershell
+python -m storage.cli status
+python -m pytest -q tests/test_infra_env.py tests/test_storage_legacy_import.py
 python run_bridge.py
 ```
 
-`data/public/devices.yml` nunca é sobrescrito se já existir —
-`run_panel.py`/`run_bridge.py` só cria a partir do
-`data/public/devices.yml.example` na primeira vez que rodam num
-diretório novo. Receitas seguem outra lógica, ver
-[Modelagem do processo (`data/`)](#modelagem-do-processo-data) abaixo.
+Acesse `http://127.0.0.1:8089` na máquina de testes.
 
-### Diferença entre `run_panel.py` e `run_bridge.py`
+`run_bridge.py` executa o Bridge completo; `run_panel.py` abre apenas
+o painel. Ambos respeitam o modo de simulação da infraestrutura.
 
-| | `run_panel.py` | `run_bridge.py` |
-|---|---|---|
-| Painel web | ✅ | ✅ |
-| MQTT (Tesseract) | ❌ nunca | ✅ se `mqtt.enabled: true` |
-| Motor de receita | ❌ nunca | ✅ se houver alguma receita disponível (`data/` ou legado) |
-| Failsafe por timeout de conexão | ❌ | ✅ |
-| Uso típico | bancada, debug de hardware isolado | operação real |
+## Armazenamento e versionamento
+
+O banco fica em `data/private/*.sqlite3` ou no caminho declarado em
+`TESSERACT_BRIDGE_DB`. Ele, seu backup e o arquivo `.env` **não entram
+no Git**. Receitas com marcador `public:` e `private:` continuam
+diferenciadas no banco, mas **não** são automaticamente compartilhadas ou
+versionadas no Git.
+
+Em uma instalação nova, o banco começa simulado, com um sensor de
+demonstração e sem receitas. Para preservar a instalação anterior,
+importe uma cópia consistente dos arquivos antigos; a origem não é
+modificada. Não use os arquivos YAML/JSON legados como configurações
+operacionais do novo runtime.
+
+## Recursos físicos e integração
+
+A arquitetura separa `gpio/`, `device_runtime.py`, `bridge.py`,
+`recipe_engine/`, `panel/` e `storage/`. O núcleo conserva a lógica
+de medição, alarmes, prioridades de atuação e fail-safe.
+
+**Importante:** os exemplos antigos de YAML/JSON são formatos de
+**importação e referência de schema**, não um procedimento de operação
+na 2.0.0. A configuração física deve ser editada na Administração SQLite
+e aplicada após revisão e reinício seguro.
+
 
 ---
 
 ## Hardware suportado
+
+> **2.0.0:** os exemplos de YAML abaixo documentam o formato de dispositivos,
+> porém a configuração persistida e aplicada pelo runtime é SQLite. Consulte
+> [Administração SQLite](docs/manual/13-administracao-sqlite.md) para editar.
+
 
 A configuração de exemplo (`data/public/devices.yml.example`) mapeia a [Interface
 CLP CraftBeerPi da MAZZA Handmade](https://www.mazzahandmade.com.br/produtos/interface-clp-para-raspberrypi-automacao-cervejeira-craftbeerpi-brewpi1/)
@@ -253,6 +171,10 @@ pra sempre, calado".
 ---
 
 ## Motor de receita (`recipe_engine/`)
+
+> **2.0.0:** a definição de receita mantém o modelo lógico abaixo, mas agora
+> é armazenada no SQLite, não em `recipe.yml` nem em `receita.json`.
+
 
 Máquina de estado **100% autônoma** — funciona com `mqtt.enabled: false`
 e sem o Tesseract de pé, dirigida só pelo loop principal de
@@ -510,6 +432,11 @@ clique em "OK", o que vier primeiro.
 
 ## Painel web
 
+> Na 2.0.0, Gerenciamento inclui inventário (somente leitura) e Administração
+> SQLite (token, rascunhos, validação, revisão aprovada, backup e auditoria).
+> Ver [manual da administração](docs/manual/13-administracao-sqlite.md).
+
+
 Single-page app em `panel/templates/index.html`, três abas:
 
 - **Painel** — lista de sensores/atuadores ao vivo, com controle
@@ -574,6 +501,11 @@ sem nenhuma validação automática entre os dois repositórios:
 ---
 
 ## Rodando os testes
+
+> Os testes de infraestrutura e migração da 2.0.0 devem ser executados em
+> ambiente isolado. Não trate a suíte completa ou a homologação física como
+> aprovadas enquanto os resultados ainda não forem confirmados.
+
 
 ```bash
 pip install -r requirements.txt

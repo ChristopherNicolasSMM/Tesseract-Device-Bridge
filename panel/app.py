@@ -19,6 +19,7 @@ from config import BridgeConfig
 from device_runtime import DeviceRuntime
 from panel.api import bp as api_bp
 from panel.admin_api import bp as admin_bp
+from version import APP_VERSION
 from recipe_engine.engine import RecipeEngine
 
 
@@ -58,6 +59,6 @@ def create_panel_app(
     @app.get("/")
     def index():
         from flask import render_template
-        return render_template("index.html")
+        return render_template("index.html", app_version=APP_VERSION)
 
     return app

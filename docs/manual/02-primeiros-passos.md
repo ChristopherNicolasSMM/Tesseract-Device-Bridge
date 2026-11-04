@@ -1,196 +1,120 @@
-# 02 — Primeiros Passos
+# 02 — Primeiros passos | Tesseract Device Bridge 2.0.0
 
-> **Navegação:** [Manual](01-introducao.md) | [Funcionalidades](03-funcionalidades.md) | [FAQ](04-perguntas-frequentes.md)
+> **Estado:** versão 2.0.0 em homologação na branch `feature/sqlite-full-migration`. A `main` permanece estável na arquitetura anterior. Não execute duas instâncias com GPIO real na mesma planta.
 
-## O que você vai precisar
+## Requisitos
 
-- Raspberry Pi com a placa de controle já conectada e cabeada ao equipamento (resistências, bombas, sensores de temperatura)
-- Computador ou celular na mesma rede Wi-Fi que o Raspberry Pi
-- Python 3.10 ou superior instalado no Pi
+- Python **3.9.x** na virtualenv do Raspberry Pi para `backend=real`. No Windows, utilize o Python suportado pelo ambiente de testes e **sempre** `SIMULATION_ONLY=1`.
+- Git e dependências em `requirements.txt`.
+- Para importar instalações antigas: cópia íntegra dos arquivos YAML/JSON (incluindo `data/private/`) feita com a operação parada.
+- Um SQLite é usado por instalação, em `data/private/*.sqlite3`; não é necessário servidor de banco.
 
----
+## 1. Clonar a versão experimental
 
-## Passo a passo — do zero à primeira brassagem
+**Windows PowerShell**:
 
-```mermaid
-flowchart TD
-    A([Começar]) --> B[1. Instalar o sistema]
-    B --> C[2. Configurar o hardware\ndata/public/devices.yml]
-    C --> D[3. Testar o hardware\ncom gpio_test.py]
-    D --> E{Hardware\nrespondeu?}
-    E -- Não --> F[Ver FAQ:\nGPIO não responde]
-    F --> D
-    E -- Sim --> G[4. Configurar a receita\ndata/public/receita_base.yaml]
-    G --> H[5. Testar no modo simulado\nrun_bridge.py]
-    H --> I{Receita e painel\nok?}
-    I -- Não --> J[Ajustar a receita em data/\nou data/public/devices.yml]
-    J --> H
-    I -- Sim --> K[6. Trocar para backend real\nbackend: real]
-    K --> L[7. Instalar como serviço\ninstall_service.sh]
-    L --> M([Pronto para brasser 🍺])
+```powershell
+git clone --branch feature/sqlite-full-migration --single-branch https://github.com/ChristopherNicolasSMM/Tesseract-Device-Bridge.git Tesseract-Device-Bridge-SQLite
+cd Tesseract-Device-Bridge-SQLite
+py -3.9 -m venv venv
+.\venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
 ```
 
----
-
-## 1. Instalar o sistema no Raspberry Pi
+**Raspberry Pi (somente clone isolado, sem GPIO real nesta etapa)**:
 
 ```bash
-git clone https://github.com/ChristopherNicolasSMM/Tesseract-Device-Bridge.git
-cd tesseract-device-bridge
-pip install -r requirements.txt
+git clone --branch feature/sqlite-full-migration --single-branch https://github.com/ChristopherNicolasSMM/Tesseract-Device-Bridge.git Tesseract-Device-Bridge-SQLite
+cd Tesseract-Device-Bridge-SQLite
+python3.9 -m venv venv
+source venv/bin/activate
+python -m pip install -r requirements.txt
 ```
 
----
+## 2. Criar o .env de infraestrutura
 
-## 2. Configurar o hardware (`data/public/devices.yml`)
+Windows: `Copy-Item .env.example .env` e `notepad .env`.
+Linux: `cp .env.example .env`, edite o arquivo e execute `chmod 600 .env`.
 
-```bash
-cp data/public/devices.yml.example data/public/devices.yml
+Para criar o token administrativo:
+
+```powershell
+python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
-**Descobrir os endereços dos sensores DS18B20** (você precisa dessas informações para preencher o `devices.yml`):
+Exemplo seguro para homologação:
 
-```bash
-python -m gpio.ds18b20_scan
+```dotenv
+TESSERACT_BRIDGE_DB=./data/private/imported.sqlite3
+TESSERACT_BRIDGE_SIMULATION_ONLY=1
+TESSERACT_BRIDGE_TEST_PANEL_PORT=8089
+TESSERACT_BRIDGE_PANEL_HOST=
+TESSERACT_BRIDGE_PANEL_PORT=
+TESSERACT_BRIDGE_ADMIN_TOKEN=SEU_TOKEN_PRIVADO_GERADO
 ```
 
-Vai aparecer algo como:
-```
-28-0000071234ab  ->  GPIO 4
-28-0000059876cd  ->  GPIO 4
-```
+O `.env` **não é versionado** e é carregado automaticamente pelos entrypoints e pela CLI. A variável já definida no sistema/PowerShell prevalece sobre o `.env`. O caminho relativo do banco é resolvido a partir da pasta da instalação.
 
-Abra o `data/public/devices.yml` e substitua os valores de `address` pelos que o scan mostrou.
+## 3. Escolher: instalação vazia ou importação
 
-**Dica**: durante os primeiros testes, deixe `backend: simulated` — assim você pode usar o painel sem a placa ligada para verificar se a receita está configurada do jeito certo.
+**Instalação vazia:** altere `TESSERACT_BRIDGE_DB=./data/private/bridge.sqlite3` e execute:
 
----
-
-## 3. Testar o hardware antes de usar na brassagem
-
-Este passo é importante e evita descobrir problemas no meio de uma brassagem. Troque para `backend: real` no `data/public/devices.yml` e rode a ferramenta de diagnóstico:
-
-```bash
-python tools/gpio_test.py
+```powershell
+python -m storage.cli init
+python -m storage.cli status
 ```
 
-Escolha `[4] Informações do backend` primeiro — confirma qual biblioteca GPIO está sendo usada (deve aparecer `RPi.GPIO` no Raspbian).
+O banco inicia em simulação com **um sensor demonstrativo e nenhuma receita**.
 
-Depois escolha `[2] Diagnóstico rápido` e teste os pinos `17,27,22,26` (os 4 atuadores padrão da MAZZA). Cada relé deve clicar fisicamente durante o teste.
+**Migração de dados antigos:** mantenha `imported.sqlite3` no `.env` e siga [Migração SQLite](12-sqlite-migracao.md). Valide primeiro com `--dry-run`. A importação exige banco de destino inexistente e backup; não altera a pasta original.
 
-Se os relés não responderem, veja a seção [FAQ — GPIO não responde](04-perguntas-frequentes.md#o-atuador-não-liga-mas-raspi-gpio-funciona).
+No caso de atuadores legados com `remote_control: true` mas sem `state_topic` (ex.: `pump_b1`), o importador exige correção da cópia de origem **ou** o parâmetro explícito `--disable-invalid-remote-control`, que desabilita apenas a permissão remota incompatível e registra a adaptação.
 
----
+## 4. Testar antes de abrir o painel
 
-## 4. Configurar a receita (`data/public/receita_base.yaml`)
-
-A receita "de fábrica" já vem em `data/public/receita_base.yaml` — edite ela direto (é a única receita que **não** passa pelo sistema de cadastro, mas continua 100% selecionável pra brassar):
-
-```bash
-nano data/public/receita_base.yaml
+```powershell
+python -m compileall -q .
+python -m pytest -q tests/test_infra_env.py tests/test_storage_legacy_import.py tests/test_data_store.py tests/test_sqlite_admin.py
+python -m storage.cli status
 ```
 
-Os campos principais para editar:
+Confirme `db`, `backend_runtime=simulated`, `mqtt_runtime_enabled=false`, `panel_runtime_host=127.0.0.1` e `panel_runtime_port=8089`.
 
-```yaml
-name: "Nome da sua receita"
+## 5. Abrir o Bridge no Windows
 
-vessels:
-  - id: mash
-    name: "Mostura"               # aparece na tela
-    heater_device_id: mash_heater # mesmo id do devices.yml
-    sensor_device_id: mash_tun_temp
-    pid:
-      kp: 5.0
-      ki: 0.1
-      kd: 0.0
-
-steps:
-  - vessel: mash
-    label: "Sacarificação"        # aparece na timeline
-    target_temp: 67               # temperatura alvo em °C
-    hold_minutes: 60              # tempo de patamar
-    pumps: [pump_b1]              # bomba ligada nesta etapa
-    hop_alarms:
-      - minutes_remaining: 60     # alerta quando faltam 60min para o fim da fervura
-        label: "Lúpulo Amargor - 30g Magnum"
-```
-
-Para validar se a receita está correta:
-
-```bash
-python3 -c "
-from config import BridgeConfig
-import data
-config = BridgeConfig.load('data/public/devices.yml')
-recipe = data.load_recipe_by_id('public:base', config)
-print('OK:', recipe.name, recipe.step_count(), 'etapas')
-"
-```
-
-Quiser cadastrar outras receitas (além da base)? Ver [FAQ — Como adiciono uma nova receita?](04-perguntas-frequentes.md#como-adiciono-uma-nova-receita).
-
----
-
-## 5. Testar o painel
-
-```bash
+```powershell
 python run_bridge.py
 ```
 
-Abra o navegador em `http://<ip-do-raspberry>:8088`.
+Abra `http://127.0.0.1:8089` no mesmo computador. No modo simulado, o backend real é substituído apenas **em memória** e MQTT fica desligado. A configuração importada no SQLite é preservada.
 
-Na aba **Painel**: verifique se os sensores estão mostrando temperaturas plausíveis. Na aba **Receitas**: confirme que as etapas aparecem na timeline corretamente.
+- **Painel:** sensores, atuadores e telemetria simulados.
+- **Gerenciamento:** inventário **somente leitura** do snapshot em execução; abaixo fica a **Administração SQLite**.
+- **Receitas:** execução e etapas.
+- **Configurações:** controle térmico e calibrações individuais.
+- **Cadastro:** catálogo de receitas e seleção para o próximo boot.
 
----
+## 6. Administrar dispositivos e parâmetros
 
-## 6. Trocar para o hardware real
+Em **Gerenciamento → Administração SQLite**, informe o `TESSERACT_BRIDGE_ADMIN_TOKEN` (valor do `.env`) e clique **Desbloquear**. O token é uma credencial administrativa da API, **não** uma senha do arquivo SQLite.
 
-No `devices.yml`, mude:
-```yaml
-backend: simulated
-```
-para:
-```yaml
-backend: real
-```
+Para mudar nome, GPIO, sensor ou conectividade: **editar → atualizar o dispositivo no rascunho → salvar rascunho validado → aprovar para próximo boot → parar a operação → reiniciar em condição segura**. Não existe hot reload de GPIO em operação. Calibrações e receitas possuem telas próprias.
 
-Reinicie o bridge com `CTRL+C` e `python run_bridge.py` novamente. Os sensores devem mostrar a temperatura ambiente real.
+**Para o primeiro teste**, altere somente o nome de um dispositivo, aprove a revisão, encerre a simulação, reinicie e confira o nome. Não habilite GPIO real, GLP ou saídas físicas.
 
----
+## 7. Backup, retorno e serviço
 
-## 7. Instalar como serviço (recomendado para uso regular)
-
-Isso faz o bridge iniciar automaticamente toda vez que o Pi ligar e abre um terminal com os logs ao vivo quando o desktop carregar:
-
-```bash
-sudo bash tools/install_service.sh
+```powershell
+python -m storage.cli backup --output backups/antes-validacao.sqlite3
 ```
 
-O script vai:
-1. Detectar o usuário automaticamente e pedir confirmação
-2. Instalar o serviço que inicia no boot
-3. Perguntar se quer criar o terminal de logs automático (LXDE)
+O botão **Backup SQLite** da Administração também cria uma cópia consistente. Guarde cópia externa, com acesso restrito. Para reverter, encerre o clone e utilize a pasta `main`/YAML/JSON anterior, que a importação não modifica.
 
-Para ver os logs depois:
-```bash
-bash tools/logs.sh
-```
+O `tools/install_service.sh` é específico do Linux e deve ser usado **somente depois** de homologar Raspberry Pi, permissões, portas e watchdog do serviço. Para GPIO real mantenha Python 3.9, certifique-se de que a instância antiga está parada e faça testes elétricos seguros antes de ligar cargas.
 
-Para gerenciar o serviço:
-```bash
-sudo systemctl status  tesseract-bridge   # status
-sudo systemctl restart tesseract-bridge   # reiniciar (após mudar configs)
-sudo systemctl stop    tesseract-bridge   # parar
-```
+## Próximas leituras
 
----
-
-## 8. Configurar o som dos alarmes
-
-Na aba Receitas, clique em **⚙️ Alarmes**.
-
-- **Som**: Beep, Sirene, Campainha ou arquivo próprio (MP3, WAV, etc.)
-- **Repetições**: quantas vezes o som toca antes de parar sozinho (1 a 20)
-
-Clique em **Testar som** para ouvir. As configurações ficam salvas no navegador — não precisa refazer toda vez.
+- [Administração SQLite e segurança](13-administracao-sqlite.md)
+- [Migração e recuperação](12-sqlite-migracao.md)
+- [Funcionalidades](03-funcionalidades.md)
+- [Modelo de dados SQLite](../technical/04-modelo-de-dados.md)

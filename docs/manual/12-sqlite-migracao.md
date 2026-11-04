@@ -1,4 +1,4 @@
-# Homologação da migração SQLite (branch feature/sqlite-full-migration)
+# 12 — Homologação da migração SQLite | versão 2.0.0
 
 **A main continua estável. Nunca execute os dois clones em modo GPIO real
 ao mesmo tempo.** Inicialmente teste somente em simulação, com MQTT desativado.
@@ -75,52 +75,52 @@ uma revisão e reinicie o processo de forma segura.
 
 ## Infraestrutura em .env (Windows, Linux e Raspberry Pi)
 
-O arquivo \`.env\` configura o **processo** e não é armazenado no SQLite:
+O arquivo `.env` configura o **processo** e não é armazenado no SQLite:
 caminho do banco, bloqueio de hardware para teste, porta e token
 administrativo. Dispositivos, GPIOs, PID, receitas, calibração e MQTT
 continuam sendo gerenciados pelo banco e pelo frontend.
 
 No **PowerShell**:
 
-\`\`\`powershell
+```powershell
 Copy-Item .env.example .env
 notepad .env
 python -c "import secrets; print(secrets.token_urlsafe(32))"
-\`\`\`
+```
 
-Cole o token gerado em \`TESSERACT_BRIDGE_ADMIN_TOKEN\`, sem aspas adicionais.
+Cole o token gerado em `TESSERACT_BRIDGE_ADMIN_TOKEN`, sem aspas adicionais.
 Exemplo de parâmetros da instalação de homologação:
 
-\`\`\`dotenv
+```dotenv
 TESSERACT_BRIDGE_DB=./data/private/imported.sqlite3
 TESSERACT_BRIDGE_SIMULATION_ONLY=1
 TESSERACT_BRIDGE_TEST_PANEL_PORT=8089
 TESSERACT_BRIDGE_PANEL_HOST=
 TESSERACT_BRIDGE_PANEL_PORT=
 TESSERACT_BRIDGE_ADMIN_TOKEN=seu-token-particular-de-32-caracteres
-\`\`\`
+```
 
-Após a importação, execute \`python -m storage.cli status\` e
-\`python run_bridge.py\`. Abra \`http://127.0.0.1:8089\` **no computador
-que executa o Bridge**. Windows PowerShell não utiliza \`export\`.
-No Linux, basta \`cp .env.example .env\`, editar e executar os mesmos
-comandos Python; não é necessário \`source .env\`.
+Após a importação, execute `python -m storage.cli status` e
+`python run_bridge.py`. Abra `http://127.0.0.1:8089` **no computador
+que executa o Bridge**. Windows PowerShell não utiliza `export`.
+No Linux, basta `cp .env.example .env`, editar e executar os mesmos
+comandos Python; não é necessário `source .env`.
 
 **Precedência:** variável já definida no PowerShell, serviço ou sistema
 operacional > valor do .env > valor padrão da aplicação.
 
 O banco indicado no .env deve existir antes de iniciar, para impedir
 que um nome errado gere automaticamente um banco vazio. Para instalação
-limpa com \`bridge.sqlite3\`, execute explicitamente
-\`python -m storage.cli init\`.
+limpa com `bridge.sqlite3`, execute explicitamente
+`python -m storage.cli init`.
 
-Com \`SIMULATION_ONLY=1\`, o painel fica fixado em \`127.0.0.1\`,
-a porta vem de \`TEST_PANEL_PORT\` e MQTT/GPIO real ficam desativados.
-Com \`SIMULATION_ONLY=0\`, o backend e MQTT seguem o SQLite; host/porta
-podem ser substituídos no processo por \`TESSERACT_BRIDGE_PANEL_HOST\` e
-\`TESSERACT_BRIDGE_PANEL_PORT\`, sem gravar alterações no banco.
+Com `SIMULATION_ONLY=1`, o painel fica fixado em `127.0.0.1`,
+a porta vem de `TEST_PANEL_PORT` e MQTT/GPIO real ficam desativados.
+Com `SIMULATION_ONLY=0`, o backend e MQTT seguem o SQLite; host/porta
+podem ser substituídos no processo por `TESSERACT_BRIDGE_PANEL_HOST` e
+`TESSERACT_BRIDGE_PANEL_PORT`, sem gravar alterações no banco.
 
-Não use \`0.0.0.0\` em redes não confiáveis. O token do editor não
+Não use `0.0.0.0` em redes não confiáveis. O token do editor não
 protege todas as rotas operacionais do painel: não exponha o painel
 na Internet, use isolamento de rede e HTTPS/autenticação apropriada
 antes de qualquer acesso remoto.
@@ -139,6 +139,10 @@ Abra `http://127.0.0.1:8089` na própria máquina. Esses overrides
 desativam GPIO real e MQTT **somente nesta execução**, sem modificar o banco.
 
 ## Administração pelo frontend
+
+Para a descrição das telas, token, rascunhos, revisão aprovada, backup e
+limites de segurança, consulte [Administração SQLite](13-administracao-sqlite.md).
+
 
 Na aba Gerenciamento → Administração SQLite, informe o token do ambiente.
 Cadastre dispositivos e conectividade, crie rascunhos, aprove revisões e

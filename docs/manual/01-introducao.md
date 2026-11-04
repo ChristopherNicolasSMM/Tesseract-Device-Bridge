@@ -1,41 +1,43 @@
-# 01 — Introdução
+# 01 — Introdução | Tesseract Device Bridge 2.0.0
 
-## Para que serve este sistema
+O **Tesseract Device Bridge** é a aplicação local que lê sensores,
+controla bombas e aquecimento e executa receitas de brassagem em etapas,
+com metas de temperatura, patamares e alarmes. Pode operar sem conexão
+com o Tesseract Core, ou integrar-se via MQTT quando habilitado.
 
-Este sistema faz uma coisa simples: **controla automaticamente o aquecimento
-e as bombas da sua brassagem**, seguindo a receita que você configurou.
+## O que muda na versão 2.0.0
 
-Você define a receita uma vez (temperaturas, tempos de patamar, adições de
-lúpulo) e o sistema executa sozinho — mantendo a temperatura certa em cada
-etapa, contando o tempo, avisando na hora de adicionar lúpulo, e alertando
-quando cada fase termina. Você fica livre pra fazer outras coisas durante a
-brassagem em vez de ficar olhando o termômetro.
+Na arquitetura 2.0.0, **o SQLite é a única fonte de dados operacionais**:
+dispositivos, configurações, receitas, seleção de receita, parâmetros
+térmicos, calibração e estado de sessão. Não é necessário localizar e
+editar `devices.yml` ou `receita.json` para fazer manutenção cotidiana.
 
-O painel roda no seu celular, computador ou tablet, pela rede Wi-Fi de casa
-— você não precisa instalar nada no celular, é só abrir o navegador.
+O painel oferece cinco áreas:
 
-## O que o sistema controla
+- **Painel:** sensores e atuadores em tempo real.
+- **Gerenciamento:** inventário e **Administração SQLite** com token,
+  rascunhos, validação, aprovação, backups e auditoria.
+- **Receitas:** execução, status, etapas, temporizadores e alarmes.
+- **Configurações:** controles térmicos e calibração individual.
+- **Cadastro:** catálogo, duplicação e seleção de receitas.
 
-- **Temperatura de cada vasilha** (mostura, fervura, ou qualquer outra que
-  você tiver) — sobe até o alvo e mantém ali pelo tempo configurado.
-- **Bombas de recirculação** — ligam e desligam automaticamente conforme a
-  etapa da receita.
-- **Alertas de lupulagem** — toca um som e exibe um aviso na tela nos
-  momentos certos (ex.: "faltam 60 minutos para o fim da fervura — hora do
-  lúpulo de amargor").
-- **Avisos de início e fim de fase** — um alarme sonoro quando a mostura
-  termina, quando a fervura começa, etc.
+Para teste, o `.env` define o banco, a porta e o bloqueio
+`SIMULATION_ONLY=1`. O backend simulado não opera GPIO real nem MQTT.
 
-## O que o sistema NÃO faz (por enquanto)
+## Segurança física
 
-- Não controla válvulas automáticas de transferência de líquido.
-- Não mede densidade do mosto.
-- Não faz o controle de fermentação (só brassagem por enquanto).
-- Não tem receitas pré-configuradas — você precisa montar a sua (ver
-  [Primeiros Passos](02-primeiros-passos.md)).
+O sistema possui bloqueios de emergência e mecanismos de fail-safe.
+Configurações físicas aprovadas não são aplicadas no meio da operação:
+exigem reinicialização supervisionada, com equipamento parado. A fonte
+auxiliar GLP também requer proteção física independente do software.
 
-## Onde o sistema roda
+## Estado desta versão
 
-Em um Raspberry Pi conectado à sua placa de controle (ex.: MAZZA Handmade
-CraftBeerPi), que por sua vez está conectada aos aquecedores, bombas e
-sensores de temperatura. O Raspberry Pi fica ligado durante toda a brassagem.
+**2.0.0 está em homologação** na branch
+`feature/sqlite-full-migration`. A versão estável anterior segue na
+`main` e não deve ser substituída antes de testes completos no
+Raspberry Pi.
+
+Leia [Primeiros passos](02-primeiros-passos.md),
+[Administração SQLite](13-administracao-sqlite.md) e
+[Migração dos arquivos antigos](12-sqlite-migracao.md).

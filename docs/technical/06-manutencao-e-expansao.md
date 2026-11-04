@@ -1,5 +1,12 @@
 # 06 — Manutenção e Expansão
 
+> **Atenção à versão 2.0.0:** as orientações abaixo que mencionam edição de
+> `devices.yml`, `receita.json` ou `recipe_state.json` documentam o
+> fluxo legado 1.x e **não** devem ser executadas como manutenção operacional
+> da branch SQLite. Para 2.0.0 consulte [Visão técnica](01-visao-geral.md),
+> [Modelo de dados SQLite](04-modelo-de-dados.md) e
+> [Administração](../manual/13-administracao-sqlite.md).
+
 > **Navegação:** [Visão Geral](01-visao-geral.md) | [C4 Diagrams](02-diagrama-c4.md) | [Fluxos](03-fluxos.md) | [Modelo de Dados](04-modelo-de-dados.md) | [Casos de Uso](05-casos-de-uso.md)
 
 ## Armazenamento de receitas (`data/`)

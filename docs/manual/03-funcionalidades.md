@@ -1,16 +1,20 @@
-# 03 — Funcionalidades
+# 03 — Funcionalidades | versão 2.0.0
 
 > **Navegação:** [Manual](01-introducao.md) | [Primeiros Passos](02-primeiros-passos.md) | [FAQ](04-perguntas-frequentes.md)
 
-## Visão geral do painel
+## Visão geral do painel na 2.0.0
 
 ```mermaid
 flowchart LR
-    A([Abre o navegador\nhttp://pi:8088]) --> B{Aba}
-    B -->|"Painel"| C["Lista de sensores e atuadores\nValores ao vivo\nControle manual de cada device"]
-    B -->|"Gerenciamento"| D["Inventário de devices\nconfigurados no devices.yml"]
-    B -->|"Receitas"| E["Motor de automação\nControles, medidores, timeline\nAlarmes"]
-    B -->|"Cadastro"| F["Cadastrar/duplicar receitas\nEscolher qual usar na próxima brassagem"]
+    A[Navegador] --> B{Aba}
+    B --> C[Painel: sensores e atuadores]
+    B --> D[Gerenciamento: inventário + Administração SQLite]
+    B --> E[Receitas: execução e alertas]
+    B --> F[Configurações: PID, perfis e calibração]
+    B --> G[Cadastro: receitas e seleção]
+    D --> H[Rascunho validado]
+    H --> I[Revisão aprovada no SQLite]
+    I --> J[Reinício seguro]
 ```
 
 ---
@@ -31,7 +35,11 @@ Um comando manual sempre tem prioridade sobre uma receita ativa no mesmo atuador
 
 ## Aba Gerenciamento
 
-Tabela com inventário completo dos devices configurados: nome, tipo, subtipo, pinos e tópicos MQTT. Útil para confirmar que o `devices.yml` foi carregado corretamente.
+O **Inventário de Dispositivos** mostra os sensores e atuadores já carregados pelo processo em memória. É somente leitura e permite conferir IDs, nomes, pinos, valores e indicação de risco.
+
+A área **Administração SQLite** fica logo abaixo. Ela é uma interface de cadastros, **não um editor SQL genérico**. Informe o token do `.env`, clique **Desbloquear**, edite, atualize o dispositivo no rascunho, clique **Salvar rascunho validado** e depois **Aprovar para próximo boot**. A configuração somente entra no hardware quando o Bridge for reiniciado em condições seguras.
+
+As funções de manutenção permitem gerar backup consistente do SQLite e consultar eventos recentes de auditoria. Para instruções detalhadas e segurança, consulte [Administração SQLite](13-administracao-sqlite.md).
 
 ---
 
@@ -112,23 +120,25 @@ Onde você cadastra receitas novas e escolhe qual vai rodar na próxima brassage
 
 Não existe "começar do zero". Cada receita cadastrada tem um botão **🧬 Duplicar** — clique nele, o sistema copia tudo (inclusive as vasilhas, que são configuração de equipamento físico, não do processo) e abre um formulário já pronto pra você editar só o que muda de fato entre receitas: as **etapas** (temperatura alvo, tempo de patamar, quais bombas ligam, alarmes de lúpulo).
 
-As vasilhas ficam escondidas num bloco recolhido **⚙️ Vasilhas (avançado)** — a maioria das pessoas nunca precisa abrir isso. Se abrir, só os ganhos do PID (Kp/Ki/Kd) são editáveis por ali; trocar qual sensor/aquecedor uma vasilha usa é tarefa rara o bastante pra exigir editar o arquivo diretamente.
+As vasilhas ficam no bloco recolhido **⚙️ Vasilhas (avançado)**. O formulário atual expõe o ajuste de PID; mudanças físicas nos sensores e atuadores devem ser tratadas pela Administração SQLite, com referências de receitas validadas.
 
 ### Público ou privado
 
 Ao salvar, você escolhe:
-- **🔒 Privada** — fica só nesta máquina, nunca é compartilhada.
-- **🌐 Pública** — vai pro repositório do projeto (se você usa Git pra sincronizar entre máquinas ou compartilhar com outras pessoas).
+- **🔒 Privada** — receita com classificação privada no banco local.
+- **🌐 Pública** — receita com classificação pública no banco local.
+
+As duas classificações ficam no **mesmo arquivo SQLite**, sem publicação automática no Git. Para compartilhar uma receita, será necessário um mecanismo de exportação/sincronização separado.
 
 ### Cada card de receita mostra
 
 | Badge | Significado |
 |---|---|
 | 🌐 Pública / 🔒 Privada | Onde está salva |
-| 🔐 Base (não editável) | É a `receita_base.yaml` — pode ser selecionada e duplicada, mas não editada nem apagada por aqui |
+| 🔐 Base (não editável) | É a receita `public:base` armazenada no SQLite; pode ser selecionada e duplicada, mas não editada/apagada |
 | 🟢 Rodando agora | É a receita que o bridge está executando neste momento |
 | ⏳ Vai rodar no próximo restart | Foi marcada como ativa, mas o bridge ainda não foi reiniciado pra aplicar |
-| ⚠️ Inválida | Referencia um device que não existe mais no `devices.yml` — o erro exato aparece no card |
+| ⚠️ Inválida | Referencia dispositivo que não existe mais no snapshot de configuração validado; a interface exibe o erro |
 
 Botão **▶ Usar esta** marca a receita como ativa pro próximo boot do bridge — **não troca a receita rodando agora**, precisa reiniciar o processo pra valer (mesma regra de sempre: `sudo systemctl restart tesseract-bridge`).
 
@@ -208,4 +218,4 @@ sudo systemctl stop    tesseract-bridge   # parar temporariamente
 sudo systemctl start   tesseract-bridge   # iniciar manualmente
 ```
 
-Após editar `devices.yml` ou `recipe.yml`, o serviço precisa ser reiniciado — o bridge carrega as configurações apenas ao iniciar.
+Após **aprovar uma nova revisão física no SQLite** ou selecionar outra receita ativa, reinicie o serviço somente com o equipamento parado. Ajustes do formulário de controle térmico valem para a próxima execução iniciada, sem hot reload de GPIO.
