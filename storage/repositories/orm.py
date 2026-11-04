@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from config import BridgeConfig
@@ -30,6 +30,10 @@ from storage.models import (
     session_scope,
 )
 from storage.session_mapper import state_from_orm
+from storage.models import (
+    ConfigurationRevision, ConfigurationDraft, RecipeRevision,
+    AuditEvent, LegacyImport, LegacySchemaMigration,
+)
 
 
 class RepositoryError(RuntimeError):
@@ -53,7 +57,7 @@ class NormalizedRepository:
                 version = session.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar_one_or_none()
-                if version != "bridge_orm_0002":
+                if version != "bridge_orm_0003":
                     raise RepositoryError(
                         "Cópia ORM de revisão antiga; normalize uma NOVA cópia "
                         "com o código atualizado antes de utilizá-la."
@@ -120,6 +124,22 @@ class NormalizedRepository:
         with session_scope(self.path, readonly=True) as session:
             row = session.get(SessionState, 1)
             return state_from_orm(row) if row is not None else None
+
+    def history_counts(self):
+        """Counts only; no historical payloads, tokens or credentials decoded."""
+        tables = {
+            "configuration_revisions": ConfigurationRevision,
+            "configuration_drafts": ConfigurationDraft,
+            "recipe_revisions": RecipeRevision,
+            "audit_events": AuditEvent,
+            "legacy_imports": LegacyImport,
+            "schema_migrations": LegacySchemaMigration,
+        }
+        with session_scope(self.path, readonly=True) as session:
+            return {
+                name: session.scalar(select(func.count()).select_from(model))
+                for name, model in tables.items()
+            }
 
     def control_profile(self, key="control"):
         with session_scope(self.path, readonly=True) as session:

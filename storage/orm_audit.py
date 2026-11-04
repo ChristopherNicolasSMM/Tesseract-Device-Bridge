@@ -13,6 +13,7 @@ from pathlib import Path
 from storage.orm_normalize import _legacy_snapshot, _verify, NormalizationError
 from storage.repositories.orm import NormalizedRepository
 from storage.session_mapper import read_operational_snapshot
+from storage.history_mapper import read_history_snapshot
 from config import BridgeConfig
 
 
@@ -71,16 +72,17 @@ def audit_copy(*, source, candidate):
         alembic = target.execute(
             "SELECT version_num FROM alembic_version"
         ).fetchone()
-        if not alembic or alembic[0] != "bridge_orm_0002":
+        if not alembic or alembic[0] != "bridge_orm_0003":
             raise NormalizationError(
                 "Cópia normalizada com revisão antiga. Gere uma NOVA cópia "
-                "com 'normalize --output ...normalized-v2.sqlite3'; "
+                "com 'normalize --output ...normalized-v3.sqlite3'; "
                 "não sobrescreva o arquivo anterior."
             )
     operational = read_operational_snapshot(
         original, devices=BridgeConfig.from_dict(snapshot[0]).devices
     )
-    counts = _verify(normalized, snapshot, operational)
+    history = read_history_snapshot(original)
+    counts = _verify(normalized, snapshot, operational, history)
     repo = NormalizedRepository(normalized)
     # Strong guard against missing core model records.
     if len(repo.configuration()["devices"]) != counts["devices"]:
@@ -103,14 +105,14 @@ def audit_copy(*, source, candidate):
         alembic = target.execute(
             "SELECT version_num FROM alembic_version"
         ).fetchone()
-        if not alembic or alembic[0] != "bridge_orm_0002":
+        if not alembic or alembic[0] != "bridge_orm_0003":
             raise NormalizationError("Versão Alembic inesperada na cópia.")
 
     return {
         "result": "OK",
         "source": str(original),
         "candidate": str(normalized),
-        "alembic": "bridge_orm_0002",
+        "alembic": "bridge_orm_0003",
         **counts,
         "legacy_preserved_rows": preserved,
         "runtime_cutover_enabled": False,

@@ -50,7 +50,7 @@ def test_operational_data_round_trips_via_models(isolated_sqlite, tmp_path):
     assert repo.session_state() == snapshot
     result = audit_copy(source=isolated_sqlite, candidate=candidate)
     assert result["result"] == "OK"
-    assert result["alembic"] == "bridge_orm_0002"
+    assert result["alembic"] == "bridge_orm_0003"
     assert result["calibrations"] == 1
     assert result["active_recipe"] == 1
     assert result["session_state"] == 1

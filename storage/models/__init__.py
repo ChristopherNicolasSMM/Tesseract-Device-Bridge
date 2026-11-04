@@ -11,6 +11,12 @@ from storage.models.runtime import (
     SessionAlarm, SessionFiredHopKey,
 )
 
+
+from storage.models.history import (
+    HistoryDocument, HistoryNode, ConfigurationRevision, ConfigurationDraft,
+    RecipeRevision, AuditEvent, LegacyImport, LegacySchemaMigration,
+)
+
 __all__ = [
     "Base", "make_engine", "session_scope",
     "BridgeSettings", "MqttSettings", "PanelSettings", "Device",
@@ -20,4 +26,7 @@ __all__ = [
     "ControlVesselProfile",
     "SensorCalibration", "ActiveRecipe", "SessionState", "SessionFieldPresence",
     "SessionAlarm", "SessionFiredHopKey",
+    "HistoryDocument", "HistoryNode", "ConfigurationRevision",
+    "ConfigurationDraft", "RecipeRevision", "AuditEvent",
+    "LegacyImport", "LegacySchemaMigration",
 ]

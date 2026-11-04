@@ -30,6 +30,9 @@ from storage.session_mapper import (
     read_operational_snapshot, persist_operational_snapshot,
     verify_operational_snapshot,
 )
+from storage.history_mapper import (
+    read_history_snapshot, persist_history, verify_history,
+)
 
 
 def _legacy_snapshot(path):
@@ -48,7 +51,7 @@ def _legacy_snapshot(path):
     return config, revision, rows, profiles
 
 
-def _backfill(path, snapshot, operational):
+def _backfill(path, snapshot, operational, history):
     config, revision, recipes, profiles = snapshot
     with session_scope(path) as session:
         if session.get(BridgeSettings, 1) is not None:
@@ -59,9 +62,10 @@ def _backfill(path, snapshot, operational):
         for row in profiles:
             session.add(_control_to_orm(row["key"], json.loads(row["value_json"]), row["revision"]))
         persist_operational_snapshot(session, operational)
+        persist_history(session, history)
 
 
-def _verify(path, snapshot, operational=None):
+def _verify(path, snapshot, operational=None, history=None):
     config, revision, recipes, profiles = snapshot
     with session_scope(path, readonly=True) as session:
         normalized = _config_from_orm(session)
@@ -87,12 +91,14 @@ def _verify(path, snapshot, operational=None):
             if actual is None or _control_from_orm(actual) != json.loads(row["value_json"]):
                 raise NormalizationError("Parâmetro de controle divergente: " + row["key"])
         extra = verify_operational_snapshot(session, operational) if operational is not None else {}
+        historical = verify_history(session, history) if history is not None else {}
     return {
         "devices": len(config["devices"]),
         "recipes": len(recipes),
         "control_profiles": len(profiles),
         "revision": revision,
         **extra,
+        **historical,
     }
 
 
@@ -114,6 +120,7 @@ def validate_source(path):
     read_operational_snapshot(
         Path(path).resolve(), devices=BridgeConfig.from_dict(config).devices
     )
+    read_history_snapshot(Path(path).resolve())
     return snapshot
 
 
@@ -134,6 +141,7 @@ def normalize_copy(*, source, destination):
     operational = read_operational_snapshot(
         source, devices=BridgeConfig.from_dict(snapshot[0]).devices
     )
+    history = read_history_snapshot(source)
     destination.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(str(destination), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     os.close(fd)
@@ -147,7 +155,9 @@ def normalize_copy(*, source, destination):
         copied_operational = read_operational_snapshot(
             destination, devices=BridgeConfig.from_dict(copied_snapshot[0]).devices
         )
-        if copied_snapshot != snapshot or copied_operational != operational:
+        copied_history = read_history_snapshot(destination)
+        if (copied_snapshot != snapshot or copied_operational != operational
+                or copied_history != history):
             raise NormalizationError(
                 "O banco de origem mudou durante a cópia; pare o Bridge "
                 "e repita em um NOVO arquivo de destino."
@@ -155,8 +165,8 @@ def normalize_copy(*, source, destination):
         cfg = AlembicConfig(str(PROJECT_ROOT / "alembic.ini"))
         cfg.attributes["db_path"] = destination
         command.upgrade(cfg, "head")
-        _backfill(destination, snapshot, operational)
-        result = _verify(destination, snapshot, operational)
+        _backfill(destination, snapshot, operational, history)
+        result = _verify(destination, snapshot, operational, history)
         # A copy, not the original, is modified by ORM schema and data migration.
         return {"source": str(source), "destination": str(destination), **result}
     except BaseException:
