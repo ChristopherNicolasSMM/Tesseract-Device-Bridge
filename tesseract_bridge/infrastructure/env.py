@@ -10,7 +10,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from project_paths import PROJECT_ROOT
+from tesseract_bridge.infrastructure.paths import PROJECT_ROOT
 
 DEFAULT_ENV_FILE = PROJECT_ROOT / ".env"
 

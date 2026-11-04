@@ -12,7 +12,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from project_paths import DATA_DIR
+from tesseract_bridge.infrastructure.paths import DATA_DIR
 from storage import sqlite_store as store
 
 DEFAULT_CALIBRATION_PATH = DATA_DIR / "private" / "sensor_calibration.json"

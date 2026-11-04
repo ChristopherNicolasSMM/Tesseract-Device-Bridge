@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 import pytest
 
-import project_paths
+import tesseract_bridge.infrastructure.paths as project_paths
 from storage import sqlite_store as store
 from tests.test_boot_log import load_boot_log_fn
 

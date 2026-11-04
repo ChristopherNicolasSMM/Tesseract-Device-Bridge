@@ -161,7 +161,7 @@ def test_bridge_wires_retained_rejection_for_opted_in_devices(setup):
     from unittest.mock import patch
     bridge,runtime,_=setup
     bridge._config.mqtt.enabled=True
-    with patch('mqtt_client.mqtt.Client'):
+    with patch('tesseract_bridge.integrations.mqtt_client.mqtt.Client'):
         connected=Bridge(bridge._config,runtime)
     assert connected._mqtt._reject_retained_device_ids=={'mash_heater','pump'}
     command={'version':1,'request_id':'retained-enable','boot_id':connected._remote_control.boot_id,

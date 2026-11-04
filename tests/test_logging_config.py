@@ -11,7 +11,7 @@ import os
 
 import pytest
 
-from logging_config import ColoredFormatter, setup_logging, _use_colors
+from tesseract_bridge.infrastructure.logging_config import ColoredFormatter, setup_logging, _use_colors
 
 
 # ---- ColoredFormatter sem cores (modo serviço/arquivo) --------------------

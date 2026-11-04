@@ -29,14 +29,14 @@ from datetime import datetime, timezone
 from uuid import uuid4
 from typing import Optional
 
-from remote_device_control import RemoteDeviceControl, enabled as remote_control_enabled
+from tesseract_bridge.control.remote_device_control import RemoteDeviceControl, enabled as remote_control_enabled
 from config import BridgeConfig
 from device_runtime import DeviceRuntime, DeviceRuntimeError
-from failsafe_coercion import coerce_value
-from failsafe_watchdog import FailsafeTimeoutWatchdog, devices_with_timeout
-from mqtt_client import MqttClientWrapper
+from tesseract_bridge.safety.failsafe_coercion import coerce_value
+from tesseract_bridge.safety.watchdog import FailsafeTimeoutWatchdog, devices_with_timeout
+from tesseract_bridge.integrations.mqtt_client import MqttClientWrapper
 from recipe_engine.engine import RecipeEngine
-from status_handler import StatusTopicHandler, build_command_topic_lookup
+from tesseract_bridge.integrations.status_handler import StatusTopicHandler, build_command_topic_lookup
 
 logger = logging.getLogger("tesseract_bridge.bridge")
 

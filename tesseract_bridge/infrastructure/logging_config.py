@@ -6,7 +6,7 @@ Como usar
 Chamar setup_logging() no início do processo (run_bridge.py ou
 run_panel.py), antes de qualquer outro import que crie loggers:
 
-    from logging_config import setup_logging
+    from tesseract_bridge.infrastructure.logging_config import setup_logging
     setup_logging()
 
 Formato de saída

@@ -1,6 +1,6 @@
 import pytest
 
-from time_proportioning import TimeProportioningController
+from tesseract_bridge.control.time_proportioning import TimeProportioningController
 
 
 def test_zero_duty_cycle_always_off():

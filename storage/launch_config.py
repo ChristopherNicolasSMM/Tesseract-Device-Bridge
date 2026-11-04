@@ -9,7 +9,7 @@ import copy
 import os
 
 from config import BridgeConfig
-from infra_env import flag, load_infra_env, port
+from tesseract_bridge.infrastructure.env import flag, load_infra_env, port
 from storage import sqlite_store as store
 from storage.migrate import StorageError
 

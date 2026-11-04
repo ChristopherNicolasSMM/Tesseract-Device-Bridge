@@ -24,7 +24,7 @@ import logging
 from typing import Dict, Optional
 
 from device_runtime import DeviceRuntime, DeviceRuntimeError
-from failsafe_coercion import coerce_value
+from tesseract_bridge.safety.failsafe_coercion import coerce_value
 
 logger = logging.getLogger("tesseract_bridge.status_handler")
 

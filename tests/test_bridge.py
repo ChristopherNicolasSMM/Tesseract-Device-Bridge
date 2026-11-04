@@ -135,7 +135,7 @@ def test_status_handler_property_applies_failsafe(tmp_path):
     assert runtime.get_state("mash_heater").value == 0.0
 
 
-@patch("mqtt_client.mqtt.Client")
+@patch("tesseract_bridge.integrations.mqtt_client.mqtt.Client")
 def test_mqtt_enabled_creates_client_and_subscribes_on_connect(mock_client_cls, tmp_path):
     mock_client = MagicMock()
     mock_client_cls.return_value = mock_client
@@ -156,7 +156,7 @@ def test_mqtt_enabled_creates_client_and_subscribes_on_connect(mock_client_cls, 
     assert "brewery/actuators/mash_heater/set" in subscribed_topics
 
 
-@patch("mqtt_client.mqtt.Client")
+@patch("tesseract_bridge.integrations.mqtt_client.mqtt.Client")
 def test_mqtt_message_routing_to_status_handler(mock_client_cls, tmp_path):
     mock_client = MagicMock()
     mock_client_cls.return_value = mock_client
@@ -178,7 +178,7 @@ def test_mqtt_message_routing_to_status_handler(mock_client_cls, tmp_path):
     assert runtime.get_state("mash_heater").value == 0.0
 
 
-@patch("mqtt_client.mqtt.Client")
+@patch("tesseract_bridge.integrations.mqtt_client.mqtt.Client")
 def test_mqtt_message_routing_to_command_handler(mock_client_cls, tmp_path):
     mock_client = MagicMock()
     mock_client_cls.return_value = mock_client
@@ -194,7 +194,7 @@ def test_mqtt_message_routing_to_command_handler(mock_client_cls, tmp_path):
     assert runtime.get_state("mash_heater").value == 42.0
 
 
-@patch("mqtt_client.mqtt.Client")
+@patch("tesseract_bridge.integrations.mqtt_client.mqtt.Client")
 def test_disconnect_callback_wires_to_watchdog(mock_client_cls, tmp_path):
     mock_client = MagicMock()
     mock_client_cls.return_value = mock_client

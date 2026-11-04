@@ -19,7 +19,7 @@ from config import BridgeConfig
 from device_runtime import DeviceRuntime
 from panel.api import bp as api_bp
 from panel.admin_api import bp as admin_bp
-from version import APP_VERSION
+from tesseract_bridge.version import APP_VERSION
 from recipe_engine.engine import RecipeEngine
 
 

@@ -15,7 +15,7 @@ from panel.app import create_panel_app
 from recipe_engine.engine import RecipeEngine
 from recipe_engine.models import Recipe
 from recipe_engine.state import RecipeState
-from safety_lifecycle import safety_lifecycle
+from tesseract_bridge.safety.lifecycle import safety_lifecycle
 from tests.test_recipe_engine import DEVICES_YAML, RECIPE_YAML
 
 

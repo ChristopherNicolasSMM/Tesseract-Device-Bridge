@@ -351,7 +351,7 @@ def test_example_yaml_in_repo_is_valid():
     pela validação — senão a documentação do projeto está mentindo sobre
     o próprio schema que ela define.
     """
-    config = BridgeConfig.load(__import__("project_paths").EXAMPLE_CONFIG_PATH)
+    config = BridgeConfig.load(__import__("tesseract_bridge.infrastructure.paths", fromlist=["EXAMPLE_CONFIG_PATH"]).EXAMPLE_CONFIG_PATH)
     assert config.backend == "simulated"
     assert len(config.devices) == 6
 

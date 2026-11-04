@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from infra_env import flag, load_infra_env, port
-from project_paths import PROJECT_ROOT
+from tesseract_bridge.infrastructure.env import flag, load_infra_env, port
+from tesseract_bridge.infrastructure.paths import PROJECT_ROOT
 from storage import sqlite_store as store
 from storage.launch_config import load_runtime_config
 from storage.migrate import StorageError

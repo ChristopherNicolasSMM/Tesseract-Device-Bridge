@@ -3,7 +3,7 @@ Explicit user-supplied paths retain normal pathlib semantics.
 """
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = PROJECT_ROOT / "data"
 DEFAULT_CONFIG_PATH = DATA_DIR / "public" / "devices.yml"
 EXAMPLE_CONFIG_PATH = DATA_DIR / "public" / "devices.yml.example"

@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 from storage import sqlite_store as store
-from infra_env import load_infra_env
+from tesseract_bridge.infrastructure.env import load_infra_env
 
 
 def main():

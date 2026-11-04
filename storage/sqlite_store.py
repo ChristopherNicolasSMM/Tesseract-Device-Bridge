@@ -12,7 +12,7 @@ import sqlite3
 from pathlib import Path
 
 from storage.migrate import apply_migrations, check_schema, StorageError
-from project_paths import DATA_DIR, PROJECT_ROOT
+from tesseract_bridge.infrastructure.paths import DATA_DIR, PROJECT_ROOT
 
 DEFAULT_DB = DATA_DIR / "private" / "bridge.sqlite3"
 

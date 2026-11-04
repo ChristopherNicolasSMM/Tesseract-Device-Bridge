@@ -5,7 +5,7 @@ import pytest
 from config import BridgeConfig
 from device_runtime import DeviceRuntime
 from gpio.simulated_backend import SimulatedGPIOBackend
-from failsafe_watchdog import FailsafeTimeoutWatchdog, devices_with_timeout
+from tesseract_bridge.safety.watchdog import FailsafeTimeoutWatchdog, devices_with_timeout
 
 
 YAML_CONTENT = """

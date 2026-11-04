@@ -3,7 +3,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 import pytest
-from source_control import SourceControl
+from tesseract_bridge.control.source_control import SourceControl
 from config import BridgeConfig, ConfigError
 from device_runtime import DeviceRuntime, DeviceRuntimeError
 from gpio.simulated_backend import SimulatedGPIOBackend
@@ -123,12 +123,12 @@ def test_actual_gpio_follows_lease_and_cuts_without_waiting(tmp_path,monkeypatch
 
 
 def test_retained_source_command_does_not_reach_controller(tmp_path):
-    from mqtt_client import MqttClientWrapper
+    from tesseract_bridge.integrations.mqtt_client import MqttClientWrapper
     from types import SimpleNamespace
     from unittest.mock import patch
     r,b=build(tmp_path)
     try:
-        with patch('mqtt_client.mqtt.Client'):
+        with patch('tesseract_bridge.integrations.mqtt_client.mqtt.Client'):
             wrapper=MqttClientWrapper(b._config.mqtt,{'gas/set':'gas'},lambda payload:None,
                 b._handle_command_message,reject_retained_device_ids={'gas'})
         c=r._sources['gas']

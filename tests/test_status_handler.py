@@ -6,7 +6,7 @@ import pytest
 from config import BridgeConfig
 from device_runtime import DeviceRuntime
 from gpio.simulated_backend import SimulatedGPIOBackend
-from status_handler import StatusTopicHandler, build_command_topic_lookup
+from tesseract_bridge.integrations.status_handler import StatusTopicHandler, build_command_topic_lookup
 
 
 YAML_CONTENT = """

@@ -90,8 +90,8 @@ _boot_log("imports stdlib OK")
 # qualquer outro módulo que crie loggers (ou eles herdam o formatter
 # padrão do Python em vez do nosso).
 try:
-    from logging_config import setup_logging
-    _boot_log("import logging_config OK")
+    from tesseract_bridge.infrastructure.logging_config import setup_logging
+    _boot_log("import tesseract_bridge.infrastructure.logging_config OK")
 except ImportError as e:
     _boot_log(f"ERRO import logging_config: {e}")
     raise
@@ -110,16 +110,16 @@ from pathlib import Path
 from typing import Optional
 
 from config import BridgeConfig
-from safety_lifecycle import safety_lifecycle
+from tesseract_bridge.safety.lifecycle import safety_lifecycle
 from device_runtime import DeviceRuntime
 from gpio.simulated_backend import SimulatedGPIOBackend
-from python_runtime import require_python39_for_real
+from tesseract_bridge.infrastructure.python_runtime import require_python39_for_real
 from panel.app import create_panel_app
 from recipe_engine.engine import RecipeEngine
 from recipe_engine.models import Recipe, RecipeError
-from project_paths import DEFAULT_RECIPE_STATE_PATH
+from tesseract_bridge.infrastructure.paths import DEFAULT_RECIPE_STATE_PATH
 from storage import sqlite_store as store
-from infra_env import load_infra_env
+from tesseract_bridge.infrastructure.env import load_infra_env
 from storage.launch_config import load_runtime_config
 
 logger = logging.getLogger("tesseract_bridge.run_bridge")

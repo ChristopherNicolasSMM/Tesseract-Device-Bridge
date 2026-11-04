@@ -1,6 +1,6 @@
 import pytest
 
-from python_runtime import require_python39_for_real
+from tesseract_bridge.infrastructure.python_runtime import require_python39_for_real
 
 
 @pytest.mark.parametrize("version", [(3, 9, 0), (3, 9, 23)])

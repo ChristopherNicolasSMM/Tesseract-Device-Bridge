@@ -1,4 +1,4 @@
-from failsafe_coercion import coerce_value
+from tesseract_bridge.safety.failsafe_coercion import coerce_value
 
 
 def test_coerce_pwm_string_to_float():

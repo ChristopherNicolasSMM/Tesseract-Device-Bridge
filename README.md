@@ -41,6 +41,7 @@ do painel. Não exponha a interface à Internet.
 | Calibração | [11 — Sensores](docs/manual/11-calibracao-sensores.md) |
 | Migração segura de YAML/JSON | [12 — Migração SQLite](docs/manual/12-sqlite-migracao.md) |
 | Administração SQLite | [13 — Administração](docs/manual/13-administracao-sqlite.md) |
+| Organização Python | [Estrutura e convenções](docs/technical/07-organizacao-python.md) |
 | Arquitetura e persistência | [Visão geral técnica](docs/technical/01-visao-geral.md) · [Modelo de dados](docs/technical/04-modelo-de-dados.md) |
 | Histórico da versão | [CHANGELOG](CHANGELOG.md) |
 

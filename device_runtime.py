@@ -49,8 +49,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from config import BridgeConfig, DeviceConfig
 from gpio.base import GPIOBackend
-from time_proportioning import TimeProportioningController
-from source_control import SourceControl
+from tesseract_bridge.control.time_proportioning import TimeProportioningController
+from tesseract_bridge.control.source_control import SourceControl
 from temperature_calibration import DEFAULT_CALIBRATION_PATH, load_calibrations
 
 # Mapeia (role, subtype) -> mode aceito por GPIOBackend.setup().

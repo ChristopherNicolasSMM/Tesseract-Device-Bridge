@@ -14,11 +14,14 @@ objetos e snapshots em memória.
 
 ## Módulos da versão 2.0.0
 
+> Consulte [Organização dos módulos](07-organizacao-python.md). O pacote interno `tesseract_bridge/` agrupa infraestrutura, segurança, controle e integrações, mantendo entrypoints na raiz.
+
+
 | Componente | Responsabilidade |
 |---|---|
 | `run_bridge.py` | Inicialização integral: banco, configuração, DeviceRuntime, RecipeEngine, MQTT e painel |
 | `run_panel.py` | Painel isolado, utiliza os mesmos parâmetros de infraestrutura |
-| `infra_env.py` / `.env` | Arquivo de instalação e overrides de processo |
+| `tesseract_bridge/infrastructure/env.py` / `.env` | Arquivo de instalação e overrides de processo |
 | `storage/migrate.py` + `storage/migrations/` | Migrações do esquema SQLite |
 | `storage/sqlite_store.py` | Conexões, transações, entidades, revisões e backup |
 | `storage/legacy_import.py` | Conversão **apenas por comando explícito** |
@@ -26,7 +29,7 @@ objetos e snapshots em memória.
 | `panel/api.py` | Endpoints operacionais e de receitas/controle térmico |
 | `panel/admin_api.py` | Administração, rascunhos, aprovação, auditoria e backup |
 | `panel/static/admin-sqlite.js` | Interação de administração no frontend |
-| `device_runtime.py` e `recipe_engine/` | Segurança e execução em memória |
+| `device_runtime.py`, `tesseract_bridge/control/` e `recipe_engine/` | Segurança e execução em memória |
 | `data/private/*.sqlite3` | Banco local (ignorado pelo Git) |
 
 ## Inicialização

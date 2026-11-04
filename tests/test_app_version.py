@@ -6,7 +6,7 @@ from device_runtime import DeviceRuntime
 from gpio.simulated_backend import SimulatedGPIOBackend
 from panel.app import create_panel_app
 from storage import sqlite_store as store
-from version import APP_VERSION
+from tesseract_bridge.version import APP_VERSION
 
 
 def test_version_is_2_0_0():

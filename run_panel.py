@@ -14,14 +14,14 @@ em instalações novas, banco SQLite criado com configuração simulada segura.
 
 # Logging colorido antes de tudo — ver logging_config.py.
 import sys
-from logging_config import setup_logging
+from tesseract_bridge.infrastructure.logging_config import setup_logging
 setup_logging(debug="--debug" in sys.argv)
 
 from config import BridgeConfig
-from safety_lifecycle import safety_lifecycle
+from tesseract_bridge.safety.lifecycle import safety_lifecycle
 from device_runtime import DeviceRuntime
 from gpio.simulated_backend import SimulatedGPIOBackend
-from python_runtime import require_python39_for_real
+from tesseract_bridge.infrastructure.python_runtime import require_python39_for_real
 from panel.app import create_panel_app
 
 from storage.launch_config import load_runtime_config
