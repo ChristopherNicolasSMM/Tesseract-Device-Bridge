@@ -73,6 +73,13 @@ def create_app(root=None, *, port=8090):
         state.start(request.form.get("language"))
         return redirect("/", code=303)
 
+    @app.post("/clean")
+    def clean():
+        from .bootstrap import bootstrap_empty
+        from flask import redirect
+        bootstrap_empty(state)
+        return redirect("/", code=303)
+
     @app.post("/abort")
     def cancel():
         from flask import redirect

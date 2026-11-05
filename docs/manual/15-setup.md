@@ -58,3 +58,12 @@ verificação de conclusão válida do setup. Não haverá uma etapa extra obrig
 de homologação depois do setup para liberar o ORM real. Escolha simulada,
 pendências críticas e configuração incompleta continuam bloqueando operação
 física. Os intertravamentos operacionais serão preservados.
+
+## Preparação vazia — Etapa 3
+
+Após iniciar a tentativa, o botão de preparar banco vazio cria o ORM no diretório
+privado temporário da tentativa. Aplica Alembic até 0003 e configura cabeçalhos
+simulados, MQTT desativado e perfis de controle padrão. Nenhum dispositivo ou
+receita fictícia é criado. Repetir a ação verifica o banco sem sobrescrevê-lo.
+Cancelar descarta o staging. O banco definitivo e o .env ainda não são publicados.
+A ausência de dispositivos continua impedindo iniciar o runtime operacional.
