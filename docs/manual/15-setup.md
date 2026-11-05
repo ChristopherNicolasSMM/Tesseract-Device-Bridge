@@ -23,8 +23,8 @@ source venv/bin/activate
 python -m setup
 ```
 
-Abra `http://127.0.0.1:8090`. Não use `localhost`: o assistente valida o endereço
-exato. Se a porta estiver ocupada, use `python -m setup --port 8091` e abra a URL
+Abra `http://127.0.0.1:8090`. Também é permitido `http://localhost:8090`. O assistente aceita somente
+hosts locais explícitos e valida a porta e a origem dos formulários. Se a porta estiver ocupada, use `python -m setup --port 8091` e abra a URL
 impressa. O servidor fica limitado a loopback, sem debugger ou reloader, e não
 carrega o painel operacional, GPIO, MQTT ou variáveis do `.env`.
 

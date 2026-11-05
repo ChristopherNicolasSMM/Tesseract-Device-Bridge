@@ -101,6 +101,28 @@ def test_csrf_origin_and_validation(wizard):
     assert post(client, "/abort").status_code == 303
 
 
+@pytest.mark.parametrize("host,remote", [
+    ("localhost:8090", "127.0.0.1"),
+    ("127.0.0.1:8090", "::ffff:127.0.0.1"),
+    ("[::1]:8090", "::1"),
+])
+def test_local_browser_aliases(wizard, host, remote):
+    client = wizard[0].test_client()
+    base = "http://" + host
+    assert client.get("/", base_url=base,
+                      environ_overrides={"REMOTE_ADDR": remote}).status_code == 200
+    with client.session_transaction(base_url=base) as session:
+        csrf = session["csrf"]
+    assert client.post("/start", base_url=base, data={"language": "en", "csrf": csrf},
+                       headers={"Origin": base},
+                       environ_overrides={"REMOTE_ADDR": remote}).status_code == 303
+
+
+def test_remote_ipv4_mapped_address_is_denied(wizard):
+    assert wizard[0].test_client().get("/", base_url="http://127.0.0.1:8090",
+        environ_overrides={"REMOTE_ADDR": "::ffff:10.0.0.2"}).status_code == 403
+
+
 def test_state_corruption_fails_closed(tmp_path):
     state = InstallationState(tmp_path)
     state.save({"version": 999})

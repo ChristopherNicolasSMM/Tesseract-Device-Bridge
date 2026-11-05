@@ -21,7 +21,8 @@ def create_app(root=None, *, port=8090):
     app.config.update(MAX_CONTENT_LENGTH=16 * 1024, SESSION_COOKIE_HTTPONLY=True,
                       SESSION_COOKIE_SAMESITE="Strict", SESSION_COOKIE_NAME="bridge_setup")
     app.extensions["installation_state"] = state
-    origin = "http://127.0.0.1:" + str(port)
+    local_hosts = {"127.0.0.1:" + str(port), "localhost:" + str(port),
+                   "[::1]:" + str(port)}
     translations = {}
     for language in ("pt_BR", "en"):
         translations[language] = json.loads(
@@ -30,15 +31,23 @@ def create_app(root=None, *, port=8090):
     @app.before_request
     def local_boundary():
         try:
-            local = ipaddress.ip_address(request.remote_addr or "").is_loopback
+            address = ipaddress.ip_address(request.remote_addr or "")
+            mapped = getattr(address, "ipv4_mapped", None)
+            local = (mapped or address).is_loopback
         except ValueError:
             local = False
-        if not local or request.host != "127.0.0.1:" + str(port):
-            abort(403)
+        if not local:
+            app.logger.warning("Setup rejected a non-loopback connection")
+            abort(403, description="Setup requires a local connection or SSH tunnel.")
+        if request.host.lower() not in local_hosts:
+            app.logger.warning("Setup rejected Host %r; expected a loopback host on port %s",
+                               request.host, port)
+            abort(403, description="Open http://127.0.0.1:" + str(port)
+                  + " or http://localhost:" + str(port))
         if request.method not in ("GET", "HEAD", "OPTIONS"):
             expected = session.get("csrf", "")
             received = request.form.get("csrf", "")
-            if (request.headers.get("Origin") != origin or not expected
+            if (request.headers.get("Origin") != "http://" + request.host.lower() or not expected
                     or not secrets.compare_digest(expected, received)):
                 abort(403)
 

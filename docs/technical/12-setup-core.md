@@ -27,8 +27,10 @@ POSIX não substitui ACL Windows. Não há alterações em banco operacional ou 
 ## HTTP
 
 Werkzeug make_server sem debugger/reloader, um único processo/thread atendendo
-requisições, bind 127.0.0.1. Acesso requer cliente loopback e Host exato incluindo
-porta. Não há ProxyFix nem confiança em X-Forwarded-For. POST exige Origin exata,
+requisições, bind 127.0.0.1. Acesso requer cliente loopback e Host local explícito (`127.0.0.1`, `localhost` ou `[::1]`) incluindo
+porta. Endereços IPv4 mapeados em IPv6 são normalizados antes da checagem.
+O servidor CLI continua escutando em IPv4; o Host IPv6 é aceito pela factory
+para transportes locais que o utilizem. Não há ProxyFix nem confiança em X-Forwarded-For. POST exige Origin igual ao Host local validado,
 token CSRF de sessão assinado e cookie HttpOnly/SameSite Strict. Segredo de sessão
 é aleatório por execução e não é persistido. Respostas usam no-store, CSP sem
 scripts/frames externos e nosniff. Limite de corpo: 16 KiB. Não há CORS, SQL ou
