@@ -1,0 +1,57 @@
+    :root {
+      --bg-primary: #0f141e;
+      --bg-card: #1a1f2e;
+      --bg-card-hover: #232a3d;
+      --border-subtle: #2a3246;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --accent-blue: #2563eb;
+      --accent-blue-glow: rgba(37, 99, 235, 0.3);
+      --danger: #dc2626;
+      --success: #22c55e;
+      --warning: #eab308;
+      --radius: 12px;
+      --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+      /* Popups nativos de select/input seguem o tema escuro (Windows Chromium). */
+      color-scheme: dark;
+    }
+
+    /* As opções do dropdown nativo não herdam o fundo do próprio select
+       de maneira consistente entre Chrome, Edge e sistemas operacionais. */
+    select {
+      color-scheme: dark;
+    }
+
+    select option,
+    select optgroup {
+      background-color: var(--bg-card);
+      color: var(--text-primary);
+    }
+
+    select option:disabled {
+      color: var(--text-secondary);
+    }
+
+
+/* Light palette is opt-in. The operational panel retains its existing dark theme. */
+:root[data-theme="light"] {
+  --bg-primary: #f1f5f9; --bg-card: #ffffff; --bg-card-hover: #e2e8f0;
+  --border-subtle: #cbd5e1; --text-primary: #0f172a; --text-secondary: #475569;
+  --accent-blue: #1d4ed8; --accent-blue-glow: rgba(29,78,216,.18);
+  --danger: #b91c1c; --success: #15803d; --warning: #a16207;
+  --shadow: 0 4px 24px rgba(15,23,42,.08); color-scheme: light;
+}
+:root[data-theme="light"] select { color-scheme: light; }
+.bridge-card { background: var(--bg-card); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius); box-shadow: var(--shadow); padding: 1.5rem; }
+.bridge-button { display: inline-block; border: 1px solid transparent; border-radius: .6rem;
+  background: var(--accent-blue); color: #fff; padding: .75rem 1rem; cursor: pointer;
+  font: inherit; font-weight: 600; }
+.bridge-button.secondary { background: var(--bg-card); color: var(--text-primary);
+  border-color: var(--border-subtle); }
+.bridge-button.danger { background: var(--danger); }
+.bridge-field { font: inherit; background: var(--bg-primary); color: var(--text-primary);
+  border: 1px solid var(--border-subtle); border-radius: .6rem; padding: .65rem; }
+.bridge-button:focus-visible, .bridge-field:focus-visible {
+  outline: 3px solid var(--accent-blue); outline-offset: 3px; }
+.bridge-muted { color: var(--text-secondary); }

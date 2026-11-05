@@ -202,6 +202,7 @@ def test_actual_cli_in_clean_clone(tmp_path):
     root = Path(__file__).resolve().parents[1]
     clean = tmp_path / "clone"
     shutil.copytree(root / "setup", clean / "setup", ignore=shutil.ignore_patterns("__pycache__"))
+    shutil.copytree(root / "shared_ui", clean / "shared_ui", ignore=shutil.ignore_patterns("__pycache__"))
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]

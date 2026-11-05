@@ -1,35 +1,74 @@
 <!doctype html>
-<html lang="{{ language.replace('_', '-') }}">
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{ t.title }}</title>
-<main>
-  <h1>{{ t.title }}</h1>
-  <p>{{ t.intro }}</p>
-  <p>{{ t[state.status] }}</p>
-  <form method="post" action="/start">
-    <input type="hidden" name="csrf" value="{{ csrf }}">
-    <label>{{ t.language }}
-      <select name="language">
-        <option value="pt_BR" {% if language == 'pt_BR' %}selected{% endif %}>Português (Brasil)</option>
-        <option value="en" {% if language == 'en' %}selected{% endif %}>English</option>
-      </select>
-    </label>
-    <button>{{ t.continue }}</button>
-  </form>
-  {% if state.status == 'in_progress' %}
-  <p>{{ t.pending }}</p>
-  <form method="post" action="/clean">
-    <input type="hidden" name="csrf" value="{{ csrf }}">
-    <button>{{ t.clean }}</button>
-  </form>
-  <form method="post" action="/abort">
-    <input type="hidden" name="csrf" value="{{ csrf }}">
-    <button>{{ t.abort }}</button>
-  </form>
-  {% endif %}
-  <h2>{{ t.environment }}</h2>
-  <p>{{ system }} · Python {{ python }} · {{ t.venv }}: {{ t.yes if venv else t.no }}</p>
-  <p>{{ t.stop }}</p>
-</main>
+<html lang="{{ language.replace('_', '-') }}" data-theme="{{ theme }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ t.title }}</title>
+  <link rel="stylesheet" href="{{ url_for('shared_ui.static', filename='theme.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='setup.css') }}">
+</head>
+<body class="setup-page">
+  <header class="setup-header">
+    <span class="setup-brand">Tesseract <span class="bridge-muted">Device Bridge</span></span>
+    <span class="setup-security">{{ t.security_note }}</span>
+  </header>
+  <main class="setup-shell">
+    <aside class="setup-steps" aria-label="{{ t.progress }}">
+      <p class="setup-eyebrow">{{ t.badge }}</p>
+      <ol>
+        <li aria-current="step">{{ t.step_language }}</li>
+        <li>{{ t.step_data }}</li>
+        <li>{{ t.step_finish }}</li>
+      </ol>
+    </aside>
+    <section class="setup-content">
+      <p class="setup-eyebrow">{{ t.prepare }}</p>
+      <h1>{{ t.title }}</h1>
+      <p class="bridge-muted setup-lead">{{ t.intro }}</p>
+      <p class="setup-status" role="status">{{ t[state.status] }}</p>
+      {% if notice %}<p class="setup-notice" role="status">{{ t[notice] }}</p>{% endif %}
+      <div class="bridge-card">
+        <form method="post" action="/start" class="setup-form">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <label for="language">{{ t.language }}</label>
+          <select class="bridge-field" id="language" name="language">
+            <option value="pt_BR" {% if language == 'pt_BR' %}selected{% endif %}>Português (Brasil)</option>
+            <option value="en" {% if language == 'en' %}selected{% endif %}>English</option>
+          </select>
+          <button class="bridge-button">{{ t.continue }}</button>
+        </form>
+        <form method="post" action="/appearance" class="setup-form">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <label for="theme">{{ t.appearance }}</label>
+          <select class="bridge-field" id="theme" name="theme">
+            <option value="dark" {% if theme == 'dark' %}selected{% endif %}>{{ t.dark }}</option>
+            <option value="light" {% if theme == 'light' %}selected{% endif %}>{{ t.light }}</option>
+          </select>
+          <button class="bridge-button secondary">{{ t.save_appearance }}</button>
+        </form>
+      </div>
+      {% if state.status == 'in_progress' %}
+      <section class="bridge-card">
+        <h2>{{ t.actions }}</h2>
+        <p class="bridge-muted">{{ t.phase_note }}</p>
+        <div class="setup-actions">
+          <form method="post" action="/clean">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <button class="bridge-button">{{ t.clean }}</button>
+          </form>
+          <form method="post" action="/abort">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <button class="bridge-button danger">{{ t.abort }}</button>
+          </form>
+        </div>
+      </section>
+      {% endif %}
+      <footer class="setup-environment">
+        <h2>{{ t.environment }}</h2>
+        <p>{{ system }} · Python {{ python }} · {{ t.venv }}: {{ t.yes if venv else t.no }}</p>
+        <p class="bridge-muted">{{ t.stop }}</p>
+      </footer>
+    </section>
+  </main>
+</body>
 </html>

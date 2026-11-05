@@ -5,6 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tesseract Device Bridge v{{ app_version }} — Painel de Controle</title>
+  <link rel="stylesheet" href="{{ url_for('shared_ui.static', filename='theme.css') }}">
   <style>
     /* ===== RESET & VARIÁVEIS ===== */
     * {
@@ -22,40 +23,6 @@
       min-height: 100vh;
       display: flex;
       flex-direction: column;
-    }
-
-    :root {
-      --bg-primary: #0f141e;
-      --bg-card: #1a1f2e;
-      --bg-card-hover: #232a3d;
-      --border-subtle: #2a3246;
-      --text-primary: #f1f5f9;
-      --text-secondary: #94a3b8;
-      --accent-blue: #2563eb;
-      --accent-blue-glow: rgba(37, 99, 235, 0.3);
-      --danger: #dc2626;
-      --success: #22c55e;
-      --warning: #eab308;
-      --radius: 12px;
-      --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
-      /* Popups nativos de select/input seguem o tema escuro (Windows Chromium). */
-      color-scheme: dark;
-    }
-
-    /* As opções do dropdown nativo não herdam o fundo do próprio select
-       de maneira consistente entre Chrome, Edge e sistemas operacionais. */
-    select {
-      color-scheme: dark;
-    }
-
-    select option,
-    select optgroup {
-      background-color: var(--bg-card);
-      color: var(--text-primary);
-    }
-
-    select option:disabled {
-      color: var(--text-secondary);
     }
 
     /* ===== SCROLLBAR ===== */

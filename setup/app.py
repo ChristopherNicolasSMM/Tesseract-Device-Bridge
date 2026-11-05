@@ -11,22 +11,23 @@ from pathlib import Path
 from flask import Flask, abort, jsonify, render_template, request, session
 
 from .state import InstallationState, SetupError
+from .i18n import catalog
+from werkzeug.exceptions import HTTPException
 
 
 def create_app(root=None, *, port=8090):
     root = Path(root) if root is not None else Path(__file__).resolve().parents[1]
     state = InstallationState(root)
     app = Flask(__name__)
+    from shared_ui import register_ui
+    register_ui(app)
     app.secret_key = secrets.token_bytes(32)
     app.config.update(MAX_CONTENT_LENGTH=16 * 1024, SESSION_COOKIE_HTTPONLY=True,
                       SESSION_COOKIE_SAMESITE="Strict", SESSION_COOKIE_NAME="bridge_setup")
     app.extensions["installation_state"] = state
     local_hosts = {"127.0.0.1:" + str(port), "localhost:" + str(port),
                    "[::1]:" + str(port)}
-    translations = {}
-    for language in ("pt_BR", "en"):
-        translations[language] = json.loads(
-            (Path(__file__).parent / "translations" / (language + ".json")).read_text(encoding="utf-8"))
+    translations = {language: catalog(language) for language in ('pt_BR', 'en')}
 
     @app.before_request
     def local_boundary():
@@ -65,7 +66,8 @@ def create_app(root=None, *, port=8090):
         return render_template("index.html", t=translations[language], language=language,
                                state=state.value, csrf=session["csrf"],
                                system=platform.system(), python=platform.python_version(),
-                               venv=sys.prefix != sys.base_prefix)
+                               venv=sys.prefix != sys.base_prefix,
+                               theme=state.value.get("theme", "dark"), notice=session.pop("notice", None))
 
     @app.post("/start")
     def start():
@@ -78,6 +80,16 @@ def create_app(root=None, *, port=8090):
         from .bootstrap import bootstrap_empty
         from flask import redirect
         bootstrap_empty(state)
+        session["notice"] = "prepared"
+        return redirect("/", code=303)
+
+    @app.post("/appearance")
+    def appearance():
+        from flask import redirect
+        theme = request.form.get("theme")
+        if theme not in ("light", "dark"):
+            raise SetupError("Unsupported theme.")
+        state.save(dict(state.value, theme=theme))
         return redirect("/", code=303)
 
     @app.post("/abort")
@@ -85,6 +97,11 @@ def create_app(root=None, *, port=8090):
         from flask import redirect
         state.abort()
         return redirect("/", code=303)
+
+    @app.errorhandler(HTTPException)
+    def http_error(exc):
+        code = {403: "forbidden", 404: "not_found", 413: "too_large"}.get(exc.code, "request_error")
+        return jsonify(code=code, message=translations[state.value["language"]][code]), exc.code
 
     @app.errorhandler(OSError)
     @app.errorhandler(SetupError)
