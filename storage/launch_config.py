@@ -16,6 +16,8 @@ from storage.migrate import StorageError
 
 def load_runtime_config():
     load_infra_env()
+    from tesseract_bridge.infrastructure.installation import check_boot_publication
+    check_boot_publication()
     selected = os.environ.get("TESSERACT_BRIDGE_DB")
     if selected and not store.db_path().is_file():
         raise StorageError(
@@ -53,3 +55,23 @@ def load_runtime_config():
     config = BridgeConfig.from_dict(raw)
     config.validate()
     return config
+
+
+def configuration_only():
+    """Return an admin-only Flask app for a published empty simulated installation."""
+    load_infra_env()
+    from tesseract_bridge.infrastructure.installation import check_boot_publication
+    check_boot_publication()
+    if store.storage_mode() != 'orm':
+        return None
+    store.initialize(seed=False)
+    raw = store.load_config(allow_unconfigured=True)
+    if raw.get('devices'):
+        return None
+    if not flag('TESSERACT_BRIDGE_SIMULATION_ONLY', False):
+        raise StorageError('Instalação vazia exige modo simulado/configuração administrativa.')
+    raw['backend'] = 'simulated'
+    raw['panel'].update(enabled=True, host='127.0.0.1',
+                        port=port('TESSERACT_BRIDGE_TEST_PANEL_PORT', 8089))
+    from panel.configuration_app import create_configuration_app
+    return create_configuration_app(raw), raw['panel']['port']

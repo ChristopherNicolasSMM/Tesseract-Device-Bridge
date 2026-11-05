@@ -65,7 +65,7 @@ class InstallationState:
         if not path.exists():
             return {"version": 1, "status": "new", "language": "pt_BR", "attempt": None}
         value = json.loads(path.read_text(encoding="utf-8"))
-        if (not isinstance(value, dict) or value.get("version") != 1 or value.get("status") not in ("new", "in_progress")
+        if (not isinstance(value, dict) or value.get("version") != 1 or value.get("status") not in ("new", "in_progress", "ready_simulated", "ready_operational", "needs_review")
                 or value.get("language") not in ("pt_BR", "en")
                 or (value.get("attempt") is not None
                     and (not isinstance(value["attempt"], str)
@@ -95,6 +95,8 @@ class InstallationState:
     def start(self, language):
         if language not in ("pt_BR", "en"):
             raise SetupError("Unsupported language.")
+        if self.value["status"] not in ("new", "in_progress"):
+            raise SetupError("Installation already published. Use maintenance, not a new setup.")
         value = dict(self.value, language=language)
         if value["status"] == "new":
             value.update(status="in_progress", attempt=uuid.uuid4().hex)
@@ -112,6 +114,9 @@ class InstallationState:
         return path
 
     def abort(self):
+        receipt = self.root / "data/private/installation.json"
+        if receipt.exists() or receipt.is_symlink():
+            raise SetupError("Publication exists. Recover or explicitly roll back before cancelling.")
         if self.value["status"] == "in_progress":
             path = self.staging()
             if path.exists():

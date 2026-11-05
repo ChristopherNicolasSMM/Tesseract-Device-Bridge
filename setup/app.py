@@ -22,7 +22,7 @@ def create_app(root=None, *, port=8090):
     app = Flask(__name__)
     from shared_ui import register_ui
     register_ui(app)
-    app.config["SETUP_BUILD"] = "2.0.0-setup.8"
+    app.config["SETUP_BUILD"] = "2.0.0-setup.9"
     app.config["SETUP_PORT"] = port
     app.secret_key = secrets.token_bytes(32)
     app.config.update(MAX_CONTENT_LENGTH=257 * 1024 * 1024, MAX_FORM_PARTS=120, MAX_FORM_MEMORY_SIZE=512 * 1024, SESSION_COOKIE_HTTPONLY=True,
@@ -34,6 +34,8 @@ def create_app(root=None, *, port=8090):
     app.register_blueprint(infrastructure_bp)
     from .security import bp as security_bp
     app.register_blueprint(security_bp)
+    from .finalize import bp as finish_bp
+    app.register_blueprint(finish_bp)
     local_hosts = {"127.0.0.1:" + str(port), "localhost:" + str(port),
                    "[::1]:" + str(port)}
     translations = {language: catalog(language) for language in ('pt_BR', 'en')}
@@ -70,6 +72,11 @@ def create_app(root=None, *, port=8090):
             if not expected or not secrets.compare_digest(expected, received):
                 app.logger.warning("Setup rejected form: session/CSRF mismatch; reload the page")
                 abort(403)
+            receipt = state.root / "data/private/installation.json"
+            if (receipt.exists() or receipt.is_symlink()) and request.path not in (
+                    "/finish/recover", "/finish/rollback", "/finish/revalidate", "/finish/service", "/finish/close", "/appearance"):
+                raise SetupError("Publication exists; use completion/recovery.")
+
 
     @app.after_request
     def headers(response):

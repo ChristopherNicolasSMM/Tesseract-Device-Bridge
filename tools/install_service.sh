@@ -1,4 +1,18 @@
 #!/usr/bin/env bash
+# Managed setup path: generate/install/enable/start remain separate operations.
+if [[ "${1:-}" == "--setup-managed" ]]; then
+    set -euo pipefail
+    PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    ACTION="${2:?Expected install, enable or start}"
+    UNIT="${3:?Expected generated unit path}"
+    case "$ACTION" in install|enable|start) ;; *) echo "Invalid action" >&2; exit 1;; esac
+    PYTHON_BIN="$PROJECT_DIR/.venv/bin/python3"
+    [[ -x "$PYTHON_BIN" ]] || PYTHON_BIN="$PROJECT_DIR/venv/bin/python3"
+    [[ -x "$PYTHON_BIN" ]] || PYTHON_BIN="$(command -v python3)"
+    cd "$PROJECT_DIR"
+    exec "$PYTHON_BIN" -m setup.service "$ACTION" --unit "$UNIT" --confirm
+fi
+
 # =============================================================================
 # install_service.sh — Instala o Tesseract Device Bridge como serviço systemd
 # =============================================================================

@@ -23,6 +23,12 @@ from storage.launch_config import load_runtime_config
 
 
 def main() -> None:
+    from storage.launch_config import configuration_only
+    maintenance = configuration_only()
+    if maintenance is not None:
+        app, port = maintenance
+        app.run(host='127.0.0.1', port=port, debug=False)
+        return
     file_args = [arg for arg in sys.argv[1:] if not arg.startswith("-")]
     if file_args:
         raise SystemExit("Arquivo YAML não é aceito no runtime SQLite.")

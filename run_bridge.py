@@ -171,6 +171,12 @@ def load_recipe_engine(runtime: DeviceRuntime, config: BridgeConfig, recipe_path
 
 
 def main() -> None:
+    from storage.launch_config import configuration_only
+    maintenance = configuration_only()
+    if maintenance is not None:
+        app, port = maintenance
+        app.run(host='127.0.0.1', port=port, debug=False)
+        return
     load_infra_env()
     # Filtrar args que não são caminhos de arquivo (ex.: --debug)
     file_args = [a for a in sys.argv[1:] if not a.startswith("-")]

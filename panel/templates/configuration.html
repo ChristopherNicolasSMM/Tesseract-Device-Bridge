@@ -1,0 +1,11 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8">
+<title>Tesseract Device Bridge — Configuração inicial</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='configuration.css') }}">
+<script src="{{ url_for('static', filename='configuration.js') }}" defer></script>
+<main><h1>Configuração inicial</h1><p>Instalação sem dispositivos. GPIO, MQTT e runtime permanecem inativos.</p>
+<label>Token administrativo <input type="password" id="token" autocomplete="off"></label>
+<button id="load">Carregar configuração</button><p>Na política local sem token, deixe o campo vazio.</p>
+<label for="document">Configuração JSON</label><textarea id="document" rows="22" spellcheck="false"></textarea>
+<button id="save" disabled>Validar e aprovar configuração</button><p id="message" role="status"></p>
+<p>Cadastre dispositivos válidos e reinicie o Bridge para abrir o painel operacional.
+O modo simulado permanece ativo. A operação física exige conclusão aprovada em modo configurado.</p></main></html>

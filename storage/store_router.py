@@ -1,8 +1,8 @@
 """Single persistence boundary for the legacy and experimental ORM runtimes.
 
 The old SQLite store is the default. The ORM backend is explicitly opt-in,
-requires the independently normalized 0003 database and *always* forces
-simulation, even if hardware settings saved in the database say 'real'.
+requires a validated 0003 database. Configured operation additionally requires
+successful setup publication; historical sandbox databases remain simulated.
 No function writes simultaneously to both schemas.
 """
 from __future__ import annotations
@@ -37,11 +37,11 @@ def db_path():
 def _orm():
     if storage_mode() != "orm":
         raise StorageError("Backend ORM não está selecionado.")
-    if not flag("TESSERACT_BRIDGE_SIMULATION_ONLY", False):
-        raise StorageError(
-            "Backend ORM experimental exige SIMULATION_ONLY=1; "
-            "é proibido acionar GPIO real nesta fase."
-        )
+    from tesseract_bridge.infrastructure.installation import check_runtime
+    try:
+        check_runtime(db_path())
+    except Exception as exc:
+        raise StorageError(str(exc)) from exc
     if not os.environ.get("TESSERACT_BRIDGE_DB"):
         raise StorageError("ORM exige caminho de banco explícito no .env.")
     from storage.repositories.write import OrmStore
@@ -88,7 +88,19 @@ def _call(name, *args, **kwargs):
     return getattr(_orm(), name)(*args, **kwargs)
 
 
-def load_config():
+def load_config(*, allow_unconfigured=False):
+    if allow_unconfigured and storage_mode() == "orm":
+        _orm()  # Enforce publication/identity before reading maintenance configuration.
+        from storage.models import session_scope
+        from storage.mappers import _config_from_orm
+        from config import BridgeConfig
+        with session_scope(db_path(), readonly=True) as session:
+            raw = _config_from_orm(session)
+        if raw["devices"]:
+            BridgeConfig.from_dict(raw).validate()
+        elif raw["backend"] != "simulated" or not flag("TESSERACT_BRIDGE_SIMULATION_ONLY", False):
+            raise StorageError("Configuração vazia é permitida somente em simulação.")
+        return raw
     return _call("load_config")
 
 

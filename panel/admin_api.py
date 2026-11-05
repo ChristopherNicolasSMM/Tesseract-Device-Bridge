@@ -44,7 +44,7 @@ def _not_running():
 def _validated_config(payload):
     if not isinstance(payload, dict):
         raise ValueError("Configuração precisa ser um objeto JSON.")
-    current = store.load_config()
+    current = store.load_config(allow_unconfigured=bool(current_app.config.get("CONFIGURATION_ONLY")))
     # Never expose the existing MQTT secret to the browser.
     if "mqtt" in payload and isinstance(payload["mqtt"], dict) and payload["mqtt"].get("password") is None:
         payload["mqtt"]["password"] = current["mqtt"].get("password")
@@ -60,7 +60,7 @@ def _validated_config(payload):
 
 @bp.get("/config")
 def get_config():
-    config = store.load_config()
+    config = store.load_config(allow_unconfigured=bool(current_app.config.get("CONFIGURATION_ONLY")))
     has_password = bool(config.get("mqtt", {}).get("password"))
     config["mqtt"]["password"] = None
     return jsonify(config=config, revision=store.config_revision(),
@@ -107,7 +107,7 @@ def get_audit():
 
 @bp.get("/storage")
 def storage_status():
-    config = store.load_config()
+    config = store.load_config(allow_unconfigured=bool(current_app.config.get("CONFIGURATION_ONLY")))
     return jsonify(backend=config["backend"], devices=len(config["devices"]),
                    recipes=len(store.list_recipe_rows()),
                    revision=store.config_revision(),

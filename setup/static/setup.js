@@ -47,7 +47,10 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         const result = await response.json();
         if (result.redirect && result.redirect.startsWith('/')) window.location.assign(result.redirect);
-        else window.location.reload();
+        else if (result.message) {
+          message.textContent = result.message; message.hidden = false;
+          message.className = 'setup-alert success';
+        } else window.location.reload();
       }
     } catch (error) { showError(messages.request_error); }
     busy.hidden = true;

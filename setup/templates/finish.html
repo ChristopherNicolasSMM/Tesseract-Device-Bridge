@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block heading %}{{ t.finish }}{% endblock %}
+{% block content %}
+{% if receipt %}
+<section class="bridge-card">
+  <h2>{{ t.finish_status }}</h2>
+  <p class="setup-alert {% if receipt.status in ('publishing', 'needs_review') %}warning{% else %}success{% endif %}">{{ t.get(receipt.status, receipt.status) }}</p>
+  <p>{{ t.infra_database }}: <code>{{ receipt.database }}</code></p>
+  <p>{{ t.records }}: {{ receipt.summary.devices }} {{ t.finish_devices }} / {{ receipt.summary.recipes }} {{ t.finish_recipes }}</p>
+  {% if receipt.status == 'publishing' %}
+  <p>{{ t.finish_recovery_hint }}</p>
+  <div class="setup-actions">
+    <form method="post" action="/finish/recover"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="confirm" value="1"><button class="bridge-button">{{ t.finish_recover }}</button></form>
+    <form method="post" action="/finish/rollback" data-confirm="{{ t.finish_rollback_hint }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="confirm" value="1"><button class="bridge-button danger">{{ t.finish_rollback }}</button></form>
+  </div>
+  {% else %}
+  <p>{{ t.finish_not_started }}</p>
+  <p><code>python run_bridge.py</code></p>
+  {% if receipt.summary.devices == 0 %}<p class="setup-alert warning">{{ t.finish_empty }}</p>{% endif %}
+  {% if receipt.status == 'needs_review' %}<p class="setup-alert warning">{{ t.finish_review }}</p>{% endif %}
+  {% if service_available and receipt.status != 'needs_review' %}
+    <h2>{{ t.finish_service }}</h2>
+    <p>{{ t.finish_service_hint }}</p>
+    <form method="post" action="/finish/service" class="setup-form">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><label for="service-user">{{ t.finish_user }}</label>
+      <input class="bridge-field" id="service-user" name="user" autocomplete="username">
+      <button class="bridge-button secondary">{{ t.finish_generate }}</button>
+    </form>
+    {% if service_path %}
+    <p>{{ t.finish_service_commands }}</p>
+    <pre>sudo bash tools/install_service.sh --setup-managed install "{{ service_path }}"
+sudo bash tools/install_service.sh --setup-managed enable "{{ service_path }}"
+sudo bash tools/install_service.sh --setup-managed start "{{ service_path }}"</pre>
+    {% endif %}
+  {% else %}<p>{{ t.finish_no_service }}</p>{% endif %}
+  <details class="setup-hint"><summary>{{ t.finish_maintenance }}</summary>
+    <p>{{ t.finish_maintenance_hint }}</p>
+    <form method="post" action="/finish/revalidate">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label class="setup-check"><input type="checkbox" name="authorize_real" value="1">{{ t.finish_authorize }}</label>
+      <label class="setup-check"><input type="checkbox" name="confirm" value="1" required>{{ t.finish_review_confirm }}</label>
+      <button class="bridge-button secondary">{{ t.finish_revalidate }}</button>
+    </form>
+  </details>
+  <form method="post" action="/finish/close"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="bridge-button">{{ t.finish_close }}</button></form>
+  {% endif %}
+</section>
+{% else %}
+<p class="setup-lead">{{ t.finish_intro }}</p>
+<form method="post" action="/finish/publish" class="bridge-card setup-form">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="candidate">{{ t.finish_candidate }}</label>
+  <select class="bridge-field" name="candidate" id="candidate" required>
+    {% for item in choices %}<option value="{{ item.id }}">{{ t.clean if item.label == 'clean' else item.label }}{% if item.review %} · {{ t.needs_review }}{% endif %}</option>{% endfor %}
+  </select>
+  <p>{{ t.infra_database }}: <code>./data/private/bridge.sqlite3</code></p>
+  <p>{{ t.security }}: {{ t.get('security_mode_' ~ state.get('credential_mode', ''), t.security_infra_first) }}</p>
+  <label class="setup-check"><input type="checkbox" name="replace_env" value="1">{{ t.finish_replace_env }}</label>
+  <label class="setup-check"><input type="checkbox" name="authorize_real" value="1">{{ t.finish_authorize }}</label>
+  <label class="setup-check"><input type="checkbox" name="confirm" value="1" required>{{ t.finish_confirm }}</label>
+  <p class="setup-alert warning">{{ t.finish_safety }}</p>
+  <button class="bridge-button">{{ t.finish_publish }}</button>
+</form>
+{% endif %}
+{% endblock %}

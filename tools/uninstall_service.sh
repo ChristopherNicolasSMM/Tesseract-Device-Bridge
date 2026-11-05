@@ -1,4 +1,16 @@
 #!/usr/bin/env bash
+# Only remove resources belonging to the selected managed installation.
+if [[ "${1:-}" == "--setup-managed" ]]; then
+    set -euo pipefail
+    PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    UNIT="${2:?Expected generated unit path}"
+    PYTHON_BIN="$PROJECT_DIR/.venv/bin/python3"
+    [[ -x "$PYTHON_BIN" ]] || PYTHON_BIN="$PROJECT_DIR/venv/bin/python3"
+    [[ -x "$PYTHON_BIN" ]] || PYTHON_BIN="$(command -v python3)"
+    cd "$PROJECT_DIR"
+    exec "$PYTHON_BIN" -m setup.service uninstall --unit "$UNIT" --confirm
+fi
+
 # =============================================================================
 # uninstall_service.sh — Remove o serviço Tesseract Device Bridge
 # =============================================================================

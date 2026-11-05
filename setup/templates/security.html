@@ -2,7 +2,7 @@
 {% block heading %}{{ t.security }}{% endblock %}
 {% block content %}
 <p class="setup-lead">{{ t.security_intro }}</p>
-{% if mode %}<p class="setup-alert success" role="status">{{ t.security_saved }} {{ t['security_mode_' ~ mode] }}</p>{% endif %}
+{% if mode %}<p class="setup-alert success" role="status">{{ t.security_saved }} {{ t['security_mode_' ~ mode] }}</p><a class="bridge-button" href="/finish/">{{ t.finish }}</a>{% endif %}
 {% if weak %}<p class="setup-alert warning">{{ t.security_weak }}</p>{% endif %}
 {% if generated_token %}
 <section class="bridge-card">
