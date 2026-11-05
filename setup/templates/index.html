@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="{{ language.replace('_', '-') }}">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ t.title }}</title>
+<main>
+  <h1>{{ t.title }}</h1>
+  <p>{{ t.intro }}</p>
+  <p>{{ t[state.status] }}</p>
+  <form method="post" action="/start">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>{{ t.language }}
+      <select name="language">
+        <option value="pt_BR" {% if language == 'pt_BR' %}selected{% endif %}>Português (Brasil)</option>
+        <option value="en" {% if language == 'en' %}selected{% endif %}>English</option>
+      </select>
+    </label>
+    <button>{{ t.continue }}</button>
+  </form>
+  {% if state.status == 'in_progress' %}
+  <p>{{ t.pending }}</p>
+  <form method="post" action="/abort">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button>{{ t.abort }}</button>
+  </form>
+  {% endif %}
+  <h2>{{ t.environment }}</h2>
+  <p>{{ system }} · Python {{ python }} · {{ t.venv }}: {{ t.yes if venv else t.no }}</p>
+  <p>{{ t.stop }}</p>
+</main>
+</html>
