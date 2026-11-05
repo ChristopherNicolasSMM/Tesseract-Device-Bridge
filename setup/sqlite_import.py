@@ -8,6 +8,7 @@ from contextlib import closing
 from pathlib import Path
 
 from .state import SetupError
+from .reports import event, record_import, save_report
 
 MAX_DB_BYTES = 256 * 1024 * 1024
 
@@ -71,6 +72,7 @@ def inspect(path):
         raise SetupError('Unrecognized SQLite schema.')
 
 
+@record_import
 def import_sqlite(state, source):
     if state.value['status'] != 'in_progress':
         raise SetupError('Start an installation attempt first.')
@@ -117,7 +119,7 @@ def import_sqlite(state, source):
               'source_revision': revision, 'source_sha256': digest,
               'database': str(target.relative_to(state.staging())),
               'devices': len(config['devices']), 'recipes': len(repo.list_recipes()),
-              'needs_review': not bool(config['devices']), 'runtime_authorized': False}
-    with (job / 'report.json').open('x', encoding='utf-8') as stream:
-        json.dump(report, stream, indent=2)
+              'needs_review': not bool(config['devices']), 'runtime_authorized': False,
+              'events': [event('imported', 'sqlite_validated')]}
+    save_report(job, report)
     return report

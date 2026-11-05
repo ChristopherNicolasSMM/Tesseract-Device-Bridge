@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 
 from .state import SetupError
+from .reports import event, record_import, save_report
 
 MAX_FILE_BYTES = 8 * 1024 * 1024
 MAX_TOTAL_BYTES = 32 * 1024 * 1024
@@ -58,7 +59,9 @@ def discover(source):
     return rows
 
 
-def import_directory(state, source, *, selected=None, disable_invalid_remote_control=False):
+@record_import
+def import_directory(state, source, *, selected=None, disable_invalid_remote_control=False,
+                     allow_partial=False, _owned_upload=False):
     """Import selected YAML/JSON through legacy adapters into an independent ORM copy."""
     from storage.legacy_import import collect, import_snapshot
     from storage.orm_normalize import normalize_copy
@@ -66,7 +69,8 @@ def import_directory(state, source, *, selected=None, disable_invalid_remote_con
         raise SetupError('Start an installation attempt first.')
     root = _root(source)
     staging = state.staging()
-    if root == state.root or root in staging.parents or staging == root or staging in root.parents:
+    owned = (_owned_upload and root.parent == staging and root.name.startswith('upload-'))
+    if not owned and (root == state.root or root in staging.parents or staging == root or staging in root.parents):
         raise SetupError('Select a separate old installation, not the active clone or staging.')
     rows = discover(root)
     available = {row['path']: row for row in rows if row['status'] == 'supported'}
@@ -100,8 +104,19 @@ def import_directory(state, source, *, selected=None, disable_invalid_remote_con
         with os.fdopen(fd, 'wb') as stream:
             stream.write(raw)
         hashes[relative] = digest
-    snapshot = collect(snapshot_dir, devices_file=next(iter(devices)),
-        disable_invalid_remote_control=disable_invalid_remote_control)
+    if allow_partial:
+        from .partial import collect_partial
+        snapshot, events = collect_partial(snapshot_dir, next(iter(devices)),
+            disable_invalid_remote_control=disable_invalid_remote_control)
+    else:
+        snapshot = collect(snapshot_dir, devices_file=next(iter(devices)),
+            disable_invalid_remote_control=disable_invalid_remote_control)
+        events = [event('imported', 'legacy_validated')]
+    if snapshot is None:
+        report = dict(version=1, status='needs_review', database=None, files=hashes,
+                      needs_review=True, runtime_authorized=False, events=events)
+        save_report(job, report)
+        return report
     intermediate = job / 'legacy.sqlite3'
     import_snapshot(snapshot, destination=intermediate)
     target = job / 'bridge.sqlite3'
@@ -109,7 +124,9 @@ def import_directory(state, source, *, selected=None, disable_invalid_remote_con
     report = {'version': 1, 'status': 'imported_staging', 'database': str(target.relative_to(staging)),
               'files': hashes, 'counts': snapshot['counts'], 'repairs': snapshot['repairs'],
               'ignored': [row['path'] for row in rows if row['path'] not in chosen],
-              'runtime_authorized': False}
-    with (job / 'report.json').open('x', encoding='utf-8') as stream:
-        json.dump(report, stream, ensure_ascii=False, indent=2)
+              'runtime_authorized': False,
+              'needs_review': any(e['category'] in ('warning', 'blocking_error') for e in events),
+              'events': events + [event('ignored', 'file_ignored', file=row['path'])
+                                  for row in rows if row['path'] not in chosen]}
+    save_report(job, report)
     return report
