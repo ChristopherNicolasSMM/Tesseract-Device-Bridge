@@ -19,6 +19,7 @@ def main():
         app = create_app(port=args.port)
         # No development debugger/reloader; one process owns the installation lock.
         server = make_server("127.0.0.1", args.port, app)
+        print("Setup build: " + app.config["SETUP_BUILD"], flush=True)
         print("Setup: http://127.0.0.1:" + str(args.port), flush=True)
         try:
             server.serve_forever()

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block heading %}{{ t.open_import }}{% endblock %}
+{% block content %}
+<p class="setup-lead">{{ t.import_intro }}</p>
+<div class="setup-columns">
+  <section class="bridge-card">
+    <h2>{{ t.discover }}</h2>
+    <p class="bridge-muted">{{ t.server_paths }}</p>
+    <form method="post" action="/import/discover" class="setup-form">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label for="source-kind">{{ t.source_kind }}</label>
+      <select class="bridge-field" id="source-kind" name="kind">
+        <option value="directory">{{ t.legacy_folder }}</option><option value="sqlite">{{ t.sqlite_file }}</option>
+      </select>
+      <label for="source-path">{{ t.source_path }}</label>
+      <input class="bridge-field" id="source-path" name="source" required maxlength="2048">
+      <button class="bridge-button">{{ t.discover }}</button>
+    </form>
+  </section>
+  <section class="bridge-card">
+    <h2>{{ t.upload }}</h2>
+    <form method="post" action="/import/upload" enctype="multipart/form-data" class="setup-form" data-upload>
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label for="upload-kind">{{ t.source_kind }}</label>
+      <select class="bridge-field" id="upload-kind" name="kind">
+        <option value="files">{{ t.legacy_files }}</option><option value="sqlite">{{ t.sqlite_file }}</option>
+      </select>
+      <label for="upload-files">{{ t.choose_files }}</label>
+      <input class="bridge-field" type="file" id="upload-files" name="files" multiple required accept=".yml,.yaml,.json,.txt,.sqlite3,.sqlite,.db">
+      <label for="upload-destination">{{ t.single_mapping }}</label>
+      <select class="bridge-field" id="upload-destination" name="destination">
+        <option value="">{{ t.auto_mapping }}</option>
+        <option value="devices.yml">devices.yml</option>
+        <option value="data/public/receita.json">data/public/receita.json</option>
+        <option value="data/private/receita.json">data/private/receita.json</option>
+        <option value="data/public/receita_base.yaml">data/public/receita_base.yaml</option>
+      </select>
+      <p class="bridge-muted">{{ t.upload_hint }}</p>
+      <button class="bridge-button">{{ t.upload_inventory }}</button>
+    </form>
+  </section>
+</div>
+{% if source %}
+<section class="bridge-card">
+  <h2>{{ t.inventory }}</h2>
+  <form method="post" action="/import/run" data-run>
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="setup-table-scroll">
+    <table class="setup-table">
+      <thead><tr><th><input type="checkbox" data-select-all aria-label="{{ t.select_all }}"></th>
+        <th>{{ t.file_name }}</th><th>{{ t.format }}</th><th>{{ t.records }}</th><th>{{ t.compatibility }}</th><th>{{ t.preview }}</th></tr></thead>
+      <tbody>{% for row in source.rows %}<tr>
+        <td><input type="checkbox" name="selected" value="{{ row.id }}" aria-label="{{ row.path }}" {% if row.status != 'supported' %}disabled{% endif %}></td>
+        <td><code>{{ row.path }}</code><small>{{ row.bytes }} bytes</small></td>
+        <td>{{ row.format }}</td><td>{{ row.count if row.count is not none else '—' }}</td>
+        <td><span class="setup-badge">{{ t.get(row.status, row.status) }}</span></td>
+        <td>{% if row.status == 'supported' %}<button class="bridge-button secondary" type="button" data-preview="{{ row.id }}">{{ t.preview }}</button>{% endif %}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+    {% if source.kind != 'sqlite' %}<label class="setup-check"><input type="checkbox" name="allow_partial" value="1">{{ t.allow_partial }}</label>{% endif %}
+    <p class="bridge-muted">{{ t.import_options_hint }}</p>
+    <button class="bridge-button">{{ t.run_import }}</button>
+  </form>
+</section>
+{% endif %}
+{% if report %}
+<section class="bridge-card" id="import-report">
+  <h2>{{ t.report }}</h2>
+  <p class="setup-alert {% if report.needs_review %}warning{% else %}success{% endif %}">{{ t.get(report.status, report.status) }}</p>
+  {% if report.counts %}<p>{{ t.records }}: {{ report.counts }}</p>{% endif %}
+  <ul class="setup-events">{% for item in report.events %}
+    <li class="{{ item.category }}"><span class="setup-badge">{{ t[item.category] }}</span> {{ item.message }}
+      {% if item.file %}<code>{{ item.file }}</code>{% endif %}
+      {% if item.index is defined %} #{{ item.index }}{% endif %}</li>
+  {% endfor %}</ul>
+  {% if report.database %}
+  <form method="post" action="/import/acknowledge">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <p class="bridge-muted">{{ t.review_hint }}</p><button class="bridge-button">{{ t.continue_review }}</button>
+  </form>
+  {% endif %}
+</section>
+{% endif %}
+<form method="post" action="/abort" data-confirm="{{ t.abort_confirm }}">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><button class="bridge-button danger">{{ t.abort }}</button>
+</form>
+{% endblock %}

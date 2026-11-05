@@ -6,6 +6,7 @@ import json
 import platform
 import secrets
 import sys
+from urllib.parse import urlsplit
 from pathlib import Path
 
 from flask import Flask, abort, jsonify, render_template, request, session
@@ -21,10 +22,13 @@ def create_app(root=None, *, port=8090):
     app = Flask(__name__)
     from shared_ui import register_ui
     register_ui(app)
+    app.config["SETUP_BUILD"] = "2.0.0-setup.6"
     app.secret_key = secrets.token_bytes(32)
-    app.config.update(MAX_CONTENT_LENGTH=16 * 1024, SESSION_COOKIE_HTTPONLY=True,
-                      SESSION_COOKIE_SAMESITE="Strict", SESSION_COOKIE_NAME="bridge_setup")
+    app.config.update(MAX_CONTENT_LENGTH=257 * 1024 * 1024, MAX_FORM_PARTS=120, MAX_FORM_MEMORY_SIZE=512 * 1024, SESSION_COOKIE_HTTPONLY=True,
+                      SESSION_COOKIE_SAMESITE="Strict", SESSION_COOKIE_NAME="bridge_setup_" + str(port))
     app.extensions["installation_state"] = state
+    from .browser_import import bp as import_bp
+    app.register_blueprint(import_bp)
     local_hosts = {"127.0.0.1:" + str(port), "localhost:" + str(port),
                    "[::1]:" + str(port)}
     translations = {language: catalog(language) for language in ('pt_BR', 'en')}
@@ -47,17 +51,34 @@ def create_app(root=None, *, port=8090):
                   + " or http://localhost:" + str(port))
         if request.method not in ("GET", "HEAD", "OPTIONS"):
             expected = session.get("csrf", "")
-            received = request.form.get("csrf", "")
-            if (request.headers.get("Origin") != "http://" + request.host.lower() or not expected
-                    or not secrets.compare_digest(expected, received)):
+            received = request.headers.get("X-Setup-CSRF") or request.form.get("csrf", "")
+            origin = request.headers.get("Origin")
+            expected_origin = "http://" + request.host.lower()
+            # Some browser policies omit Origin on same-origin form submissions.
+            # Accept only an exact same-origin Referer as a fallback, still with CSRF.
+            if origin is None:
+                ref = urlsplit(request.headers.get("Referer", ""))
+                origin = ref.scheme + "://" + ref.netloc.lower() if ref.netloc else None
+            if origin != expected_origin:
+                app.logger.warning("Setup rejected form: origin/referer mismatch")
+                abort(403)
+            if not expected or not secrets.compare_digest(expected, received):
+                app.logger.warning("Setup rejected form: session/CSRF mismatch; reload the page")
                 abort(403)
 
     @app.after_request
     def headers(response):
+        if response.status_code == 303 and request.headers.get("X-Setup-CSRF"):
+            # Let fetch navigate once; following a redirect here would consume flash notices.
+            response = jsonify(redirect=response.headers["Location"])
         response.headers.update({"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
-                                 "Referrer-Policy": "no-referrer",
+                                 "Referrer-Policy": "same-origin",
                                  "Content-Security-Policy": "default-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'"})
         return response
+
+    @app.get("/setup-version")
+    def version():
+        return jsonify(build=app.config["SETUP_BUILD"])
 
     @app.get("/")
     def index():
@@ -67,7 +88,8 @@ def create_app(root=None, *, port=8090):
                                state=state.value, csrf=session["csrf"],
                                system=platform.system(), python=platform.python_version(),
                                venv=sys.prefix != sys.base_prefix,
-                               theme=state.value.get("theme", "dark"), notice=session.pop("notice", None))
+                               theme=state.value.get("theme", "light"), notice=session.pop("notice", None),
+                               build=app.config["SETUP_BUILD"])
 
     @app.post("/start")
     def start():
@@ -102,6 +124,11 @@ def create_app(root=None, *, port=8090):
     def http_error(exc):
         code = {403: "forbidden", 404: "not_found", 413: "too_large"}.get(exc.code, "request_error")
         return jsonify(code=code, message=translations[state.value["language"]][code]), exc.code
+
+    @app.errorhandler(Exception)
+    def internal_error(exc):
+        app.logger.error("Setup request failed; imported content omitted from logs")
+        return jsonify(code="request_error", message=translations[state.value["language"]]["request_error"]), 500
 
     @app.errorhandler(OSError)
     @app.errorhandler(SetupError)

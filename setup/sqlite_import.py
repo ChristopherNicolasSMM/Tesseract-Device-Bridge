@@ -73,11 +73,13 @@ def inspect(path):
 
 
 @record_import
-def import_sqlite(state, source):
+def import_sqlite(state, source, *, _owned_capture=False):
     if state.value['status'] != 'in_progress':
         raise SetupError('Start an installation attempt first.')
     source = Path(source).expanduser()
-    if source.resolve().is_relative_to(state.root):
+    owned = (_owned_capture and source.parent.parent == state.staging()
+             and source.parent.name.startswith('sqlite-source-'))
+    if source.resolve().is_relative_to(state.root) and not owned:
         raise SetupError('Select a snapshot outside the new installation.')
     job = Path(tempfile.mkdtemp(prefix='sqlite-import-', dir=str(state.staging())))
     captured = job / 'captured.sqlite3'

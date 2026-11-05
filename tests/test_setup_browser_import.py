@@ -1,0 +1,127 @@
+import io
+import json
+from pathlib import Path
+import pytest
+import yaml
+
+from setup.app import create_app
+
+
+@pytest.fixture
+def browser(tmp_path):
+    app = create_app(tmp_path / 'new')
+    app.config['TESTING'] = True
+    client = app.test_client()
+    base = 'http://localhost:8090'
+    client.get('/', base_url=base)
+    with client.session_transaction(base_url=base) as session:
+        csrf = session['csrf']
+    response = client.post('/start', base_url=base, headers={'Origin': base},
+                           data={'csrf': csrf, 'language': 'en'})
+    assert response.status_code == 303
+    yield app, client, base, csrf
+    app.extensions['installation_state'].close()
+
+
+def test_browser_source_preview_import_and_abort(browser, tmp_path):
+    from storage.sqlite_store import INITIAL_CONFIG
+    import copy
+    app, client, base, csrf = browser
+    source = tmp_path / 'old'
+    source.mkdir()
+    config = copy.deepcopy(INITIAL_CONFIG)
+    config['mqtt']['password'] = 'never-expose-this'
+    original = yaml.safe_dump(config)
+    (source / 'devices.yml').write_text(original, encoding='utf-8')
+    response = client.post('/import/discover', base_url=base, headers={'Origin': base},
+        data={'csrf': csrf, 'source': str(source), 'kind': 'directory'})
+    assert response.status_code == 303
+    page = client.get('/import/', base_url=base)
+    assert b'devices.yml' in page.data
+    assert b'never-expose-this' not in page.data
+    desc = app.extensions['installation_state'].value['browser_source']
+    entry = next(r['id'] for r in desc['rows'] if r['path'] == 'devices.yml')
+    preview = client.get('/import/preview/' + entry, base_url=base)
+    assert preview.status_code == 200
+    assert 'never-expose-this' not in preview.json['text']
+    assert '[REDACTED]' in preview.json['text']
+    response = client.post('/import/run', base_url=base, headers={'Origin': base},
+                          data={'csrf': csrf, 'selected': [entry]})
+    assert response.status_code == 303
+    report = app.extensions['installation_state'].value['browser_report']
+    assert report['database']
+    assert not report['runtime_authorized']
+    assert (source / 'devices.yml').read_text(encoding='utf-8') == original
+    response = client.post('/import/acknowledge', base_url=base, headers={'Origin': base}, data={'csrf': csrf})
+    assert response.status_code == 303
+    state = app.extensions['installation_state']
+    staging = state.staging()
+    assert state.value['browser_acknowledged']
+    client.post('/abort', base_url=base, headers={'Origin': base}, data={'csrf': csrf})
+    assert not staging.exists()
+
+
+def test_browser_upload_and_traversal(browser):
+    from storage.sqlite_store import INITIAL_CONFIG
+    app, client, base, csrf = browser
+    response = client.post('/import/upload', base_url=base, headers={'Origin': base},
+        data={'csrf': csrf, 'kind': 'files',
+              'files': (io.BytesIO(yaml.safe_dump(INITIAL_CONFIG).encode()), 'devices.yml')},
+        content_type='multipart/form-data')
+    assert response.status_code == 303
+    assert app.extensions['installation_state'].value['browser_source']['kind'] == 'upload'
+    response = client.post('/import/upload', base_url=base, headers={'Origin': base},
+        data={'csrf': csrf, 'files': (io.BytesIO(b'bad'), '../devices.yml')},
+        content_type='multipart/form-data')
+    assert response.status_code == 409
+
+
+def test_referer_fallback_and_cross_origin_denied(browser):
+    app, client, base, csrf = browser
+    data = {'csrf': csrf, 'theme': 'light'}
+    assert client.post('/appearance', base_url=base, headers={'Referer': base + '/'}, data=data).status_code == 303
+    assert client.post('/appearance', base_url=base, headers={'Origin': 'http://evil.example', 'Referer': base + '/'}, data=data).status_code == 403
+    assert client.post('/appearance', base_url=base, headers={'Origin': base},
+                       data={'csrf': 'wrong', 'theme': 'light'}).status_code == 403
+
+
+def test_assets_version_and_fetch_redirect(browser):
+    app, client, base, csrf = browser
+    assert client.get('/setup-version', base_url=base).json['build'] == '2.0.0-setup.6'
+    for url in ['/static/setup.css', '/static/setup.js', '/shared-ui/theme.css']:
+        assert client.get(url, base_url=base).status_code == 200
+    response = client.post('/appearance', base_url=base,
+        headers={'Origin': base, 'X-Setup-CSRF': csrf}, data={'theme': 'light'})
+    assert response.status_code == 200
+    assert response.json['redirect'] == '/'
+
+
+def test_upload_sqlite_browser(browser, tmp_path):
+    from storage.sqlite_store import initialize
+    app, client, base, csrf = browser
+    old = tmp_path / 'old.sqlite3'
+    initialize(path=old)
+    raw = old.read_bytes()
+    response = client.post('/import/upload', base_url=base, headers={'Origin': base},
+        data={'csrf': csrf, 'kind': 'sqlite', 'files': (io.BytesIO(raw), 'old.sqlite3')},
+        content_type='multipart/form-data')
+    assert response.status_code == 303
+    response = client.post('/import/run', base_url=base, headers={'Origin': base},
+        data={'csrf': csrf, 'selected': ['0']})
+    assert response.status_code == 303
+    report = app.extensions['installation_state'].value['browser_report']
+    assert report['source_kind'] == 'legacy'
+    assert old.read_bytes() == raw
+
+
+def test_preview_malformed_and_recursive_redaction(browser, tmp_path):
+    from setup.browser_import import parse_preview, redact
+    from setup.state import SetupError
+    recursive = []
+    recursive.append(recursive)
+    with pytest.raises(SetupError):
+        redact(recursive)
+    p = tmp_path / 'bad.yml'
+    p.write_text('!!python/object/apply:os.system [echo nope]', encoding='utf-8')
+    with pytest.raises(yaml.YAMLError):
+        parse_preview(p)
