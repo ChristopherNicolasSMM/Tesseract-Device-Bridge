@@ -1,6 +1,7 @@
 """Create an empty ORM database only inside the current installation attempt."""
 import os
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 from .state import SetupError
@@ -13,7 +14,7 @@ def bootstrap_empty(state):
     if target.exists() or target.is_symlink():
         validate_empty(target)
         return target
-    # Imports are lazy: opening the wizard does not load storage or Alembic.
+    # Lazy imports keep storage out of the initial wizard bootstrap.
     from alembic import command
     from alembic.config import Config
     from config import MqttConfig, PanelConfig
@@ -47,7 +48,7 @@ def bootstrap_empty(state):
 def validate_empty(target):
     if target.is_symlink():
         raise SetupError('Linked staging database rejected.')
-    with sqlite3.connect(target.as_uri() + '?mode=ro', uri=True) as conn:
+    with closing(sqlite3.connect(target.as_uri() + '?mode=ro', uri=True)) as conn:
         if conn.execute('PRAGMA quick_check').fetchone()[0] != 'ok' or conn.execute('PRAGMA foreign_key_check').fetchall():
             raise SetupError('Invalid database integrity.')
         if conn.execute('SELECT version_num FROM alembic_version').fetchone()[0] != 'bridge_orm_0003':
