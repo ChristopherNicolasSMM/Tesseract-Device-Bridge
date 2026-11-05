@@ -1,44 +1,12 @@
-<!doctype html>
-<html lang="{{ language.replace('_', '-') }}" data-theme="{{ theme }}">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="{{ theme }}">
-  <title>{{ t.title }}</title>
-  <link rel="stylesheet" href="{{ url_for('shared_ui.static', filename='theme.css', v=build) }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='setup.css', v=build) }}">
-  <script id="setup-messages" type="application/json">{{ t | tojson }}</script>
-  <script src="{{ url_for('static', filename='setup.js', v=build) }}" defer></script>
-</head>
-<body class="setup-page">
-  <header class="setup-header">
-    <a class="setup-brand" href="/">Tesseract <small>Device Bridge</small></a>
-    <div class="setup-security">{{ t.security_note }} <span class="setup-badge">{{ build }}</span></div>
-  </header>
-  <aside class="setup-sidebar">
-    <p class="setup-nav-title">{{ t.badge }}</p>
-    <nav aria-label="{{ t.progress }}">
-      <a href="/" {% if request.path == '/' %}aria-current="step"{% endif %}>01 <span>{{ t.step_language }}</span></a>
-      {% if csrf %}<a href="/import/" {% if request.path.startswith('/import') %}aria-current="step"{% endif %}>02 <span>{{ t.step_data }}</span></a>{% endif %}
-      <a href="/infrastructure/" {% if request.path.startswith('/infrastructure') %}aria-current="step"{% endif %}>03 <span>{{ t.infrastructure }}</span></a>
-      <a href="/security/" {% if request.path.startswith('/security') %}aria-current="step"{% endif %}>04 <span>{{ t.security }}</span></a>
-      <a href="/finish/" {% if request.path.startswith('/finish') %}aria-current="step"{% endif %}>05 <span>{{ t.step_finish }}</span></a>
-    </nav>
-    <p class="setup-sidebar-note">{{ t.staging_only }}</p>
-  </aside>
-  <main class="setup-main">
-    <div class="setup-page-title"><h1>{% block heading %}{{ t.title }}{% endblock %}</h1>
-    <p class="setup-breadcrumb">Tesseract / Device Bridge / {{ t.prepare }}</p></div>
-    <div id="browser-message" role="alert" hidden></div>
-    {% block content %}{% endblock %}
-    <footer class="setup-footer">{{ t.stop }}<br><small>{{ build }}</small></footer>
-  </main>
-  <div id="busy" class="setup-busy" role="status" aria-live="polite" hidden>
-    <span class="setup-spinner" aria-hidden="true"></span><span>{{ t.processing }}</span>
-  </div>
+{% extends 'guided_setup/base.html' %}
+{% block brand %}Tesseract <small>Device Bridge</small>{% endblock %}
+{% block breadcrumb %}Tesseract / Device Bridge / {{ t.prepare }}{% endblock %}
+{% block theme_styles %}<link rel="stylesheet" href="{{ url_for('shared_ui.static', filename='theme.css', v=build) }}">{% endblock %}
+{% block extra_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='setup.css', v=build) }}">{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='setup.js', v=build) }}" defer></script>{% endblock %}
+{% block dialogs %}
   <dialog id="preview-dialog" aria-labelledby="preview-title">
     <header><h2 id="preview-title">{{ t.preview }}</h2><button type="button" class="bridge-button secondary" data-close>{{ t.close }}</button></header>
     <p id="preview-status" role="status"></p><pre id="preview-content"></pre>
   </dialog>
-</body>
-</html>
+{% endblock %}

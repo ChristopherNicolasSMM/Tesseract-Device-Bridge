@@ -1,3 +1,16 @@
+## 2026-11-05 — Monitor serial e módulos reutilizáveis (setup.11)
+
+- Monitor serial administrativo: porta manual sem cadastro, teste de abertura,
+  parâmetros 5–8 bits/paridade/parada, leitura pontual e monitor contínuo texto/hex.
+- Sessão por navegador, conexão única por processo, limites e expiração sem leituras.
+- Interface compartilhada com configuração inicial sem dispositivos; autenticação
+  e intertravamentos operacionais continuam no adaptador do Bridge.
+- Extraídos núcleos `reusable/serial_monitor` e `reusable/guided_setup`, com pacote
+  instalável opcional, documentação separada e guia de integração em outros projetos.
+- Setup usa lock, JSON atômico, validação/edição dotenv, navegação e layout genéricos;
+  schema, migração ORM e publicação continuam específicos, preservando contratos.
+- Testes de módulo/integração adicionados; execução da suíte e validação física pendentes.
+
 ## 2026-11-05 — Setup 2.0.0-setup.10
 
 - Manual consolidado de instalação/migração, manutenção/recuperação e arquitetura.

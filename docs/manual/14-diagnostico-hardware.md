@@ -76,28 +76,31 @@ pino permitido explicitamente e retorno garantido a OFF.
 A válvula de gás deve preservar o corte externo independente
 de chama; nunca deve poder ser acionada pelo diagnóstico genérico.
 
-## 4. Monitor serial de leitura
+## 4. Monitor serial
 
-Clique **Listar portas seriais**, escolha uma porta detectada e o
-baud rate, depois **Ler até 1024 bytes (somente leitura)**.
-As rotas exigem token administrativo e não oferecem transmissão
-de dados, comandos arbitrários ou monitoramento contínuo.
+Disponível na Administração SQLite e também na página de configuração inicial
+sem dispositivos. Liste as portas do servidor ou informe uma porta manual,
+mesmo sem cadastro no banco. Configure baud rate, bits, paridade e parada.
 
-- O monitor utiliza `pyserial`, incluído em `requirements.txt`.
-- As portas precisam constar da enumeração do sistema operacional.
-- Cada leitura tem timeout de 200 ms e máximo de 1024 bytes.
-- A abertura de portas seriais e os testes GPIO virtuais são recusados
-  se houver sessão ativa, pausada após falha ou emergência.
-- Abrir uma porta USB/serial **pode reiniciar alguns
-  microcontroladores**, mesmo sem enviar comandos. Use somente quando
-  o dispositivo conectado puder ser interrompido com segurança.
+- **Testar abertura da porta** abre e fecha sem transmitir comandos.
+- **Ler até 1024 bytes** captura uma amostra e fecha a conexão.
+- **Iniciar monitor** mantém a conexão para leituras contínuas em texto/hexadecimal.
+- **Encerrar monitor** libera a porta; sem leituras, ela expira em 30 segundos.
+
+Abertura pode reiniciar o microcontrolador mesmo com DTR/RTS desligados.
+Isole as cargas antes de confirmar. Teste de abertura não valida protocolo.
+Abrir/testar/ler exige autorização administrativa e é recusado em sessão ativa
+ou emergência. Não há envio de comandos nem gravação automática dos dados lidos.
+
+O backend é um componente independente em `reusable/serial_monitor/`.
+Consulte [API, limites e reaproveitamento](../modules/serial-monitor/README.md).
 
 ## 5. Segurança e limitações
 
 Todo diagnóstico fica sob `/api/admin/diagnostics/*`, herdando o
-token e o bloqueio de emergência administrativo. Não exponha o painel
-à Internet. O token não substitui autenticação de usuários, proteção
-CSRF e rede protegida numa futura implantação em produção.
+política de autenticação e o bloqueio de emergência administrativo. Não exponha o painel
+à Internet. A política local sem token exige loopback, origem válida e CSRF, como descrito
+no [manual de setup](20-instalacao-migracao-2.0.0.md).
 
 Para verificar uma mudança real de hardware, use plano de homologação
 separado, com as saídas físicas isoladas e os mecanismos de segurança

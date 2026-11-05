@@ -1,0 +1,9 @@
+/* Shared by the operational administration and the zero-device configuration page. */
+.bridge-serial-monitor { padding: 12px 0; }
+.bridge-serial-monitor label { display: block; margin: 8px 0; }
+.bridge-serial-monitor input, .bridge-serial-monitor select { max-width: 100%; font: inherit; }
+.bridge-serial-monitor button { margin: 4px 4px 4px 0; cursor: pointer; }
+.bridge-serial-monitor button:disabled { cursor: default; opacity: .55; }
+.bridge-serial-monitor pre { max-height: 300px; overflow: auto; white-space: pre-wrap;
+  word-break: break-word; padding: 12px; border: 1px solid var(--border-subtle, #dce3f0);
+  background: var(--bg-card, #f6f9ff); color: var(--text-primary, #012970); }

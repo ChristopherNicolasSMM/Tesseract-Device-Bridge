@@ -1814,7 +1814,8 @@
 .sql-diagnostic-results{background:#0e1422;border:1px solid #344258;border-radius:6px;padding:10px;min-height:35px;max-height:230px;overflow:auto;font-size:12px;white-space:pre-wrap;word-break:break-word}
 .sql-diag-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #344258}
 .sql-diag-row button{font-size:12px;white-space:nowrap}
-</style></head>
+</style><link rel="stylesheet" href="/static/serial-monitor.css?v=1">
+</head>
 
 <body>
 
@@ -1958,17 +1959,7 @@
                 <p id="sqlVirtualStatus" class="sql-note"></p>
               </div>
               <div>
-                <h4>Monitor serial de leitura</h4>
-                <button type="button" id="sqlSerialPorts">Listar portas seriais</button>
-                <label>Porta detectada <select id="sqlSerialPort"></select></label>
-                <label>Baud rate <select id="sqlSerialBaud">
-                  <option value="9600">9600</option><option value="19200">19200</option>
-                  <option value="38400">38400</option><option value="57600">57600</option>
-                  <option value="115200">115200</option>
-                </select></label>
-                <button type="button" id="sqlSerialRead">Ler até 1024 bytes (somente leitura)</button>
-                <pre id="sqlSerialOutput" class="sql-diagnostic-results" aria-live="polite"></pre>
-                <p class="sql-note">A abertura da porta pode reiniciar alguns microcontroladores. Nenhum comando serial será enviado.</p>
+                {% include '_serial_monitor.html' %}
               </div>
             </div>
           </section>
@@ -3689,7 +3680,8 @@
   </script>
 
 <script src="/static/control-settings.js"></script>
-<script src="/static/admin-sqlite.js"></script>
+<script src="/static/serial-monitor.js?v=1"></script>
+<script src="/static/admin-sqlite.js?v={{ app_version }}-serial1"></script>
 </body>
 
 </html>

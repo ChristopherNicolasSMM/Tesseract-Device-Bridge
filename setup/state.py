@@ -2,10 +2,8 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 import shutil
-import tempfile
 import uuid
 from pathlib import Path
 
@@ -32,26 +30,11 @@ class InstallationState:
             raise
 
     def acquire(self):
-        path = self.directory / "lock"
-        if path.is_symlink():
-            raise SetupError("Invalid setup lock.")
-        self.lock = open(path, "a+b")
+        from reusable.guided_setup.persistence import FileLock, LockError
         try:
-            if os.name == "nt":
-                import msvcrt
-                self.lock.seek(0)
-                if not self.lock.read(1):
-                    self.lock.write(b"0")
-                    self.lock.flush()
-                self.lock.seek(0)
-                msvcrt.locking(self.lock.fileno(), msvcrt.LK_NBLCK, 1)
-            else:
-                import fcntl
-                fcntl.flock(self.lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError as exc:
-            self.lock.close()
-            self.lock = None
-            raise SetupError("Another setup process is running.") from exc
+            self.lock = FileLock(self.directory / 'lock')
+        except LockError as exc:
+            raise SetupError(str(exc)) from exc
 
     def close(self):
         if self.lock is not None:
@@ -75,22 +58,9 @@ class InstallationState:
         return value
 
     def save(self, value):
-        fd, name = tempfile.mkstemp(prefix="state-", suffix=".tmp", dir=str(self.directory))
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as stream:
-                json.dump(value, stream, ensure_ascii=False)
-                stream.flush()
-                os.fsync(stream.fileno())
-            os.replace(name, self.directory / "state.json")
-            if os.name != "nt":
-                directory_fd = os.open(str(self.directory), os.O_RDONLY)
-                try:
-                    os.fsync(directory_fd)
-                finally:
-                    os.close(directory_fd)
-            self.value = value
-        finally:
-            Path(name).unlink(missing_ok=True)
+        from reusable.guided_setup.persistence import atomic_json_write
+        atomic_json_write(self.directory / 'state.json', value)
+        self.value = value
 
     def start(self, language):
         if language not in ("pt_BR", "en"):

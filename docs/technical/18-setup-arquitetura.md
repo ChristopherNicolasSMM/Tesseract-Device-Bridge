@@ -23,6 +23,18 @@ nos serviços de importação/bootstrap/publicação, sem inicializar controle f
 | infrastructure.installation | Guarda de boot/ORM sem dependência de Flask/setup/ORM |
 | panel.configuration_app | Administração de instalação vazia sem DeviceRuntime |
 
+## Componentes reutilizáveis
+
+Lock, gravação JSON atômica, validação host/porta, teste de bind e atualização
+dotenv estão em `reusable/guided_setup/`. O registro visual utiliza WizardStep,
+layout Jinja e CSS do componente; o template do Bridge apenas adapta marca e
+scripts. `shared_ui` preserva a URL do tema, servindo a mesma fonte CSS.
+
+A migração ORM, schema de estado, staging, credenciais e publicação continuam
+nos adaptadores do Bridge. Veja o [guia do componente](../modules/guided-setup/README.md)
+e o [guia de arquitetura](../modules/arquitetura.md), com exemplo de integração
+em outro projeto e responsabilidades que o hospedeiro precisa implementar.
+
 ## Ciclo de estado
 
 ```mermaid

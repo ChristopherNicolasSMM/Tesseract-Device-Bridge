@@ -310,28 +310,7 @@
   $('sqlVirtualOff').addEventListener('click',()=>setVirtual(false));
   $('sqlVirtualOn').disabled=true;
   $('sqlVirtualOff').disabled=true;
-  $('sqlSerialPorts').addEventListener('click',async()=>{
-    try{
-      const data=await api('diagnostics/serial/ports');
-      const select=$('sqlSerialPort');select.replaceChildren();
-      data.ports.forEach(port=>option(select,port.device,port.device+' | '+port.description));
-      diagText('sqlSerialOutput',data.message+
-        (data.ports.length?'':' Nenhuma porta serial disponível.'));
-    }catch(e){diagText('sqlSerialOutput',e.message);}
-  });
-  $('sqlSerialRead').addEventListener('click',async()=>{
-    if(!$('sqlSerialPort').value){
-      diagText('sqlSerialOutput','Liste e selecione uma porta serial primeiro.');return;
-    }
-    if(!confirm('Abrir esta porta serial pode reiniciar o microcontrolador conectado. O equipamento está em condição segura para leitura?')) return;
-    try{
-      const result=await api('diagnostics/serial/read','POST',{
-        port:$('sqlSerialPort').value, baudrate:Number($('sqlSerialBaud').value)
-      });
-      diagText('sqlSerialOutput',result.bytes_read+
-        ' bytes (somente leitura):\n'+(result.text||'(sem dados no período de leitura)'));
-    }catch(e){diagText('sqlSerialOutput',e.message);}
-  });
+  window.mountBridgeSerialMonitor(api);
   $('sqlAudit').addEventListener('click',async()=>{
     try{
       const out=await api('audit');

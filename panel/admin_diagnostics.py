@@ -5,7 +5,7 @@ admin-token before_request interlock.
 """
 from __future__ import annotations
 
-from flask import current_app, jsonify, request
+from flask import current_app, jsonify, request, session
 from storage.migrate import StorageError
 
 from tesseract_bridge.diagnostics import service
@@ -53,7 +53,7 @@ def register_diagnostics(blueprint, require_idle):
                 pin=payload.get("pin"), level=payload.get("level"),
             )
         except service.DiagnosticError as exc:
-            return jsonify(error=str(exc)), 400
+            return jsonify(error=str(exc), code=exc.code), 400
         return jsonify(result)
 
     @blueprint.get("/diagnostics/serial/ports")
@@ -76,4 +76,42 @@ def register_diagnostics(blueprint, require_idle):
                 payload.get("port"), payload.get("baudrate")
             ))
         except service.DiagnosticError as exc:
-            return jsonify(error=str(exc)), 400
+            return jsonify(error=str(exc), code=exc.code), 400
+
+    def serial_owner():
+        import secrets
+        return session.setdefault('serial_owner', secrets.token_urlsafe(24))
+
+    @blueprint.post('/diagnostics/serial/<action>')
+    def diagnostic_serial_session(action):
+        if action not in ('open', 'poll', 'close', 'test'):
+            return jsonify(error='Operação serial desconhecida.'), 404
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            return jsonify(error='JSON inválido.'), 400
+        monitor = service.serial_monitor()
+        owner = serial_owner()
+        try:
+            # Closing remains permitted when the operational session becomes active.
+            if action != 'close':
+                try:
+                    require_idle()
+                except StorageError:
+                    monitor.close_owner(owner)
+                    raise
+            if action in ('open', 'test'):
+                settings = {key: payload.get(key, default) for key, default in
+                    (('port', ''), ('baudrate', 9600), ('bytesize', 8), ('parity', 'N'), ('stopbits', 1))}
+                result = getattr(monitor, action)(owner, **settings)
+            elif action == 'poll':
+                result = monitor.read(payload.get('session'), owner, payload.get('limit', 1024))
+            else:
+                monitor.close(payload.get('session'), owner)
+                result = dict(status='closed')
+            response = jsonify(result)
+            response.headers['Cache-Control'] = 'no-store'
+            return response
+        except StorageError as exc:
+            return jsonify(error=str(exc)), 409
+        except service.DiagnosticError as exc:
+            return jsonify(error=str(exc), code=exc.code), 400

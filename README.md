@@ -52,6 +52,7 @@ do painel. Não exponha a interface à Internet.
 | Repositório ORM e auditoria | [Validação da cópia relacional](docs/technical/08-normalizacao-sqlalchemy.md) |
 | SQLAlchemy e normalização | [Models e migração](docs/technical/08-normalizacao-sqlalchemy.md) |
 | Arquitetura e persistência | [Visão geral técnica](docs/technical/01-visao-geral.md) · [Modelo de dados](docs/technical/04-modelo-de-dados.md) |
+| Componentes reutilizáveis | [Monitor serial e setup guiado](docs/modules/README.md) |
 | Histórico da versão | [CHANGELOG](CHANGELOG.md) |
 
 ## Uso rápido no Windows (modo seguro)
@@ -80,6 +81,16 @@ modo configurado; pendências mantêm a instalação em simulação.
 
 `run_bridge.py` executa o Bridge completo; `run_panel.py` abre apenas
 o painel. Ambos respeitam o modo de simulação da infraestrutura.
+
+## Monitor serial e componentes reutilizáveis
+
+Na Administração SQLite, o monitor serial lista portas do servidor, permite
+informar portas sem cadastro, testar abertura e ler amostras ou monitorar
+continuamente em texto/hexadecimal. Também está disponível na configuração
+inicial sem dispositivos. Não transmite comandos e revalida intertravamentos.
+
+Os núcleos serial e setup/configuração ficam em `reusable/`, com documentação
+separada e instalação opcional em outros projetos. Veja o [guia de arquitetura](docs/modules/arquitetura.md).
 
 ## Armazenamento e versionamento
 

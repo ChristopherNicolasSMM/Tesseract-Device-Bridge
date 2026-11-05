@@ -32,14 +32,15 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
       - name: Python syntax
-        run: python -m compileall -q setup storage panel tesseract_bridge tests
+        run: python -m compileall -q reusable setup storage panel tesseract_bridge tests
       - name: Jinja syntax
-        run: python -c "from pathlib import Path; from jinja2 import Environment; [Environment().parse(p.read_text(encoding='utf-8')) for p in Path('setup/templates').glob('*.html')]"
+        run: python -c "from pathlib import Path; from jinja2 import Environment; [Environment().parse(p.read_text(encoding='utf-8')) for root in ('setup/templates', 'reusable/guided_setup/templates') for p in Path(root).rglob('*.html')]"
       - name: JavaScript syntax
         run: |
           node --check setup/static/setup.js
           node --check panel/static/admin-sqlite.js
           node --check panel/static/configuration.js
+          node --check panel/static/serial-monitor.js
       - name: Shell syntax (never install or start services in CI)
         if: runner.os == 'Linux'
         run: bash -n tools/install_service.sh tools/uninstall_service.sh tools/logs.sh

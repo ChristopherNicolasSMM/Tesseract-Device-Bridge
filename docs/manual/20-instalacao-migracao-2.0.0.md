@@ -1,7 +1,7 @@
 # Manual de Instalação e Migração — Tesseract Device Bridge 2.0.0
 
 Atualizado em 05/11/2026. Branch de trabalho: feature/sqlite-full-migration.
-Build do instalador: 2.0.0-setup.10. Implementação disponível para homologação;
+Build do instalador: 2.0.0-setup.11. Implementação disponível para homologação;
 a matriz de plataformas ainda precisa dos aceites registrados em
 [Homologação](../homologacao/setup-2.0.0.md). A main permanece preservada.
 

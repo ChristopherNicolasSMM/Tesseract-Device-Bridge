@@ -13,8 +13,8 @@ from typing import Any
 from gpio.ds18b20_scan import scan_with_readings
 
 
-class DiagnosticError(ValueError):
-    pass
+from reusable.serial_monitor import SerialError as DiagnosticError, SerialMonitor
+from functools import lru_cache
 
 
 BCM_PINS = tuple(range(2, 28))
@@ -96,50 +96,22 @@ def virtual_gpio_write(config, state, *, pin, level):
     return {"pin": pin, "level": level, "mode": "virtual_only"}
 
 
+@lru_cache(maxsize=1)
+def serial_monitor():
+    """Bridge adapter: core has no dependency on this project. One process owns ports."""
+    return SerialMonitor()
+
+
 def serial_ports():
-    """List OS-registered ports. pyserial is an optional diagnostic extra."""
-    try:
-        from serial.tools import list_ports
-    except ImportError:
-        return {"available": False, "ports": [], "message":
-                "Monitor serial opcional. Instale pyserial no ambiente de diagnóstico."}
-    return {
-        "available": True,
-        "ports": [
-            {"device": port.device, "description": port.description}
-            for port in list_ports.comports()
-        ],
-        "message": (
-            "Leitura serial apenas sob solicitação, sem comandos de escrita. "
-            "Abrir uma porta pode reiniciar alguns microcontroladores."
-        ),
-    }
+    return serial_monitor().ports()
 
 
 def serial_read(port_name, baudrate):
-    """Bounded, explicit, read-only poll; port must be enumerated by the OS."""
+    """Compatibility API: bounded one-shot read via the reusable core."""
+    monitor = serial_monitor()
+    owner = object()
+    opened = monitor.open(owner, port=port_name, baudrate=baudrate)
     try:
-        from serial import Serial
-    except ImportError as exc:
-        raise DiagnosticError("Instale pyserial para habilitar o monitor.") from exc
-    ports = {entry["device"] for entry in serial_ports()["ports"]}
-    if port_name not in ports:
-        raise DiagnosticError("Porta não encontrada na lista de dispositivos.")
-    if type(baudrate) is not int or baudrate not in (9600, 19200, 38400, 57600, 115200):
-        raise DiagnosticError("Baud rate não suportado.")
-    connection = Serial(port=None, baudrate=baudrate, timeout=0.2)
-    try:
-        # Request no serial control signals. Certain devices can still reset
-        # on open due to their USB bridge: show this warning in the UI.
-        connection.dtr = False
-        connection.rts = False
-        connection.port = port_name
-        connection.open()
-        chunk = connection.read(1024)
-    except Exception as exc:
-        raise DiagnosticError("Falha na leitura serial: " + str(exc)) from exc
+        return monitor.read(opened['session'], owner)
     finally:
-        connection.close()
-    return {"port": port_name, "baudrate": baudrate,
-            "text": chunk.decode("utf-8", errors="replace"),
-            "bytes_read": len(chunk), "mode": "read_only"}
+        monitor.close_owner(owner)

@@ -23,6 +23,14 @@ def create_app(root=None, *, port=8090):
     app = Flask(__name__)
     from shared_ui import register_ui
     register_ui(app)
+    from reusable.guided_setup.web import WizardStep, register_wizard_ui
+    register_wizard_ui(app, [
+        WizardStep('language', '/', 'step_language'),
+        WizardStep('data', '/import/', 'step_data'),
+        WizardStep('infrastructure', '/infrastructure/', 'infrastructure'),
+        WizardStep('security', '/security/', 'security'),
+        WizardStep('finish', '/finish/', 'step_finish'),
+    ])
     app.config["SETUP_BUILD"] = SETUP_BUILD
     app.config["SETUP_PORT"] = port
     app.secret_key = secrets.token_bytes(32)

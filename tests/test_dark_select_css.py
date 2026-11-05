@@ -6,7 +6,7 @@ homologation of native <select> popups must still be done on Windows.
 from pathlib import Path
 
 HTML = Path(__file__).resolve().parents[1] / "panel" / "templates" / "index.html"
-CSS = Path(__file__).resolve().parents[1] / "shared_ui" / "static" / "theme.css"
+CSS = Path(__file__).resolve().parents[1] / "reusable" / "guided_setup" / "static" / "theme.css"
 
 
 def test_native_select_popups_use_dark_color_scheme():

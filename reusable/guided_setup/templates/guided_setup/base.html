@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="{{ language.replace('_', '-') }}" data-theme="{{ theme }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="{{ theme }}">
+  <title>{{ t.title }}</title>
+  {% block theme_styles %}<link rel="stylesheet" href="{{ url_for('guided_setup_ui.static', filename='theme.css', v=build) }}">{% endblock %}
+  <link rel="stylesheet" href="{{ url_for('guided_setup_ui.static', filename='wizard.css', v=build) }}">
+  {% block extra_styles %}{% endblock %}
+  <script id="setup-messages" type="application/json">{{ t | tojson }}</script>
+  {% block scripts %}{% endblock %}
+</head>
+<body class="setup-page">
+  <header class="setup-header">
+    <a class="setup-brand" href="/">{% block brand %}{{ t.title }}{% endblock %}</a>
+    <div class="setup-security">{{ t.security_note }} <span class="setup-badge">{{ build }}</span></div>
+  </header>
+  <aside class="setup-sidebar">
+    <p class="setup-nav-title">{{ t.badge }}</p>
+    <nav aria-label="{{ t.progress }}">
+      {% for step in wizard_steps %}
+      <a href="{{ step.path }}" {% if step.active %}aria-current="step"{% endif %}>{{ step.number }} <span>{{ t[step.label_key] }}</span></a>
+      {% endfor %}
+    </nav>
+    <p class="setup-sidebar-note">{{ t.staging_only }}</p>
+  </aside>
+  <main class="setup-main">
+    <div class="setup-page-title"><h1>{% block heading %}{{ t.title }}{% endblock %}</h1>
+    <p class="setup-breadcrumb">{% block breadcrumb %}{{ t.prepare }}{% endblock %}</p></div>
+    <div id="browser-message" role="alert" hidden></div>
+    {% block content %}{% endblock %}
+    <footer class="setup-footer">{{ t.stop }}<br><small>{{ build }}</small></footer>
+  </main>
+  <div id="busy" class="setup-busy" role="status" aria-live="polite" hidden>
+    <span class="setup-spinner" aria-hidden="true"></span><span>{{ t.processing }}</span>
+  </div>
+  {% block dialogs %}{% endblock %}
+</body>
+</html>

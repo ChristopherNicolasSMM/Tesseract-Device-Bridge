@@ -1,0 +1,19 @@
+<section class="bridge-serial-monitor" aria-label="Monitor serial">
+                <h4>Monitor serial</h4>
+                <button type="button" id="sqlSerialPorts">Listar portas seriais</button>
+                <label>Porta detectada <select id="sqlSerialPort"></select></label>
+                <label>Ou porta manual (no servidor) <input id="sqlSerialManual" placeholder="COM3 ou /dev/ttyUSB0" maxlength="240"></label>
+                <label>Baud rate <input id="sqlSerialBaud" type="number" min="300" max="2000000" value="9600"></label>
+                <label>Bits de dados <select id="sqlSerialBits"><option>8</option><option>7</option><option>6</option><option>5</option></select></label>
+                <label>Paridade <select id="sqlSerialParity"><option value="N">Nenhuma</option><option value="E">Par</option><option value="O">Ímpar</option><option value="M">Mark</option><option value="S">Space</option></select></label>
+                <label>Bits de parada <select id="sqlSerialStopBits"><option>1</option><option>1.5</option><option>2</option></select></label>
+                <label>Exibição <select id="sqlSerialFormat"><option value="text">Texto UTF-8</option><option value="hex">Hexadecimal</option></select></label>
+                <button type="button" id="sqlSerialTest">Testar abertura da porta</button>
+                <button type="button" id="sqlSerialStart">Iniciar monitor</button>
+                <button type="button" id="sqlSerialStop" disabled>Encerrar monitor</button>
+                <button type="button" id="sqlSerialClear">Limpar saída</button>
+                <p id="sqlSerialStatus" class="sql-note" role="status" aria-live="polite"></p>
+                <button type="button" id="sqlSerialRead">Ler até 1024 bytes (somente leitura)</button>
+                <pre id="sqlSerialOutput" class="sql-diagnostic-results" aria-live="polite"></pre>
+                <p class="sql-note">Portas do servidor, inclusive sem cadastro no banco. Abrir pode reiniciar microcontroladores; isole o equipamento. Nenhum comando é enviado. A conexão fecha após 30 segundos sem leitura ou ao encerrar o monitor.</p>
+</section>

@@ -28,3 +28,10 @@ Os documentos 15–19 do manual registram entregas incrementais. O manual 20 con
 o comportamento atual e prevalece sobre avisos históricos de etapas ainda não
 implementadas. Os guias antigos de cutover são referências de sandbox/compatibilidade,
 não uma proibição absoluta do ORM físico após conclusão válida do setup.
+
+## Componentes para outros projetos
+
+- [Índice dos módulos reutilizáveis](modules/README.md)
+- [Monitor serial: UI, API e limites](modules/serial-monitor/README.md)
+- [Setup guiado: configuração, persistência e layout](modules/guided-setup/README.md)
+- [Arquitetura e guia de integração](modules/arquitetura.md)

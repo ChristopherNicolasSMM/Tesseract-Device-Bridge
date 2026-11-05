@@ -28,3 +28,5 @@ document.getElementById('save').addEventListener('click', async () => {
     message.textContent = 'Configuração aprovada. Reinicie o Bridge; nenhuma saída foi acionada.';
   } catch (error) { message.textContent = error.message; }
 });
+
+window.mountBridgeSerialMonitor(api);

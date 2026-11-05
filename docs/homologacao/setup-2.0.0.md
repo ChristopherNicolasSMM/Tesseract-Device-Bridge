@@ -66,7 +66,7 @@ novos testes e skips específicos de plataforma alteram os totais.
 
 ## Roteiro Windows
 
-1. Confirmar pull e build 2.0.0-setup.10.
+1. Confirmar pull e build 2.0.0-setup.11.
 2. Executar suíte completa sem erros de coleta.
 3. Clone descartável novo: instalar vazio; confirmar zero devices e tela administrativa.
 4. Importar pasta YAML/JSON por caminho e upload; acrescentar receita.json com destino explícito.
@@ -108,3 +108,21 @@ Registro final a preencher:
 - Fluxo visual/importação/restauração:
 - Hardware e intertravamentos:
 - Pendências e aceite do operador:
+
+
+## Extensão: módulos reutilizáveis e monitor serial
+
+Entrega: setup.11, implementação sem execução local da suíte nesta sessão.
+Validar `tests/test_serial_monitor_module.py`, `tests/test_guided_setup_module.py`,
+`tests/test_admin_diagnostics.py` e a regressão completa de setup.
+
+No Windows/Raspberry: verificar porta enumerada e manual sem cadastro, erro de
+porta inexistente/ocupada, leitura pontual, monitor contínuo, modo hexadecimal,
+fechamento ao ocultar/encerrar e expiração após abandono. Repetir na página de
+configuração sem dispositivos. Validar origem/CSRF na política local e recusa
+durante sessão ativa. Para hardware real, usar equipamento com cargas isoladas.
+
+Para o setup, conferir tema claro/escuro, navegação e retomada após a extração
+para `reusable/guided_setup`, sem mudar o formato do manifesto nem o fluxo de
+publicação. Empacotamento opcional e instalação em outro projeto exigem sua
+própria validação; não há publicação no PyPI.

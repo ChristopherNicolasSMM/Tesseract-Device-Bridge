@@ -1,12 +1,10 @@
 """Prepare administrative credentials privately; active .env is published later."""
 import base64
-import io
 import os
 import secrets
 import tempfile
 from pathlib import Path
 
-from dotenv.parser import parse_stream
 from flask import Blueprint, current_app, redirect, render_template, request, session
 
 from .state import SetupError
@@ -44,15 +42,11 @@ def prepare_security(state, mode, token=''):
     updates = {'TESSERACT_BRIDGE_ADMIN_TOKEN': '',
                'TESSERACT_BRIDGE_ADMIN_TOKEN_B64': base64.b64encode(token.encode('utf-8')).decode('ascii'),
                'TESSERACT_BRIDGE_LOCAL_ADMIN': '1' if mode == 'none' else '0'}
-    text = ''
-    for binding in parse_stream(io.StringIO(source.read_text(encoding='utf-8'))):
-        if binding.error:
-            raise SecurityError('security_infra_first')
-        if binding.key not in updates:
-            text += binding.original.string
-    if text and not text.endswith('\n'):
-        text += '\n'
-    text += ''.join(key + '=' + value + '\n' for key, value in updates.items())
+    from reusable.guided_setup.configuration import update_env, ConfigurationError
+    try:
+        text = update_env(source.read_text(encoding='utf-8'), updates)
+    except ConfigurationError as exc:
+        raise SecurityError('security_infra_first') from exc
     fd, path = tempfile.mkstemp(prefix='security-', suffix='.env', dir=str(state.staging()))
     with os.fdopen(fd, 'w', encoding='utf-8', newline='\n') as stream:
         stream.write(text)

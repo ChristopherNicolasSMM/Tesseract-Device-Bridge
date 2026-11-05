@@ -1,11 +1,7 @@
 """Validate infrastructure and prepare .env privately; never modify the active installation."""
-import errno
 import hashlib
 import io
-import ipaddress
 import os
-import re
-import socket
 import tempfile
 from pathlib import Path
 
@@ -31,43 +27,25 @@ def validate(values):
     result = {key: str(values.get(key, DEFAULTS[key])).strip() for key in KEYS}
     if result['SIMULATION_ONLY'] not in ('0', '1'):
         raise InfrastructureError('infra_invalid_mode')
-    for key in ('TEST_PANEL_PORT', 'PANEL_PORT'):
-        if not re.fullmatch(r'[0-9]{1,5}', result[key]) or not 1 <= int(result[key]) <= 65535:
-            raise InfrastructureError('infra_invalid_port')
-        result[key] = str(int(result[key]))
-    host = result['PANEL_HOST']
+    from reusable.guided_setup.configuration import port_number, host_name, ConfigurationError
     try:
-        ipaddress.ip_address(host)
-    except ValueError:
-        if (len(host) > 253 or not host or re.fullmatch(r'[0-9.]+', host) or
-                any(not re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?', part)
-                    for part in host.rstrip('.').split('.'))):
-            raise InfrastructureError('infra_invalid_host')
+        for key in ('TEST_PANEL_PORT', 'PANEL_PORT'):
+            result[key] = port_number(result[key])
+        result['PANEL_HOST'] = host_name(result['PANEL_HOST'])
+    except ConfigurationError as exc:
+        raise InfrastructureError('infra_' + str(exc)) from exc
     return result
 
 
 def probe_port(values, setup_port):
+    from reusable.guided_setup.configuration import probe_bind, ConfigurationError
     simulated = values['SIMULATION_ONLY'] == '1'
     host = '127.0.0.1' if simulated else values['PANEL_HOST']
-    port = int(values['TEST_PANEL_PORT'] if simulated else values['PANEL_PORT'])
-    if port == setup_port:
-        raise InfrastructureError('infra_port_busy')
+    port = values['TEST_PANEL_PORT'] if simulated else values['PANEL_PORT']
     try:
-        address = ipaddress.ip_address(host)
-    except ValueError:
-        # Do not contact DNS or bind to an unverified remote hostname.
-        return 'infra_port_unchecked'
-    family = socket.AF_INET6 if address.version == 6 else socket.AF_INET
-    try:
-        with socket.socket(family, socket.SOCK_STREAM) as sock:
-            if os.name == 'nt' and hasattr(socket, 'SO_EXCLUSIVEADDRUSE'):
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-            sock.bind((str(address), port))
-    except OSError as exc:
-        if exc.errno == errno.EADDRNOTAVAIL:
-            return 'infra_port_unchecked'
-        raise InfrastructureError('infra_port_busy') from exc
-    return 'infra_port_available'
+        return 'infra_' + probe_bind(host, port, reserved_ports=(setup_port,))
+    except ConfigurationError as exc:
+        raise InfrastructureError('infra_' + str(exc)) from exc
 
 
 def existing_env(root):
@@ -87,29 +65,15 @@ def existing_env(root):
 
 
 def render_env(original, values):
-    from dotenv.parser import parse_stream
+    from reusable.guided_setup.configuration import update_env, ConfigurationError
     values = validate(values)
     updates = {PREFIX + key: value for key, value in values.items()}
     updates[PREFIX + 'DB'] = DB_RELATIVE
     updates[PREFIX + 'STORAGE_MODE'] = 'orm'
-    output, written = [], set()
-    for binding in parse_stream(io.StringIO(original)):
-        if binding.error:
-            raise InfrastructureError('infra_env_invalid')
-        key = binding.key
-        if key in updates:
-            if key not in written:
-                output.append(key + '=' + updates[key] + '\n')
-                written.add(key)
-        else:
-            output.append(binding.original.string)
-    text = ''.join(output)
-    if text and not text.endswith('\n'):
-        text += '\n'
-    for key, value in updates.items():
-        if key not in written:
-            text += key + '=' + value + '\n'
-    return text
+    try:
+        return update_env(original, updates)
+    except ConfigurationError as exc:
+        raise InfrastructureError('infra_env_invalid') from exc
 
 
 def initial_values(state):

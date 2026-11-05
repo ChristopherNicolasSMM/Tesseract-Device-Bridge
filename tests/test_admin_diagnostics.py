@@ -112,6 +112,8 @@ def test_admin_form_has_live_reference_selects():
     root = Path(__file__).resolve().parents[1]
     html = (root / "panel/templates/index.html").read_text(encoding="utf8")
     js = (root / "panel/static/admin-sqlite.js").read_text(encoding="utf8")
+    html += (root / "panel/templates/_serial_monitor.html").read_text(encoding="utf8")
+    js += (root / "panel/static/serial-monitor.js").read_text(encoding="utf8")
     for name in ("pin", "temperature_sensor", "controller_device"):
         assert '<select name="'+name+'"' in html
     for section in ("sqlScanTemp", "sqlVirtualOn", "sqlVirtualOff", "sqlSerialRead"):
@@ -136,3 +138,48 @@ def test_diagnostic_write_and_serial_blocked_when_stored_session_active(app_clie
     serial = http.post("/api/admin/diagnostics/serial/read",
         headers=auth(), json={"port": "MOCK0", "baudrate": 9600})
     assert serial.status_code == 409
+
+
+def test_serial_sessions_require_auth_and_browser_ownership(app_client, monkeypatch):
+    from reusable.serial_monitor import SerialMonitor
+    class Connection:
+        def __init__(self, **_kwargs):
+            pass
+        def open(self):
+            pass
+        def read(self, _limit):
+            return b'hello!'
+        def close(self):
+            pass
+    http, _, _runtime = app_client
+    monitor = SerialMonitor(opener=Connection, enumerator=lambda: [])
+    monkeypatch.setattr(service, 'serial_monitor', lambda: monitor)
+    try:
+        assert http.post('/api/admin/diagnostics/serial/open', json={'port': 'COM3'}).status_code == 401
+        opened = http.post('/api/admin/diagnostics/serial/open', headers=auth(), json={'port': 'COM3'})
+        assert opened.status_code == 200
+        identifier = opened.json['session']
+        # A second authenticated browser cannot use the first browser's session.
+        other = http.application.test_client()
+        refused = other.post('/api/admin/diagnostics/serial/poll', headers=auth(), json={'session': identifier})
+        assert refused.status_code == 400
+        result = http.post('/api/admin/diagnostics/serial/poll', headers=auth(), json={'session': identifier})
+        assert result.status_code == 200
+        assert result.json['bytes_read'] == 6
+        from storage import sqlite_store as legacy
+        legacy.save_session_state({'status': 'paused_after_crash'})
+        blocked = http.post('/api/admin/diagnostics/serial/poll', headers=auth(), json={'session': identifier})
+        assert blocked.status_code == 409
+        assert monitor._session is None
+    finally:
+        monitor.close_all()
+
+
+def test_monitor_visible_before_any_device_registration(app_client):
+    from panel.configuration_app import create_configuration_app
+    app = create_configuration_app(store.load_config())
+    response = app.test_client().get('/')
+    assert response.status_code == 200
+    for control in (b'sqlSerialManual', b'sqlSerialTest', b'sqlSerialStart', b'sqlSerialStop'):
+        assert control in response.data
+    assert b'serial-monitor.js' in response.data
