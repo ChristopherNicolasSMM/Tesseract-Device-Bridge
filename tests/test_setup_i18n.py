@@ -13,7 +13,10 @@ def test_catalog_keys_and_event_messages():
 
 
 def test_localized_errors_styles_and_theme_persist(tmp_path):
-    app = create_app(tmp_path)
+    # The autouse legacy fixture owns tmp_path/isolated-bridge.sqlite3.
+    # Give the installer a separate root and assert only its own effects.
+    setup_root = tmp_path / 'setup-clone'
+    app = create_app(setup_root)
     state = app.extensions['installation_state']
     try:
         client = app.test_client()
@@ -31,10 +34,10 @@ def test_localized_errors_styles_and_theme_persist(tmp_path):
         assert b'data-theme="light"' in client.get('/', base_url=base).data
         assert client.get('/missing', base_url=base).json['message'] == catalog('en')['not_found']
         assert state.value['theme'] == 'light'
-        assert not list(tmp_path.rglob('*.sqlite3'))
+        assert not list(setup_root.rglob('*.sqlite3'))
     finally:
         state.close()
-    again = create_app(tmp_path)
+    again = create_app(setup_root)
     try:
         assert again.extensions['installation_state'].value['theme'] == 'light'
     finally:
