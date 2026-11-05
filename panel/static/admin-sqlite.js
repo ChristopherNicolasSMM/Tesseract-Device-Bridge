@@ -1,12 +1,16 @@
 /* SQLite device administration. The admin token lives only in JS memory. */
 (() => {
   const $ = id => document.getElementById(id);
+  let csrf = '';
   let token = '', config = null, selected = -1, pending = null, revision = null;
   const msg = text => { $('sqlMessage').textContent = text; };
   async function api(path, method='GET', payload) {
     const result = await fetch('/api/admin/'+path, {
       method,
-      headers: {'X-Bridge-Admin-Token': token, ...(payload ? {'Content-Type':'application/json'} : {})},
+      headers: {'X-Bridge-Admin-Token': btoa(String.fromCharCode(...new TextEncoder().encode(token))),
+        'X-Bridge-Admin-Token-Encoding': 'base64utf8', 'X-Bridge-Admin-CSRF': csrf,
+        ...(payload ? {'Content-Type':'application/json'} : {})},
+      credentials: 'same-origin',
       body: payload ? JSON.stringify(payload) : undefined,
     });
     const data = await result.json();
@@ -118,7 +122,14 @@
   }
   $('sqlUnlock').addEventListener('click', async ()=>{
     token=$('sqlToken').value;
-    try { await load(); $('sqlToken').value=''; }
+    try {
+      csrf = '';
+      if (!token) {
+        const policy = await api('security/session');
+        csrf = policy.csrf || '';
+      }
+      await load(); $('sqlToken').value='';
+    }
     catch(e){$('sqlEditor').hidden=true;msg(e.message);}
   });
   $('sqlReload').addEventListener('click',()=>load().catch(e=>msg(e.message)));

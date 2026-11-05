@@ -36,6 +36,10 @@ def create_panel_app(
     recipe_engine: Optional[RecipeEngine] = None,
 ) -> Flask:
     app = Flask(__name__)
+    import secrets
+    app.secret_key = secrets.token_bytes(32)
+    app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Strict',
+                      SESSION_COOKIE_NAME='bridge_admin_' + str(config.panel.port))
     from shared_ui import register_ui
     register_ui(app)
     app.config["DEVICE_RUNTIME"] = runtime

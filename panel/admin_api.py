@@ -23,18 +23,10 @@ from storage.migrate import StorageError
 bp = Blueprint("admin_sqlite", __name__, url_prefix="/api/admin")
 
 
-def _authenticated():
-    expected = os.environ.get("TESSERACT_BRIDGE_ADMIN_TOKEN", "")
-    received = request.headers.get("X-Bridge-Admin-Token", "")
-    return len(expected) >= 16 and bool(received) and secrets.compare_digest(expected, received)
+from panel.admin_security import require_admin, session_info
 
-
-@bp.before_request
-def require_admin():
-    if not os.environ.get("TESSERACT_BRIDGE_ADMIN_TOKEN"):
-        return jsonify(error="Administração desativada: defina TESSERACT_BRIDGE_ADMIN_TOKEN (mínimo 16 caracteres)."), 503
-    if not _authenticated():
-        return jsonify(error="Token de administração inválido."), 401
+bp.before_request(require_admin)
+bp.add_url_rule('/security/session', 'security_session', session_info, methods=['GET'])
 
 
 def _not_running():

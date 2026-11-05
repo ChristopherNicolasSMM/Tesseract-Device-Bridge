@@ -21,7 +21,8 @@
       <a href="/" {% if request.path == '/' %}aria-current="step"{% endif %}>01 <span>{{ t.step_language }}</span></a>
       {% if csrf %}<a href="/import/" {% if request.path.startswith('/import') %}aria-current="step"{% endif %}>02 <span>{{ t.step_data }}</span></a>{% endif %}
       <a href="/infrastructure/" {% if request.path.startswith('/infrastructure') %}aria-current="step"{% endif %}>03 <span>{{ t.infrastructure }}</span></a>
-      <span class="setup-nav-disabled">04 <span>{{ t.step_finish }}</span></span>
+      <a href="/security/" {% if request.path.startswith('/security') %}aria-current="step"{% endif %}>04 <span>{{ t.security }}</span></a>
+      <span class="setup-nav-disabled">05 <span>{{ t.step_finish }}</span></span>
     </nav>
     <p class="setup-sidebar-note">{{ t.staging_only }}</p>
   </aside>

@@ -2,7 +2,8 @@
 {% block heading %}{{ t.infrastructure }}{% endblock %}
 {% block content %}
 <p class="setup-lead">{{ t.infra_intro }}</p>
-{% if saved %}<p class="setup-alert success" role="status">{{ t.infra_saved }} {{ t.get(port_status, '') }}</p>{% endif %}
+{% if saved %}<p class="setup-alert success" role="status">{{ t.infra_saved }} {{ t.get(port_status, '') }}</p>
+<a class="bridge-button" href="/security/">{{ t.security_next }}</a>{% endif %}
 <form method="post" action="/infrastructure/save" class="bridge-card setup-form">
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <label for="simulation">{{ t.infra_mode }}</label>

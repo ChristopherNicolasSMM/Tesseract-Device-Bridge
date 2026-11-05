@@ -44,6 +44,12 @@ def load_runtime_config():
         if custom_host:
             raw["panel"]["host"] = custom_host
 
+    from tesseract_bridge.infrastructure.admin_policy import admin_token, local_admin_enabled
+    if local_admin_enabled() and not admin_token():
+        # No credential never means a network-facing administrative panel.
+        raw = copy.deepcopy(raw)
+        raw["panel"]["host"] = "127.0.0.1"
+
     config = BridgeConfig.from_dict(raw)
     config.validate()
     return config

@@ -142,7 +142,8 @@ def prepare(state, values, *, setup_port=8090):
             os.fsync(stream.fileno())
         state.save(dict(state.value, infrastructure=values, infrastructure_env=target.name,
                         infrastructure_source_sha256=digest, infrastructure_port_status=port_status,
-                        infrastructure_db=DB_RELATIVE, infrastructure_ready=False))
+                        infrastructure_db=DB_RELATIVE, infrastructure_ready=False,
+                        security_env=None, credential_configured=False))
     except BaseException:
         # Keep the immutable candidate as private recovery evidence; never
         # delete anything that might already be referenced by the manifest.

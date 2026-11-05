@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block heading %}{{ t.security }}{% endblock %}
+{% block content %}
+<p class="setup-lead">{{ t.security_intro }}</p>
+{% if mode %}<p class="setup-alert success" role="status">{{ t.security_saved }} {{ t['security_mode_' ~ mode] }}</p>{% endif %}
+{% if weak %}<p class="setup-alert warning">{{ t.security_weak }}</p>{% endif %}
+{% if generated_token %}
+<section class="bridge-card">
+  <h2>{{ t.security_generated }}</h2>
+  <p>{{ t.security_once }}</p>
+  <input class="bridge-field" readonly value="{{ generated_token }}" aria-label="{{ t.security_generated }}" autocomplete="off">
+</section>
+{% endif %}
+<section class="bridge-card">
+  <form method="post" action="/security/save" class="setup-form">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label for="security-mode">{{ t.security_choice }}</label>
+    <select class="bridge-field" id="security-mode" name="mode">
+      <option value="generated">{{ t.security_mode_generated }}</option>
+      <option value="custom">{{ t.security_mode_custom }}</option>
+      <option value="none">{{ t.security_mode_none }}</option>
+    </select>
+    <label for="custom-token">{{ t.security_custom }}</label>
+    <input class="bridge-field" id="custom-token" type="password" name="token" autocomplete="new-password">
+    <details class="setup-hint"><summary>{{ t.info }}</summary><p>{{ t.security_custom_hint }}</p></details>
+    <label class="setup-check"><input type="checkbox" name="confirm_local" value="1">{{ t.security_local_ack }}</label>
+    <p class="setup-alert warning">{{ t.security_local_policy }}</p>
+    <button class="bridge-button">{{ t.security_save }}</button>
+  </form>
+</section>
+<p class="bridge-muted">{{ t.security_staging }}</p>
+{% endblock %}
