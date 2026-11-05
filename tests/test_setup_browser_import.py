@@ -210,7 +210,7 @@ def test_sqlite_folder_inventory_and_single_selection(browser, tmp_path):
     old = tmp_path / 'previous'
     folder = old / 'data' / 'private'
     folder.mkdir(parents=True)
-    initialize(folder / 'old.sqlite3')
+    initialize(path=folder / 'old.sqlite3')
     (folder / 'notes.md').write_text('ignored')
     response = client.post('/import/discover', base_url=base, headers={'Origin': base},
         data={'csrf': csrf, 'source': str(old), 'kind': 'sqlite'})

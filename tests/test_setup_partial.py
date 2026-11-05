@@ -56,12 +56,19 @@ def test_strict_failure_records_safe_error(tmp_path):
     state = InstallationState(tmp_path / 'new')
     try:
         state.start('en')
-        with pytest.raises(Exception):
-            import_directory(state, source)
-        reports = list(state.staging().glob('failed-*/report.json'))
-        assert reports
-        report = json.loads(reports[0].read_text(encoding='utf-8'))
-        assert report['events'][0]['category'] == 'blocking_error'
+        report = import_directory(state, source)
+        assert report['status'] == 'needs_review'
+        assert report['database'] is None
+        assert report['needs_review'] is True
+        assert report['runtime_authorized'] is False
+        assert report['events'] == [{
+            'category': 'blocking_error', 'code': 'devices_empty', 'file': 'devices.yml',
+        }]
+        reports = list(state.staging().glob('import-*/report.json'))
+        assert len(reports) == 1
+        assert json.loads(reports[0].read_text(encoding='utf-8')) == report
+        assert not list(state.staging().rglob('*.sqlite3'))
+        assert (source / 'devices.yml').read_text(encoding='utf-8') == 'devices: []'
     finally:
         state.close()
 
