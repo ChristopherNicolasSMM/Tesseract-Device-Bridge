@@ -203,6 +203,21 @@ def upload_source():
         if len(raw) > MAX_FILE_BYTES or total > MAX_TOTAL_BYTES:
             raise SetupError('Upload exceeds limit.')
         captured[name] = raw
+    previous = value.value.get('browser_source') or {}
+    if previous.get('kind') == 'upload':
+        from .legacy import _root, _safe, discover
+        previous_root = _root(previous['root'])
+        if previous_root.parent != value.staging() or not previous_root.name.startswith('upload-'):
+            raise SetupError('Previous upload does not belong to this attempt.')
+        for row in discover(previous_root):
+            if row['status'] != 'supported':
+                raise SetupError('Previous upload is no longer valid.')
+            name = row['path']
+            if name in captured:
+                raise SetupError('Duplicate upload destination; choose a new source explicitly.')
+            with _safe(previous_root, name).open('rb') as stream:
+                captured[name] = stream.read(MAX_FILE_BYTES + 1)
+    # Recheck total/file limits after combining all private uploads.
     root = capture_uploads(value, captured)
     remember(value, dict(kind='upload', root=str(root), rows=inventory_rows(root)))
     return redirect('/import/', code=303)

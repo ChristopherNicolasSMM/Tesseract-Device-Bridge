@@ -1,93 +1,38 @@
-# 09 — Estado da migração e critérios de cutover | 2.0.0
+# 09 — Estado atual do cutover e do setup | 2.0.0
 
-> **Status de desenvolvimento em 2026-11-04:** a `main` continua
-> estável e separada. O runtime da branch experimental ainda utiliza
-> `sqlite_store.py`, com algumas tabelas legadas JSON.
-> **Não está liberado para operação física.**
+Atualização: 05/11/2026. Esta página substitui o diagnóstico anterior em que o ORM
+era permitido somente em simulação. A main continua preservada.
 
-## Entregas e pendências
-
-| Área | Situação | Critério de aceite |
+| Área | Implementação atual | Homologação |
 |---|---|---|
-| Importador YAML/JSON → SQLite | Concluído | Cópia original e backup intactos |
-| Primeiro esquema SQLAlchemy/Alembic | Validado em Windows | 7 dispositivos, 2 receitas e 2 perfis |
-| Revisão relacional `bridge_orm_0002` | **Validada pelo operador no Windows** | 7 dispositivos, 2 receitas, 2 perfis, 2 calibrações, receita ativa e sessão; auditoria OK |
-| Histórico/revisões/rascunhos `bridge_orm_0003` | Implementada, aguardando testes e auditoria local | Tabelas de histórico, nós tipados e correspondência de payloads, IDs e timestamps |
-| Serviços e repositórios ORM para toda escrita | **Implementados; aguardando validação** | CRUD, transações e controle de revisão nas tabelas relacionais |
-| Troca do runtime para ORM | **Disponível apenas em simulação** | Seleção explícita `STORAGE_MODE=orm`, nunca hardware real |
-| Frontend administrativo v2 | **Integrado à fachada ORM experimental** | Validar endpoints, erros e proteção de acesso no Windows |
-| Remoção do esquema JSON legado | Pendente | Backup, migração conferida e rollback documentado |
-| Testes integrados e CI Python 3.9 | Pendente | Suíte completa e homologação em Windows/Linux |
-| Teste físico em Raspberry Pi | Pendente | GPIO isolado, GPIO real, sensores, GLP, emergência e recuperação |
+| Persistência ORM e fachada única | SQLAlchemy/Alembic 0003; sem escrita dupla | Suíte e hardware devem ser verificados por versão |
+| Bootstrap vazio | Cabeçalhos/perfis essenciais, zero fake devices | Testes escritos e fluxo de configuração sem runtime |
+| Origem YAML/JSON/SQLite | Captura/normalização em staging, origem somente leitura | Conferir dados reais e formatos das instalações antigas |
+| Assistente Flask | Local, i18n, temas, grid/prévia/upload | Validação visual Windows/Pi pendente |
+| Administração | Token gerado/customizado ou política local sem token | Regressão de origem/CSRF/rede documentada |
+| Publicação | Receipt, identidade DB/.env, retomada e rollback incompleto | Testes e interrupção real em plataforma de teste |
+| Gate ORM | Conclusão válida; modo configurado requer autorização | Não existe outra fase obrigatória no código após concluir |
+| Instalação vazia | App administrativo sem DeviceRuntime/GPIO/MQTT | Revisar primeiro cadastro e reinício |
+| Serviço | Unidade com ID único, ações separadas via tools/ | Systemd físico e permissões ainda pendentes |
+| Documentação e CI | Manuais consolidados, Ubuntu/Windows e Python 3.9/3.13 | Configurado não significa execução aprovada |
 
-## O que a revisão 0002 já cobre
+O backend legacy continua compatível e selecionável para instalações existentes.
+Novas instalações usam ORM. As tabelas legadas que eventualmente permaneçam numa
+cópia normalizada não recebem sincronização nem escrita paralela pelo backend ORM.
+Não há remoção destrutiva de schema por esta entrega.
 
-A normalização foi ampliada para:
-- `sensor_calibrations` → `bridge_sensor_calibrations_v2`;
-- `active_recipe` → `bridge_active_recipe_v2`;
-- `session_state.state_json` → `bridge_session_state_v2`,
-  `bridge_session_fields_present_v2`, `bridge_session_alarms_v2`,
-  `bridge_session_fired_hop_keys_v2`;
-- snapshot de parâmetros térmicos da sessão → `bridge_control_profiles_v2`
-  em chave separada, com pontos da curva e perfis normalizados.
+O processo recusa publicação incompleta, banco/receipt incompatíveis e tentativa
+de sair da simulação sem estado autorizado. Intertravamentos de hardware e a
+exigência Python 3.9 para GPIO real permanecem independentes do ORM.
 
-O snapshot preserva explicitamente os campos ausentes em sessões legadas.
-A comparação exige mesmo status, ID de alarmes, ordem, horários,
-offsets, ROM IDs e parâmetro térmico por sessão.
-Nenhuma dessas tabelas é lida pelo controle GPIO real nesta fase.
+As revisões 0001/0002/0003 preservam hardware, receitas, controle, calibração,
+sessão, revisões históricas, rascunhos, auditoria e manifestos. A CLI orm-audit
+compara origem e candidato apropriados antes de serem usados/alterados.
+Não compare uma base de trabalho já editada com o snapshot anterior como se
+a divergência fosse necessariamente corrupção.
 
-## Nova etapa: revisão 0003
-
-A revisão Alembic **0003** modela os metadados de revisões e eventos em
-tabelas próprias. Seus payloads históricos imutáveis são representados
-por nós relacionais tipados, com relacionamento pai-filho, ordem de
-listas e hash SHA-256 de conteúdo. Isso permite preservar versões antigas
-sem continuar gravando documentos JSON nas novas tabelas.
-
-A migração rejeita estruturas inválidas e compara todas as linhas do
-histórico com a origem, inclusive eventos de auditoria e manifestos.
-A fonte de dados operacionais **ainda é o SQLite legado** da branch:
-as novas tabelas continuam em uma cópia de validação.
-
-## Próxima entrega: backend ORM transacional (simulação)
-
-A camada `storage/store_router.py` delega o backend `legacy` ou
-`orm` e impede que o processo opere hardware real com ORM.
-A nova implementação usa serviços de escrita ORM em transações com
-bloqueio inicial para proteger revisão, histórico e receita ativa.
-Ainda não está homologada em hardware físico.
-
-Consulte o [procedimento detalhado](10-cutover-orm-simulacao.md).
-
-## Homologar a nova cópia no Windows
-
-Com o Bridge experimental parado e o `.env` apontando para
-`imported.sqlite3`:
-
-```powershell
-git pull --ff-only origin feature/sqlite-full-migration
-python -m pip install -r requirements.txt
-python -m pytest -q tests/test_orm_operational.py tests/test_orm_normalize.py tests/test_orm_repository.py tests/test_orm_history.py
-python -m storage.cli normalize --dry-run
-python -m storage.cli normalize --output ./data/private/normalized-v3.sqlite3
-python -m storage.cli orm-audit --candidate ./data/private/normalized-v3.sqlite3
-python -m storage.cli status
-```
-
-As cópias anteriores (`normalized-candidate.sqlite3` na 0001 e
-`normalized-v2.sqlite3` na 0002) permanecem arquivadas.
-A auditoria atual exige `normalized-v3.sqlite3` com a revisão
-**0003**. Use um destino novo; jamais sobrescreva cópias validadas.
-Pare o Bridge e **audite imediatamente a nova cópia**; se a origem ou
-a cópia tiver sido usada desde a normalização, o timestamp de
-`session_state` pode mudar legitimamente e a comparação falhar.
-Nesse caso, crie outro candidato com nome distinto, sem excluir o
-anterior. O auditor apresenta os três timestamps para diagnóstico.
-
-A auditoria 0003 deve retornar `result=OK`,
-`alembic=bridge_orm_0003` e `runtime_cutover_enabled=false`.
-
-**Não** edite `TESSERACT_BRIDGE_DB` para apontar à cópia experimental.
-O runtime continua ativo no banco `imported.sqlite3`, em simulação.
-Somente após repositórios, transações, segurança e testes completos
-devemos realizar o cutover para ORM.
+Referências atuais:
+- [Instalação e migração](../manual/20-instalacao-migracao-2.0.0.md)
+- [Arquitetura consolidada](18-setup-arquitetura.md)
+- [Evidências e aceite pendente](../homologacao/setup-2.0.0.md)
+- [Sandbox ORM de compatibilidade](10-cutover-orm-simulacao.md)

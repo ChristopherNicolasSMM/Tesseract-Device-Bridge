@@ -65,7 +65,7 @@
   "choose_files": "Selecionar arquivos",
   "single_mapping": "Destino explícito para um único arquivo",
   "auto_mapping": "Identificar pelo nome",
-  "upload_hint": "YAML/JSON: até 8 MiB por arquivo e 32 MiB no conjunto. SQLite: até 256 MiB. Para receita.json, escolha o destino público ou privado.",
+  "upload_hint": "YAML/JSON: até 8 MiB por arquivo e 32 MiB no conjunto. SQLite: até 256 MiB. Para receita.json, escolha o destino público ou privado. Envios sucessivos acrescentam arquivos ao inventário; destinos duplicados são recusados. Para reiniciar, selecione uma nova origem.",
   "upload_inventory": "Enviar e inventariar",
   "inventory": "Inventário da origem",
   "select_all": "Selecionar todos",

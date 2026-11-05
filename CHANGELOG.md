@@ -1,3 +1,14 @@
+## 2026-11-05 — Setup 2.0.0-setup.10
+
+- Manual consolidado de instalação/migração, manutenção/recuperação e arquitetura.
+- Diagnóstico somente leitura `python -m setup.doctor`, sem carregar hardware ou revelar credenciais.
+- CI da branch em Windows/Linux, Python 3.9/3.13; suíte completa e relatório JUnit.
+- Uploads YAML/JSON sucessivos preservam o inventário; destinos duplicados são recusados.
+- Matriz de homologação distingue implementação entregue de validações ainda pendentes.
+- Testes adicionados, execução local pelo mantenedor; esta entrega não certifica hardware.
+
+As entradas abaixo registram o comportamento histórico de cada entrega.
+
 # Histórico de versões
 
 ## 2.0.0 — 2026-11-04 — branch experimental

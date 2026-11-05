@@ -1,38 +1,54 @@
-name: Device Bridge SQLite branch (Python 3.9)
+name: Device Bridge regression and setup
 
 on:
   push:
     branches: ["feature/sqlite-full-migration"]
+  pull_request:
+    branches: ["feature/sqlite-full-migration"]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  sqlite-tests:
-    runs-on: ubuntu-latest
+  regression:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.9", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.9"
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
-      - name: Compile all Python modules
-        run: python -m compileall -q .
-      - name: SQLite migration, API, domain regression
-        run: >-
-          python -m pytest -q
-          tests/test_data_store.py
-          tests/test_storage_legacy_import.py
-          tests/test_package_layout.py
-          tests/test_orm_normalize.py
-          tests/test_orm_repository.py
-          tests/test_orm_operational.py
-          tests/test_orm_history.py
-          tests/test_orm_cutover.py
-          tests/test_domain_services.py
-          tests/test_sqlite_admin.py
-          tests/test_admin_diagnostics.py
-          tests/test_temperature_calibration.py
-          tests/test_python_runtime.py
-          tests/test_recipe_engine.py
-          tests/test_device_runtime.py
-          tests/test_panel.py
+      - name: Python syntax
+        run: python -m compileall -q setup storage panel tesseract_bridge tests
+      - name: Jinja syntax
+        run: python -c "from pathlib import Path; from jinja2 import Environment; [Environment().parse(p.read_text(encoding='utf-8')) for p in Path('setup/templates').glob('*.html')]"
+      - name: JavaScript syntax
+        run: |
+          node --check setup/static/setup.js
+          node --check panel/static/admin-sqlite.js
+          node --check panel/static/configuration.js
+      - name: Shell syntax (never install or start services in CI)
+        if: runner.os == 'Linux'
+        run: bash -n tools/install_service.sh tools/uninstall_service.sh tools/logs.sh
+      - name: Full regression, including setup
+        run: python -m pytest -q --junitxml=test-results/pytest.xml
+      - name: Publish test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-${{ matrix.os }}-python-${{ matrix.python }}
+          path: test-results/pytest.xml
+          if-no-files-found: ignore

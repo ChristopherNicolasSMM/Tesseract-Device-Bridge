@@ -1,0 +1,110 @@
+# Matriz de homologação — setup 2.0.0
+
+Atualização: 05/11/2026. Branch: feature/sqlite-full-migration.
+Estado: implementação das dez etapas entregue; homologação final ainda pendente.
+Não há merge em main, tag de release ou certificado de operação física.
+
+## Evidência recebida
+
+| Evidência | Fonte e limite |
+|---|---|
+| 604 testes aprovados no início | Execução Linux/Python 3.12 na auditoria inicial, antes das etapas posteriores |
+| 617 testes aprovados após núcleo | Execução do assistente para a Etapa 2, não resultado da versão atual |
+| 639 aprovados / 1 falha / 1 skip | Retorno Windows/Python 3.13 do usuário após Etapa 6; falha de isolamento corrigida depois |
+| 672 aprovados / 1 falha / 2 skips | Último retorno completo do usuário após Etapa 9; falha de isolamento do teste de serviço |
+| Correção 7e3e2a9 publicada | Isola pasta do teste e preserva sentinela; resultado após correção ainda não informado |
+| Verificações de sintaxe | Python/JSON/JS/shell conferidos na Etapa 9; não equivalem à suíte funcional |
+| CI anterior | Sem confirmação de sucesso da matriz ampliada; verificar execução real após publicação |
+| Raspberry físico/systemd/GLP | Sem homologação final registrada nesta conversa |
+
+Não transformar falhas corrigidas em aprovação presumida nem extrapolar um teste
+simulado para fiação, chama, relés ou atuação real.
+
+## Execução automatizada
+
+Workflow .github/workflows/sqlite-branch.yml:
+Ubuntu e Windows; Python 3.9 e 3.13; suíte completa com JUnit.
+Sintaxe Python, Jinja, JavaScript e shell (Linux). Nenhum script de instalação de
+serviço, GPIO real ou comando de início físico é executado pelo CI.
+Consulte [Actions](https://github.com/ChristopherNicolasSMM/Tesseract-Device-Bridge/actions).
+
+Validação local:
+
+```powershell
+git pull --ff-only origin feature/sqlite-full-migration
+python -m pip install -r requirements.txt
+python -m pytest -q
+python -m setup.doctor
+python -m setup
+```
+
+Registre commit real, SO, versão Python, totais passed/failed/skipped, duração e
+motivo de cada skip. Não use número fixo esperado como condição de aceite:
+novos testes e skips específicos de plataforma alteram os totais.
+
+## Aceite por cenário
+
+| Cenário | Cobertura automatizada principal | Aceite manual / situação |
+|---|---|---|
+| Clone sem .env/DB | test_setup, subprocesso HTTP mínimo e sentinela de imports | Confirmar clone limpo Windows e Pi |
+| ORM vazio sem fake device | test_setup_bootstrap, test_setup_publication | Abrir configuração administrativa sem runtime |
+| YAML/JSON sem SQLite | test_setup_legacy | Dados reais anonimizados e hashes originais preservados |
+| SQLite legado/ORM | test_setup_sqlite_import | Revisões antigas, valores reais e tamanhos usuais |
+| Importação parcial | test_setup_partial | Conferir entidades rejeitadas e relatório |
+| Grid, upload e modal | test_setup_browser_import | Seleção, mapeamento público/privado, XSS/redação visual |
+| i18n e temas | test_setup_i18n, test_dark_select_css | pt_BR/en, dark/light, Windows selects e celular |
+| Infraestrutura | test_setup_infrastructure | Portas ocupadas, IPv4/IPv6, host local/nominal e permissão |
+| Credencial | test_setup_security, test_admin_security_policy | Exibição única, curto, Unicode, sem token e túnel SSH |
+| Origem/CSRF remoto | test_setup, test_admin_security_policy | Rejeição cross-origin/proxy e sessões após reinício |
+| Cancelamento/lock | test_setup, test_setup_partial | Duas instâncias e encerramento abrupto |
+| Publicação e rollback | test_setup_publication | Interrupção real em equipamento de teste e perda de energia |
+| Arquivo final existente | test_setup_publication | Nenhuma sobrescrita de DB/.env sem regras previstas |
+| Serviço opcional | test_setup_service (geração) | systemd-analyze, instalar/habilitar/iniciar/remover em Pi |
+| Modo configurado | test_setup_publication, test_orm_cutover | Autorizar no setup; conferir intertravamentos e Python 3.9 |
+| Backup/restauração | Procedimento documentado | Restaurar conjunto em clone separado; não usar duas plantas reais |
+| Diagnóstico sem segredo | test_setup_doctor | Conferir saída compartilhável sem dados privados |
+
+## Roteiro Windows
+
+1. Confirmar pull e build 2.0.0-setup.10.
+2. Executar suíte completa sem erros de coleta.
+3. Clone descartável novo: instalar vazio; confirmar zero devices e tela administrativa.
+4. Importar pasta YAML/JSON por caminho e upload; acrescentar receita.json com destino explícito.
+5. Importar SQLite de backup consistente e tentar um arquivo desconhecido/corrompido.
+6. Conferir relatórios, credenciais mascaradas e ausência de alteração da origem.
+7. Repetir com os dois idiomas e temas; validar selects, modais e foco.
+8. Testar porta ocupada, CSRF após reinício e cancelamento.
+9. Interromper publicação somente em instalação descartável; retomar e testar rollback.
+10. Guardar resultados sanitizados e commit. Não anexar .env ou bases reais.
+
+## Roteiro Raspberry/systemd
+
+1. Clone e venv novos; preservar instalação antiga, backup e serviço anterior.
+2. Setup local ou túnel SSH; iniciar em simulação.
+3. Validar caminhos, banco e credencial; publicar sem iniciar hardware.
+4. Gerar unidade com usuário correto. Conferir Python absoluto, diretório e ownership.
+5. Instalar, habilitar e iniciar em ações separadas, inicialmente em simulação.
+6. Conferir logs, reinício controlado, boot sem desktop e portas.
+7. Remover somente a unidade gerada e conferir que a instalação antiga ficou intacta.
+8. Para operação física autorizada: usar ambiente Python 3.9 e verificar sensores,
+   emergência, failsafe, limites térmicos e corte de chama em condições apropriadas.
+   Testes de software não comprovam esses itens.
+9. Registrar modelo do Pi, OS, Python, bibliotecas, commit e resultado real.
+
+## Critério de encerramento
+
+A documentação/CI podem ser entregues sem declarar homologação concluída.
+Encerrar a homologação exige suíte atual aprovada, fluxo visual reproduzível em
+clone limpo, migração/rollback preservando origem e aceite de plataforma/serviço.
+O gate do código continua sendo conclusão válida do setup, como definido pelo usuário;
+o registro de homologação não cria uma nova barreira de software posterior ao setup.
+
+Registro final a preencher:
+- Commit:
+- Windows/Python e suíte:
+- Linux/Python e suíte:
+- Raspberry/OS/venv:
+- Serviço:
+- Fluxo visual/importação/restauração:
+- Hardware e intertravamentos:
+- Pendências e aceite do operador:

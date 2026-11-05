@@ -65,7 +65,7 @@
   "choose_files": "Choose files",
   "single_mapping": "Explicit destination for a single file",
   "auto_mapping": "Detect by filename",
-  "upload_hint": "YAML/JSON: up to 8 MiB per file and 32 MiB total. SQLite: up to 256 MiB. For receita.json, select its public or private destination.",
+  "upload_hint": "YAML/JSON: up to 8 MiB per file and 32 MiB total. SQLite: up to 256 MiB. For receita.json, select its public or private destination. Successive uploads add files to the inventory; duplicate destinations are rejected. Select a new source to start over.",
   "upload_inventory": "Upload and inspect",
   "inventory": "Source inventory",
   "select_all": "Select all",

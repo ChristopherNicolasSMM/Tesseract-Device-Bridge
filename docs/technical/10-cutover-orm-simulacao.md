@@ -1,8 +1,9 @@
-# 10 — Cutover ORM experimental (somente simulação) | 2.0.0
+# 10 — Sandbox ORM e histórico do cutover | 2.0.0
 
-> **Estado:** implementação em homologação, **não** autorizada para
-> Raspberry Pi físico ou cargas GLP. A `main` e `imported.sqlite3`
-> permanecem preservadas. O modo padrão continua sendo `legacy`.
+Este procedimento avançado preserva a validação em cópias isoladas anterior
+ao instalador. Para instalações atuais, use o [manual de setup](../manual/20-instalacao-migracao-2.0.0.md).
+A homologação física permanece pendente; o bloqueio do código termina após
+setup válido e autorização explícita do modo configurado.
 
 ## 0. Como saber qual banco está ativo
 
@@ -35,7 +36,7 @@ A validação de parâmetros utiliza os padrões de fábrica do
 **mesmo banco relacional** acessado pelo repositório.
 Assim, testes que constroem uma cópia ORM isolada não consultam
 a configuração global `.env` para encontrar `control_factory`.
-O modo ORM continua restrito à simulação e não existe escrita dupla.
+O sandbox deste roteiro usa simulação e não existe escrita dupla.
 
 ## Arquitetura e contratos
 
@@ -64,22 +65,17 @@ persistidos como registros relacionais na mesma transação.
 Atualizações de receitas preservam a chave da receita ativa e
 históricos anteriores.
 
-## Portão de segurança
+## Portão de segurança atual
 
-O processo recusa `STORAGE_MODE=orm` se:
+O runtime verifica caminho explícito, esquema ORM compatível e revisão Alembic.
+Instalações publicadas também exigem recibo consistente e identidade entre
+`.env` e banco. Publicação interrompida ou dados pendentes impedem operação
+física. O setup concluído pode autorizar o modo operacional; não existe um
+bloqueio ORM permanente adicional até outra entrega.
 
-1. `TESSERACT_BRIDGE_SIMULATION_ONLY` não estiver ativado;
-2. `TESSERACT_BRIDGE_DB` não tiver sido definido explicitamente;
-3. O arquivo não existir, não tiver modelos ORM ou não estiver na
-   versão Alembic `bridge_orm_0003`.
-
-O modo de simulação força MQTT desabilitado, backend simulado e
-`127.0.0.1` na porta de teste. Qualquer tentativa de operação ORM
-real gera erro em vez de reverter silenciosamente ao SQL legado.
-
-**Atenção:** esta proteção não substitui homologação de GPIO,
-intertravamentos, bombas, resistências, corte de chama, watchdog,
-recuperação ou controle de acesso. Não exponha o painel à Internet.
+Os sandboxes não publicados deste roteiro devem continuar em simulação.
+A simulação força backend simulado, MQTT desligado e painel em loopback.
+Intertravamentos e validações de hardware permanecem ativos.
 
 ## Procedimento de teste isolado no Windows
 
@@ -191,8 +187,8 @@ separadamente e aplique-as pelos meios regulares após validação.
   depois planejar fase de GPIO real e intertravamentos.
 - Consolidar migração de produção, backup, rollback e separação
   definitiva das tabelas legadas.
-- O backend real do ORM permanecerá bloqueado até autorização
-  explícita após homologação, não por simples alteração no `.env`.
+- A operação física exige setup válido e autorização explícita; editar apenas
+  o `.env` não substitui a publicação consistente.
 
 Leia também [Estado de cutover](09-status-cutover-v2.md) e
 [Normalização relacional](08-normalizacao-sqlalchemy.md).

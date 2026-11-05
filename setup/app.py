@@ -13,6 +13,7 @@ from flask import Flask, abort, jsonify, render_template, request, session
 
 from .state import InstallationState, SetupError
 from .i18n import catalog
+from .version import SETUP_BUILD
 from werkzeug.exceptions import HTTPException
 
 
@@ -22,7 +23,7 @@ def create_app(root=None, *, port=8090):
     app = Flask(__name__)
     from shared_ui import register_ui
     register_ui(app)
-    app.config["SETUP_BUILD"] = "2.0.0-setup.9"
+    app.config["SETUP_BUILD"] = SETUP_BUILD
     app.config["SETUP_PORT"] = port
     app.secret_key = secrets.token_bytes(32)
     app.config.update(MAX_CONTENT_LENGTH=257 * 1024 * 1024, MAX_FORM_PARTS=120, MAX_FORM_MEMORY_SIZE=512 * 1024, SESSION_COOKIE_HTTPONLY=True,

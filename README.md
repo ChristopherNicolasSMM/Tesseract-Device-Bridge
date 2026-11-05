@@ -33,6 +33,9 @@ do painel. Não exponha a interface à Internet.
 ## Documentação oficial da versão 2.0.0
 
 | Tema | Documento |
+| Instalador, migração e segurança | [Manual consolidado 2.0.0](docs/manual/20-instalacao-migracao-2.0.0.md) |
+| Backup, atualização e recuperação | [Manutenção](docs/manual/21-manutencao-recuperacao.md) |
+| Evidências e cenários pendentes | [Matriz de homologação](docs/homologacao/setup-2.0.0.md) |
 |---|---|
 | Introdução e visão geral | [01 — Introdução](docs/manual/01-introducao.md) |
 | Instalação no Windows/Raspberry Pi e `.env` | [02 — Primeiros passos](docs/manual/02-primeiros-passos.md) |
@@ -56,27 +59,24 @@ do painel. Não exponha a interface à Internet.
 ```powershell
 git clone --branch feature/sqlite-full-migration --single-branch https://github.com/ChristopherNicolasSMM/Tesseract-Device-Bridge.git Tesseract-Device-Bridge-SQLite
 cd Tesseract-Device-Bridge-SQLite
-py -3.9 -m venv venv
+python -m venv venv
 .\venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-Copy-Item .env.example .env
-notepad .env
+python -m setup
 ```
 
-Para instalação limpa, use `TESSERACT_BRIDGE_DB=./data/private/bridge.sqlite3`
-e `python -m storage.cli init`. Para importar uma instalação antiga,
-use `imported.sqlite3` e siga [o migrador](docs/manual/12-sqlite-migracao.md).
-
-No `.env`, mantenha `TESSERACT_BRIDGE_SIMULATION_ONLY=1` e
-`TESSERACT_BRIDGE_TEST_PANEL_PORT=8089`. Após existir o banco:
+Abra `http://127.0.0.1:8090` e conclua o assistente. Não é necessário criar
+`.env` ou banco antes do setup. A origem antiga será apenas lida.
+Após publicar a instalação em simulação:
 
 ```powershell
-python -m storage.cli status
-python -m pytest -q tests/test_infra_env.py tests/test_storage_legacy_import.py
+python -m setup.doctor
 python run_bridge.py
 ```
 
-Acesse `http://127.0.0.1:8089` na máquina de testes.
+Acesse `http://127.0.0.1:8089` na máquina de testes. O bloqueio ORM para
+operação física termina com a conclusão válida do setup e autorização do
+modo configurado; pendências mantêm a instalação em simulação.
 
 `run_bridge.py` executa o Bridge completo; `run_panel.py` abre apenas
 o painel. Ambos respeitam o modo de simulação da infraestrutura.
@@ -89,8 +89,8 @@ no Git**. Receitas com marcador `public:` e `private:` continuam
 diferenciadas no banco, mas **não** são automaticamente compartilhadas ou
 versionadas no Git.
 
-Em uma instalação nova, o banco começa simulado, com um sensor de
-demonstração e sem receitas. Para preservar a instalação anterior,
+Em uma instalação nova, o banco começa sem dispositivos ou receitas.
+O painel permite configurar o inventário sem inicializar hardware. Para preservar a instalação anterior,
 importe uma cópia consistente dos arquivos antigos; a origem não é
 modificada. Não use os arquivos YAML/JSON legados como configurações
 operacionais do novo runtime.

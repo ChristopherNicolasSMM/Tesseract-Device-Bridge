@@ -125,3 +125,24 @@ def test_preview_malformed_and_recursive_redaction(browser, tmp_path):
     p.write_text('!!python/object/apply:os.system [echo nope]', encoding='utf-8')
     with pytest.raises(yaml.YAMLError):
         parse_preview(p)
+
+
+def test_successive_uploads_preserve_inventory_and_reject_duplicates(browser):
+    app, client, base, csrf = browser
+    state = app.extensions['installation_state']
+    def upload(name, content, destination=''):
+        return client.post('/import/upload', base_url=base,
+            headers={'Origin': base}, content_type='multipart/form-data',
+            data={'csrf': csrf, 'kind': 'files', 'destination': destination,
+                  'files': (io.BytesIO(content), name)})
+    assert upload('devices.yml', b'devices: []').status_code == 303
+    first = Path(state.value['browser_source']['root'])
+    original = (first / 'devices.yml').read_bytes()
+    assert upload('receita.json', b'[]', 'data/public/receita.json').status_code == 303
+    desc = state.value['browser_source']
+    assert {row['path'] for row in desc['rows']} == {'devices.yml', 'data/public/receita.json'}
+    assert (Path(desc['root']) / 'devices.yml').read_bytes() == original
+    assert (first / 'devices.yml').read_bytes() == original
+    assert upload('devices.yml', b'devices: changed').status_code == 409
+    assert state.value['browser_source'] == desc
+    assert (Path(desc['root']) / 'devices.yml').read_bytes() == original

@@ -15,7 +15,9 @@ A versão 2.0.0 usa o banco SQLite como fonte operacional. O painel apresenta:
 
 ## 1. O token de administrador
 
-No `.env` do clone, configure um valor exclusivo:
+Prefira configurar a credencial no setup (gerada, personalizada ou acesso local
+sem token). O setup pode serializar o token em `TESSERACT_BRIDGE_ADMIN_TOKEN_B64`;
+Base64 não é criptografia. Para configuração manual compatível:
 
 ```dotenv
 TESSERACT_BRIDGE_ADMIN_TOKEN=COLE_AQUI_UM_TOKEN_SEGURO
@@ -28,7 +30,9 @@ Gere com `python -c "import secrets; print(secrets.token_urlsafe(32))"`. Reinici
 3. Informe o token no campo **Token de administrador**.
 4. Clique **Desbloquear**.
 
-Se o token estiver incorreto, a API responderá 401; se não estiver configurado, a administração será desabilitada (503). O token do formulário é mantido na memória da página, não é salvo no `localStorage`. Ele **não é** senha do SQLite nem substitui autenticação completa do painel.
+Se o token estiver incorreto, a API responderá 401; sem token e sem política local explícita, a administração será desabilitada (503).
+Com `TESSERACT_BRIDGE_LOCAL_ADMIN=1`, a administração sem token exige cliente e
+Host de loopback, origem válida e CSRF; proxies e administração remota são recusados. O token do formulário é mantido na memória da página, não é salvo no `localStorage`. Ele **não é** senha do SQLite nem substitui autenticação completa do painel.
 
 ## 2. Editar um dispositivo
 
@@ -81,7 +85,8 @@ pela fachada `storage/store_router.py`. No modo ORM, rascunhos,
 revisões e eventos são registros relacionais, gravados na cópia
 normalizada, sem alterações no banco legado. O token e as regras de
 não alterar hardware durante sessões ativas permanecem obrigatórios.
-A implantação física continua pendente.
+A homologação física continua pendente. O bloqueio ORM termina após setup
+válido e autorização do modo configurado; pendências mantêm simulação.
 
 Leia [Cutover ORM em simulação](../technical/10-cutover-orm-simulacao.md).
 
