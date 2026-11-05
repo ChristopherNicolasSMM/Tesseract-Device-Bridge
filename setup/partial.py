@@ -19,8 +19,8 @@ def collect_partial(source, devices_file, *, disable_invalid_remote_control=Fals
     events = []
     try:
         snapshot = collect(working, **options)
-    except Exception:
-        return None, [event('blocking_error', 'devices_invalid', file=devices_file)]
+    except Exception as exc:
+        return None, [event('blocking_error', devices_error_code(exc), file=devices_file)]
     # Keep reference dependencies before active recipe/session pointers.
     order = ['data/control_defaults.json', 'data/private/control_settings.json',
              'data/public/receita_base.yaml', 'recipe.yml',
@@ -67,3 +67,20 @@ def collect_partial(source, devices_file, *, disable_invalid_remote_control=Fals
                 snapshot = current
     events.append(event('imported', 'legacy_validated'))
     return snapshot, events
+
+
+def devices_error_code(exc):
+    """Map known validation failures to static messages; never expose source values."""
+    text = str(exc)
+    if 'ao menos um device' in text:
+        return 'devices_empty'
+    if 'sem state_topic' in text:
+        return 'devices_remote_invalid'
+    if 'campo(s) obrigatório(s)' in text:
+        return 'devices_required'
+    if 'objeto YAML' in text:
+        return 'devices_object_required'
+    import yaml
+    if isinstance(exc, yaml.YAMLError):
+        return 'devices_yaml_invalid'
+    return 'devices_invalid'

@@ -70,10 +70,12 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
     const kind = byId('source-kind');
-    const syncFolderKind = () => { byId('browse-source').disabled = kind.value !== 'directory'; };
+    const syncFolderKind = () => { byId('browse-source').disabled = false; };
     kind.addEventListener('change', syncFolderKind); syncFolderKind();
     byId('browse-source').addEventListener('click', () => {
-      folderDialog.showModal(); navigateFolder(byId('source-path').value);
+      if (!folderDialog.open) folderDialog.showModal();
+      const input = cleanPath(byId('source-path').value);
+      navigateFolder(kind.value === 'sqlite' && /\.(sqlite3?|db)$/i.test(input) ? '' : input);
     });
     byId('folder-path').addEventListener('input', () => {
       currentFolder = ''; byId('folder-select').disabled = true;
@@ -88,7 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (currentFolder) { byId('source-path').value = currentFolder; folderDialog.close(); }
     });
     document.querySelectorAll('[data-folder-close]').forEach(button => button.addEventListener('click', () => folderDialog.close()));
-    folderDialog.addEventListener('close', () => { navigation++; });
+    folderDialog.addEventListener('close', () => { if (!folderDialog.open) navigation++; });
   }
   document.querySelectorAll('form').forEach(form => form.addEventListener('submit', async event => {
     if (!window.fetch) return;

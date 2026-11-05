@@ -109,9 +109,21 @@ def import_directory(state, source, *, selected=None, disable_invalid_remote_con
         snapshot, events = collect_partial(snapshot_dir, next(iter(devices)),
             disable_invalid_remote_control=disable_invalid_remote_control)
     else:
-        snapshot = collect(snapshot_dir, devices_file=next(iter(devices)),
-            disable_invalid_remote_control=disable_invalid_remote_control)
-        events = [event('imported', 'legacy_validated')]
+        from .partial import devices_error_code
+        from storage.legacy_import import _normalize_legacy_config
+        import yaml
+        devices_file = next(iter(devices))
+        try:
+            with (snapshot_dir / devices_file).open(encoding='utf-8') as stream:
+                _normalize_legacy_config(yaml.safe_load(stream) or {},
+                    disable_invalid_remote_control=disable_invalid_remote_control)
+        except Exception as exc:
+            snapshot = None
+            events = [event('blocking_error', devices_error_code(exc), file=devices_file)]
+        else:
+            snapshot = collect(snapshot_dir, devices_file=devices_file,
+                disable_invalid_remote_control=disable_invalid_remote_control)
+            events = [event('imported', 'legacy_validated')]
     if snapshot is None:
         report = dict(version=1, status='needs_review', database=None, files=hashes,
                       needs_review=True, runtime_authorized=False, events=events)

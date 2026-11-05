@@ -202,3 +202,44 @@ def test_resumed_inventory_filters_old_ignored_rows(browser):
     assert page.status_code == 200
     assert b'README.md' not in page.data
     assert b'Select the old installation root' in page.data
+
+
+def test_sqlite_folder_inventory_and_single_selection(browser, tmp_path):
+    from storage.sqlite_store import initialize
+    app, client, base, csrf = browser
+    old = tmp_path / 'previous'
+    folder = old / 'data' / 'private'
+    folder.mkdir(parents=True)
+    initialize(folder / 'old.sqlite3')
+    (folder / 'notes.md').write_text('ignored')
+    response = client.post('/import/discover', base_url=base, headers={'Origin': base},
+        data={'csrf': csrf, 'source': str(old), 'kind': 'sqlite'})
+    assert response.status_code == 303
+    desc = app.extensions['installation_state'].value['browser_source']
+    assert len(desc['rows']) == 1
+    row = desc['rows'][0]
+    assert row['path'] == 'data/private/old.sqlite3'
+    assert row['status'] == 'supported'
+    assert client.get('/import/preview/' + row['id'], base_url=base).status_code == 200
+    response = client.post('/import/run', base_url=base, headers={'Origin': base},
+        data={'csrf': csrf, 'selected': row['id']})
+    assert response.status_code == 303
+    assert app.extensions['installation_state'].value['browser_report']['database']
+
+
+def test_empty_devices_has_actionable_report_in_both_modes(browser, tmp_path):
+    app, client, base, csrf = browser
+    old = tmp_path / 'previous'
+    old.mkdir()
+    (old / 'devices.yml').write_text('devices: []\n')
+    client.post('/import/discover', base_url=base, headers={'Origin': base},
+        data={'csrf': csrf, 'source': str(old), 'kind': 'directory'})
+    for partial in ('0', '1'):
+        response = client.post('/import/run', base_url=base, headers={'Origin': base},
+            data={'csrf': csrf, 'selected': '0', 'allow_partial': partial})
+        assert response.status_code == 303
+        report = app.extensions['installation_state'].value['browser_report']
+        assert report['database'] is None
+        assert report['events'][0]['code'] == 'devices_empty'
+    assert client.post('/abort', base_url=base, headers={'Origin': base},
+        data={'csrf': csrf}).status_code == 303

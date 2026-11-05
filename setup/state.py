@@ -86,9 +86,16 @@ class InstallationState:
     def abort(self):
         receipt = self.root / "data/private/installation.json"
         if receipt.exists() or receipt.is_symlink():
-            raise SetupError("Publication exists. Recover or explicitly roll back before cancelling.")
+            error = SetupError("Publication exists. Recover or explicitly roll back before cancelling.")
+            error.code = 'abort_publication_exists'
+            raise error
         if self.value["status"] == "in_progress":
             path = self.staging()
             if path.exists():
-                shutil.rmtree(path)
+                try:
+                    shutil.rmtree(path)
+                except OSError as exc:
+                    error = SetupError('Temporary files could not be removed; close programs using them and retry.')
+                    error.code = 'abort_files_busy'
+                    raise error from exc
         self.save(dict(version=1, status="new", language=self.value["language"], attempt=None))

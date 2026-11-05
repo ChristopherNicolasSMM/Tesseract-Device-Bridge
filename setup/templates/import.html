@@ -51,10 +51,10 @@
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <div class="setup-table-scroll">
     <table class="setup-table">
-      <thead><tr><th><input type="checkbox" data-select-all aria-label="{{ t.select_all }}"></th>
+      <thead><tr><th>{% if source.kind != 'sqlite' %}<input type="checkbox" data-select-all aria-label="{{ t.select_all }}">{% endif %}</th>
         <th>{{ t.file_name }}</th><th>{{ t.format }}</th><th>{{ t.records }}</th><th>{{ t.compatibility }}</th><th>{{ t.preview }}</th></tr></thead>
       <tbody>{% for row in source.rows %}<tr>
-        <td><input type="checkbox" name="selected" value="{{ row.id }}" aria-label="{{ row.path }}" {% if row.status != 'supported' %}disabled{% endif %}></td>
+        <td><input type="{{ 'radio' if source.kind == 'sqlite' else 'checkbox' }}" name="selected" value="{{ row.id }}" aria-label="{{ row.path }}" {% if row.status != 'supported' %}disabled{% endif %}></td>
         <td><code>{{ row.path }}</code><small>{{ row.bytes }} bytes</small></td>
         <td>{{ row.format }}</td><td>{{ row.count if row.count is not none else '—' }}</td>
         <td><span class="setup-badge">{{ t.get(row.status, row.status) }}</span></td>

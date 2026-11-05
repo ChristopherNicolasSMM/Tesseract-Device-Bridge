@@ -70,3 +70,21 @@ python -m pytest tests/test_setup.py -q
 O diagnóstico não abre o banco ou o `.env` para revelar conteúdo e não repara
 arquivos. O núcleo genérico de configuração/persistência/layout fica em
 `reusable/guided_setup/`; veja o [guia de reaproveitamento](../modules/guided-setup/README.md).
+
+### Revisão da importação — setup.13
+
+No modo SQLite, informe o arquivo ou selecione uma pasta. A descoberta procura
+`.sqlite3`, `.sqlite` e `.db` na pasta e em `data/`, `data/public/` e `data/private/`,
+sem busca recursiva irrestrita. Selecione apenas um banco por importação. Bancos
+não importáveis aparecem desabilitados; pare a instalação antiga e forneça um
+backup consistente, sem arquivos WAL/SHM/journal pendentes.
+
+A importação parcial não ignora uma configuração de dispositivos inválida. O
+relatório diferencia lista vazia, campos obrigatórios ausentes, YAML inválido e
+controle remoto sem tópico de estado, sem mostrar valores ou credenciais. Para
+configuração vazia, use o fluxo de instalação sem dados. Outras falhas de esquema
+ainda exigem revisar uma cópia do arquivo; não habilite hardware para contorná-las.
+
+Se o descarte falhar, o diagnóstico distingue publicação existente de arquivos
+bloqueados. No primeiro caso use recuperação/rollback; no segundo feche o programa
+que usa os temporários e repita. A tentativa permanece disponível para repetição.

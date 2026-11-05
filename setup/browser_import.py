@@ -98,7 +98,7 @@ def inventory_rows(root):
     return rows
 
 
-def sqlite_source(value, path):
+def sqlite_source(value, path, *, persist=True):
     from .sqlite_import import capture, inspect
     job = Path(tempfile.mkdtemp(prefix='sqlite-source-', dir=str(value.staging())))
     copied = job / 'source.sqlite3'
@@ -107,10 +107,13 @@ def sqlite_source(value, path):
     with closing(sqlite3.connect(copied.as_uri() + '?mode=ro', uri=True)) as conn:
         table = 'bridge_devices_v2' if kind == 'orm' else 'devices'
         count = conn.execute('SELECT count(*) FROM ' + table).fetchone()[0]
-    remember(value, {'kind': 'sqlite', 'root': str(copied),
+    desc = {'kind': 'sqlite', 'root': str(copied),
         'rows': [dict(id='0', path=Path(path).name, bytes=copied.stat().st_size,
                       format='sqlite', status='supported', count=count)],
-        'metadata': dict(kind=kind, revision=revision, devices=count)})
+        'metadata': dict(kind=kind, revision=revision, devices=count)}
+    if persist:
+        remember(value, desc)
+    return desc
 
 
 @bp.get('/')
@@ -155,7 +158,27 @@ def discover_source():
     if not path or len(path) > 2048:
         raise SetupError('Choose a source.')
     if request.form.get('kind') == 'sqlite':
-        sqlite_source(value, path)
+        source_path = Path(path).expanduser()
+        if source_path.is_dir():
+            from .sqlite_import import discover_databases
+            candidates = discover_databases(source_path)
+            source_path = source_path.resolve()
+            rows = []
+            for candidate in candidates:
+                # Validate private snapshots; never open the original for writes.
+                try:
+                    captured = sqlite_source(value, candidate, persist=False)
+                except (SetupError, OSError, sqlite3.Error):
+                    rows.append(dict(id=str(len(rows)), path=candidate.relative_to(source_path).as_posix(),
+                                     bytes=candidate.stat().st_size, format='sqlite', status='unsupported', count=None))
+                    continue
+                row = dict(captured['rows'][0], id=str(len(rows)),
+                           path=candidate.relative_to(source_path).as_posix(),
+                           captured=captured['root'], metadata=captured['metadata'])
+                rows.append(row)
+            remember(value, dict(kind='sqlite', root=None, rows=rows))
+        else:
+            sqlite_source(value, path)
     elif request.form.get('kind') == 'directory':
         root = _root(path)
         if root == value.root or root.is_relative_to(value.root) or value.root.is_relative_to(root):
@@ -256,7 +279,7 @@ def preview(entry_id):
     if row is None or row['status'] != 'supported':
         abort(404)
     if desc['kind'] == 'sqlite':
-        return jsonify(text=json.dumps(desc['metadata'], indent=2), code='preview_ready', count=row['count'])
+        return jsonify(text=json.dumps(row.get('metadata', desc.get('metadata')), indent=2), code='preview_ready', count=row['count'])
     try:
         result = parse_preview(_safe(Path(desc['root']), row['path']))
     except Exception:
@@ -275,7 +298,10 @@ def run_import():
     try:
         if desc['kind'] == 'sqlite':
             from .sqlite_import import import_sqlite
-            report = import_sqlite(value, desc['root'], _owned_capture=True)
+            if len(selected) != 1:
+                raise SetupError('Choose exactly one SQLite file.')
+            row = next(row for row in desc['rows'] if row['id'] == selected[0])
+            report = import_sqlite(value, row.get('captured', desc['root']), _owned_capture=True)
         else:
             from .legacy import import_directory
             report = import_directory(value, desc['root'], selected=[allowed[key] for key in selected],

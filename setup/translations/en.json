@@ -58,7 +58,7 @@
   "server_paths": "The path must exist on the computer running setup.",
   "source_kind": "Source type",
   "legacy_folder": "Previous installation directory",
-  "sqlite_file": "SQLite database",
+  "sqlite_file": "SQLite (file or folder)",
   "source_path": "Source path",
   "upload": "Upload in browser",
   "legacy_files": "YAML/JSON files",
@@ -188,5 +188,13 @@
   "folder_unavailable": "Could not open this folder. Check its path and the setup user permissions.",
   "folder_invalid": "Enter a valid folder path.",
   "inventory_filter": "Only file names and paths recognized by migration are listed. Documentation, code, .env and unrelated files are excluded from the grid and are not imported.",
-  "inventory_empty": "No recognized files in this folder. Select the old installation root or upload compatible files."
+  "inventory_empty": "No recognized files in this folder. Select the old installation root or upload compatible files.",
+  "devices_empty": "devices.yml contains no devices. For an empty installation, cancel this attempt and start without data; partial import does not create devices.",
+  "devices_remote_invalid": "Remote control is enabled without state_topic. Fix a copy with a real topic or explicitly disable hardware.remote_control in that copy.",
+  "devices_required": "A device is missing required id, name, role or hardware fields. Review a copy of devices.yml.",
+  "devices_object_required": "devices.yml must contain a YAML object with a devices list.",
+  "devices_yaml_invalid": "Invalid YAML syntax in devices.yml. Review indentation and structure in a copy.",
+  "abort_files_busy": "Temporary files could not all be removed. Close programs using them and retry cancellation. Attempt state was preserved.",
+  "abort_publication_exists": "A publication receipt exists. Use recovery or rollback on the completion page before cancelling.",
+  "unsupported": "Not importable: invalid schema, database in use or incompatible format"
 }

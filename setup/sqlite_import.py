@@ -125,3 +125,24 @@ def import_sqlite(state, source, *, _owned_capture=False):
               'events': [event('imported', 'sqlite_validated')]}
     save_report(job, report)
     return report
+
+
+def discover_databases(source):
+    """Bounded, nonrecursive search in the selected folder and known data locations."""
+    from .legacy import _root, _safe, MAX_ENTRIES
+    root = _root(source)
+    found = []
+    entries = 0
+    for relative in ('.', 'data', 'data/public', 'data/private'):
+        directory = _safe(root, relative)
+        if not directory.is_dir():
+            continue
+        for path in sorted(directory.iterdir()):
+            entries += 1
+            if entries > MAX_ENTRIES:
+                raise SetupError('Too many source entries.')
+            if path.suffix.lower() in ('.sqlite3', '.sqlite', '.db'):
+                path = _safe(root, path.relative_to(root))
+                if path.is_file():
+                    found.append(path)
+    return found

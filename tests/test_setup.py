@@ -236,3 +236,23 @@ def test_actual_cli_in_clean_clone(tmp_path):
     finally:
         process.terminate()
         process.communicate(timeout=10)
+
+
+def test_abort_busy_preserves_attempt_for_retry(tmp_path, monkeypatch):
+    import shutil
+    state = InstallationState(tmp_path / 'clone')
+    try:
+        state.start('en')
+        original = shutil.rmtree
+        def busy(path):
+            raise PermissionError('locked')
+        monkeypatch.setattr(shutil, 'rmtree', busy)
+        with pytest.raises(SetupError) as error:
+            state.abort()
+        assert error.value.code == 'abort_files_busy'
+        assert state.value['status'] == 'in_progress'
+        monkeypatch.setattr(shutil, 'rmtree', original)
+        state.abort()
+        assert state.value['status'] == 'new'
+    finally:
+        state.close()

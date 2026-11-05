@@ -58,7 +58,7 @@
   "server_paths": "O caminho informado deve existir no computador onde o setup está executando.",
   "source_kind": "Tipo de origem",
   "legacy_folder": "Pasta da instalação anterior",
-  "sqlite_file": "Banco SQLite",
+  "sqlite_file": "SQLite (arquivo ou pasta)",
   "source_path": "Caminho da origem",
   "upload": "Enviar pelo navegador",
   "legacy_files": "Arquivos YAML/JSON",
@@ -188,5 +188,13 @@
   "folder_unavailable": "Não foi possível abrir esta pasta. Confira o caminho e a permissão do usuário do setup.",
   "folder_invalid": "Informe um caminho de pasta válido.",
   "inventory_filter": "Mostramos somente arquivos nos nomes e caminhos reconhecidos pela migração. Documentação, código, .env e outros arquivos ficam fora da grade e não são importados.",
-  "inventory_empty": "Nenhum arquivo reconhecido nesta pasta. Selecione a raiz da instalação antiga ou envie os arquivos compatíveis pelo navegador."
+  "inventory_empty": "Nenhum arquivo reconhecido nesta pasta. Selecione a raiz da instalação antiga ou envie os arquivos compatíveis pelo navegador.",
+  "devices_empty": "O devices.yml não contém dispositivos. Para uma instalação vazia, descarte a tentativa e escolha começar sem dados; a importação parcial não cria dispositivos.",
+  "devices_remote_invalid": "Há controle remoto habilitado sem state_topic. Corrija uma cópia do devices.yml com um tópico real ou desative explicitamente hardware.remote_control nessa cópia.",
+  "devices_required": "Um dispositivo não contém os campos obrigatórios id, name, role ou hardware. Revise a cópia do devices.yml.",
+  "devices_object_required": "O devices.yml deve conter um objeto YAML com a lista devices.",
+  "devices_yaml_invalid": "A sintaxe YAML do devices.yml é inválida. Revise a indentação e a estrutura em uma cópia.",
+  "abort_files_busy": "Não foi possível remover todos os temporários. Feche programas que estejam usando esses arquivos e tente descartar novamente. O estado da tentativa foi preservado.",
+  "abort_publication_exists": "Já existe um registro de publicação. Use a recuperação ou o rollback na conclusão antes de descartar os temporários.",
+  "unsupported": "Não importável: esquema inválido, banco em uso ou formato incompatível"
 }
