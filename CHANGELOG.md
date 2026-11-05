@@ -1,3 +1,13 @@
+## 2026-11-05 — Consolidação dos manuais e documentação técnica
+
+- Atualizados guias de instalação, caminhos, FAQ, telas do setup, segurança e serviço
+  para o fluxo atual setup.11, sem criação manual de banco/.env no clone limpo.
+- Alinhados contratos de persistência, layout/i18n e organização aos módulos reutilizáveis.
+- Documentados monitor serial sem cadastro, configuração inicial vazia, esquema ORM
+  atual e fronteiras de manutenção/expansão; referências legacy/históricas identificadas.
+- Índice e matriz de homologação atualizados sem presumir aprovação após a correção 2133f7e.
+- Alterações apenas documentais; não mudam schema, código, build ou autorização operacional.
+
 ## 2026-11-05 — Correção do teste de clone mínimo
 
 - O teste CLI copia também `reusable/`, dependência extraída do setup, preservando

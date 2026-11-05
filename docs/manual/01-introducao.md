@@ -15,7 +15,7 @@ editar `devices.yml` ou `receita.json` para fazer manutenção cotidiana.
 O painel oferece cinco áreas:
 
 - **Painel:** sensores e atuadores em tempo real.
-- **Gerenciamento:** inventário e **Administração SQLite** com token,
+- **Gerenciamento:** inventário e **Administração SQLite** com token ou política local explícita,
   rascunhos, validação, aprovação, backups e auditoria.
 - **Receitas:** execução, status, etapas, temporizadores e alarmes.
 - **Configurações:** controles térmicos e calibração individual.
@@ -23,6 +23,16 @@ O painel oferece cinco áreas:
 
 Para teste, o `.env` define o banco, a porta e o bloqueio
 `SIMULATION_ONLY=1`. O backend simulado não opera GPIO real nem MQTT.
+
+## Instalação e diagnóstico
+
+O clone novo abre `python -m setup` sem banco ou .env prévios. A importação
+usa cópias privadas, sem modificar a instalação antiga. O monitor serial
+administrativo permite testar abertura e ler portas sem cadastro, inclusive
+na configuração inicial vazia; atua nas portas do servidor.
+
+Consulte o [manual consolidado](20-instalacao-migracao-2.0.0.md) e o
+[guia de diagnóstico](14-diagnostico-hardware.md).
 
 ## Segurança física
 

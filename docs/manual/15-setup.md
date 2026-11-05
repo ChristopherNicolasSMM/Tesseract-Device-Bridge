@@ -1,69 +1,72 @@
-# Instalador independente — Etapa 2
+# 15 — Assistente de instalação
 
-O núcleo do assistente já está disponível. Esta entrega prepara uma tentativa,
-seleciona idioma e permite retomada/cancelamento. Ainda não importa dados,
-publica banco, escreve `.env`, instala serviço ou libera operação física.
+Referência atual: **2.0.0-setup.11**, branch `feature/sqlite-full-migration`.
+O [manual consolidado](20-instalacao-migracao-2.0.0.md) cobre o fluxo completo;
+este guia descreve abertura, retomada e cancelamento.
 
-## Executar
+## Iniciar sem configuração anterior
 
-Na raiz do clone da branch `feature/sqlite-full-migration`, após instalar
-`requirements.txt` no ambiente virtual:
-
-Windows / PowerShell:
+Após clonar a branch e instalar `requirements.txt` na venv, execute na raiz:
 
 ```powershell
-.\venv\Scripts\Activate.ps1
 python -m setup
 ```
 
-Linux / Raspberry Pi:
+Não copie `.env.example` nem crie SQLite antes de abrir o assistente.
+Acesse `http://127.0.0.1:8090` ou `http://localhost:8090`, conforme a URL impressa.
+Se a porta estiver ocupada, use `python -m setup --port 8091` e a porta correspondente
+no navegador. Reinicie o processo depois de atualizar o código e recarregue a página.
 
-```bash
-source venv/bin/activate
-python -m setup
-```
+O assistente tem cinco telas: idioma/aparência, dados, infraestrutura, credencial
+e conclusão. Pode criar ORM vazio ou importar dados antigos em staging, revisar
+pendências, preparar configuração e publicar a instalação com confirmação.
+Abrir o setup não inicializa DeviceRuntime, GPIO, painel operacional ou MQTT.
 
-Abra `http://127.0.0.1:8090`. Também é permitido `http://localhost:8090`. O assistente aceita somente
-hosts locais explícitos e valida a porta e a origem dos formulários. Se a porta estiver ocupada, use `python -m setup --port 8091` e abra a URL
-impressa. O servidor fica limitado a loopback, sem debugger ou reloader, e não
-carrega o painel operacional, GPIO, MQTT ou variáveis do `.env`.
+## Acesso ao Raspberry
 
-Para acessar um Raspberry a partir de outro computador, mantenha o assistente
-no Pi e abra um túnel no computador:
+O servidor escuta somente em loopback, sem debugger/reloader. No computador cliente:
 
 ```bash
 ssh -N -L 8090:127.0.0.1:8090 usuario@raspberry
 ```
 
-Abra `http://127.0.0.1:8090` no computador. Use a mesma porta nos dois lados
-para manter a validação de origem. Não publique o setup por proxy ou na rede.
+Abra a URL local no computador; mantenha a mesma porta nas duas pontas do túnel.
+Formulários exigem sessão/CSRF e origem local correspondente. Não exponha o
+instalador por proxy público. Caminhos digitados pertencem ao servidor; arquivos
+no computador cliente devem ser enviados por upload.
 
-## Estado e cancelamento
+## Retomar e cancelar
 
-Continuar salva idioma e inicia/retoma a mesma tentativa. Ctrl+C encerra o
-servidor e preserva o estado. Reinicie o comando para retomar; a sessão HTTP
-é nova a cada execução. Somente um processo do instalador pode operar por vez.
+Ctrl+C encerra o servidor e preserva a tentativa. Execute novamente para retomar.
+A sessão HTTP é nova: recarregue a página antes de enviar formulários.
+Somente um processo pode manter o lock da instalação.
 
-Cancelar remove somente o diretório temporário identificado pela tentativa e
-volta ao estado inicial. Outros arquivos, bancos e instalações ficam preservados.
-O manifesto e o lock ficam em `data/private/setup/`, fora do Git. Não edite esses
-arquivos manualmente. Estado corrompido ou de versão desconhecida impede o
-início e é preservado para diagnóstico. Falta de permissão exige corrigir o
-acesso do usuário ao clone; o servidor não precisa executar como root.
+Antes de publicar, Cancelar remove somente o staging identificado pela tentativa.
+Arquivos da instalação antiga permanecem intactos. Manifesto e lock ficam em
+`data/private/setup/`; não os edite manualmente. Estado desconhecido/corrompido
+impede continuar e fica preservado para diagnóstico.
 
-## Continuidade
+Depois de iniciada a publicação, use as ações de recuperação da tela Concluir.
+Cancelar não remove uma instalação publicada. Consulte [recuperação e serviço](19-conclusao-servico.md).
 
-O bloqueio experimental ORM será substituído, nas próximas entregas, pela
-verificação de conclusão válida do setup. Não haverá uma etapa extra obrigatória
-de homologação depois do setup para liberar o ORM real. Escolha simulada,
-pendências críticas e configuração incompleta continuam bloqueando operação
-física. Os intertravamentos operacionais serão preservados.
+## Modo de operação
 
-## Preparação vazia — Etapa 3
+Instalação vazia não recebe dispositivos ou receitas fictícias e é publicada em
+simulação. O Bridge abre a configuração administrativa sem criar runtime físico;
+o monitor serial fica disponível para diagnóstico explícito, mesmo sem cadastro.
 
-Após iniciar a tentativa, o botão de preparar banco vazio cria o ORM no diretório
-privado temporário da tentativa. Aplica Alembic até 0003 e configura cabeçalhos
-simulados, MQTT desativado e perfis de controle padrão. Nenhum dispositivo ou
-receita fictícia é criado. Repetir a ação verifica o banco sem sobrescrevê-lo.
-Cancelar descarta o staging. O banco definitivo e o .env ainda não são publicados.
-A ausência de dispositivos continua impedindo iniciar o runtime operacional.
+A autorização ORM para modo configurado depende da conclusão válida e explícita
+do setup. Pendências e publicação interrompida mantêm o bloqueio físico. Não há
+uma etapa adicional obrigatória de homologação ORM após concluir; isso não remove
+intertravamentos nem constitui homologação física do equipamento.
+
+## Diagnóstico e validação
+
+```powershell
+python -m setup.doctor
+python -m pytest tests/test_setup.py -q
+```
+
+O diagnóstico não abre o banco ou o `.env` para revelar conteúdo e não repara
+arquivos. O núcleo genérico de configuração/persistência/layout fica em
+`reusable/guided_setup/`; veja o [guia de reaproveitamento](../modules/guided-setup/README.md).

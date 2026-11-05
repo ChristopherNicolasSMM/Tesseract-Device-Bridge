@@ -1,9 +1,8 @@
-# Assistente visual de importação — Etapa 6
+# 16 — Assistente visual de importação
 
 ## Atualizar e identificar a versão
 
-Encerre o setup com Ctrl+C antes do pull. A tela sem CSS e a ausência do teste
-test_setup_partial.py indicam cópia anterior às Etapas 4/5.
+Encerre o setup com Ctrl+C antes do pull. Se os recursos estiverem ausentes, confira a versão e as dependências do clone.
 Não aplique patches antigos sobre esta atualização.
 
 ```powershell
@@ -16,7 +15,7 @@ python -m setup
 ```
 
 Se o pull falhar, preserve alterações locais e resolva a divergência antes de
-iniciar o setup. O terminal e o cabeçalho devem mostrar 2.0.0-setup.6.
+iniciar o setup. O terminal e o cabeçalho devem mostrar 2.0.0-setup.11.
 GET /setup-version informa o mesmo identificador.
 Abra http://127.0.0.1:8090 e recarregue a página após cada reinício do servidor.
 O cookie é específico da porta; CSRF continua obrigatório. Origin deve coincidir;
@@ -44,8 +43,8 @@ CSS/JS usam versão na URL e no-store para evitar recursos antigos em cache.
 7. Revise categorias importado/advertência/erro bloqueante/ignorado.
 8. Confirme revisão para voltar à página inicial ou cancele a tentativa.
 
-Confirmar revisão não conclui instalação nem libera operação física. Infraestrutura,
-.env, token, publicação e serviço continuam nas Etapas 7–9.
+Confirmar revisão não conclui instalação nem libera operação física. Continue
+pelas telas Infraestrutura, Credencial e Concluir instalação.
 O indicador informa requisição em processamento, sem porcentagem fictícia; logs
 são apresentados ao final. Enquanto o servidor síncrono processa uma importação,
 cancelamento não interrompe uma escrita em andamento: aguarde a resposta e depois
@@ -58,14 +57,17 @@ para revisão/repetição, sem publicar banco definitivo.
 - SQLite: 256 MiB, apenas backup consistente sem WAL/SHM/journal.
 - HTTP: 257 MiB, até 120 partes; nomes/caminhos e limites internos revalidados.
 - receita.json tem destino ambíguo: envie isoladamente e selecione público/privado.
-- Entradas duplicadas ou não reconhecidas são recusadas, não mescladas.
+- Uploads sucessivos acrescentam arquivos ao inventário privado. Destinos
+  duplicados ou não reconhecidos são recusados. Selecionar uma nova origem
+  explicitamente reinicia o conjunto; importações anteriores não são mescladas.
 - Prévia: entrada até 256 KiB; saída até 64 KiB, sem conteúdo bruto de arquivo
   malformado. Senhas/tokens/segredos são mascarados recursivamente antes da resposta.
   Arquivos desconhecidos não têm prévia. O modal usa textContent, nunca innerHTML.
 - O formulário é protegido por sessão, CSRF e origem; seleção de inventário usa
   IDs validados contra descritor persistido no manifesto privado.
 - Uploads e SQLite capturado ficam privados; origem nunca é migrada no local.
-- Abort elimina somente os temporários da tentativa. Não há escrita em .env.
+- Antes da publicação, Cancelar elimina somente os temporários da tentativa.
+  A importação não escreve o .env ativo; a publicação tem seu próprio protocolo.
 
 ## Validação local (não executada pelo assistente)
 

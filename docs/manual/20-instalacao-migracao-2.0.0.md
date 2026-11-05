@@ -314,3 +314,18 @@ Compartilhe commit, sistema, Python, resumo de testes e saída sanitizada do doc
 - [Contrato técnico](../technical/18-setup-arquitetura.md)
 - [Matriz de homologação](../homologacao/setup-2.0.0.md)
 - [Manual resumido em inglês](setup-installation-en.md)
+
+
+## Diagnóstico serial e componentes independentes
+
+A Administração SQLite e a configuração inicial sem dispositivos incluem o mesmo
+monitor serial. É possível listar ou informar porta nativa do servidor sem cadastro,
+testar abertura e ler amostras ou acompanhar continuamente em texto/hexadecimal.
+O monitor não envia comandos e possui fechamento explícito/por inatividade.
+Confira os parâmetros, limites e avisos de reset no [guia serial](../modules/serial-monitor/README.md).
+
+O backend serial e o núcleo genérico de configuração/persistência/layout do setup
+ficam em pastas separadas em reusable/. A migração ORM e a publicação permanecem
+adaptadores específicos do Bridge. Documentação separada:
+[setup reutilizável](../modules/guided-setup/README.md) e
+[arquitetura de integração](../modules/arquitetura.md).

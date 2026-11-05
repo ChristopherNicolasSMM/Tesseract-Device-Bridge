@@ -32,8 +32,8 @@ setup.uploads recebe mapeamento explícito de caminhos legados reconhecidos para
 bytes. Valida todos os nomes/tamanhos antes de gravar, bloqueia traversal, barra
 invertida e caminhos desconhecidos, e mantém arquivos privados da tentativa.
 Não extrai ZIP nem executa código. import_uploads usa os mesmos adaptadores e
-validadores de pasta. Adaptador HTTP/multipart, grid, modal e progresso visual
-entram na Etapa 6. Não há endpoint de leitura arbitrária de caminhos.
+validadores de pasta. Adaptador HTTP/multipart, grid, modal e indicador de processamento são
+implementados em setup.browser_import e setup/static/setup.js. Não há endpoint de leitura arbitrária de caminhos.
 
 ## Segurança e limites
 
@@ -42,7 +42,7 @@ recusa de symlinks, SQLite sem sidecars e rollback por descarte do staging manti
 A captura de arquivos não é snapshot transacional entre vários arquivos; pare a
 instalação antiga antes de importar. O motor não conclui nem publica instalação.
 O protocolo de publicação/recuperação final e o estado operacional pertencem às
-Etapas 7–9. Permissões do SO e teste real de interrupção continuam na homologação.
+serviços setup.infrastructure, security, publication e finalize. Permissões do SO e teste real de interrupção continuam na homologação.
 
 ## Validação local
 

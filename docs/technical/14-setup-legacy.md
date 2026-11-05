@@ -1,8 +1,8 @@
-# Etapa 4 — entrega 1: descoberta e importação YAML/JSON
+# 14 — Descoberta e importação YAML/JSON
 
-Esta entrega adiciona o motor e CLI local. Não altera rotas HTTP, runtime,
-.env ou banco definitivo. Testes escritos e não executados pelo assistente,
-conforme autorização do usuário; homologação local pendente.
+O motor e a CLI operam somente em staging e são compartilhados pelo adaptador
+HTTP do assistente. A importação não altera runtime, .env ativo ou banco definitivo.
+Validação e pendências: [matriz de homologação](../homologacao/setup-2.0.0.md).
 
 ## Uso
 
@@ -22,7 +22,8 @@ python -m setup.import_legacy --source "C:\\Projetos\\Bridge-Antigo" --import-da
 Use --select repetidamente para selecionar caminhos relativos. Havendo
 devices.yml na raiz e em data/public, escolha exatamente um. Não há mesclagem
 automática desses dois arquivos. O adaptador continua exigindo configuração
-válida e referências completas; importação parcial ainda não é disponibilizada.
+válida e referências completas; importação parcial é opcional com --allow-partial; veja o
+[contrato consolidado](16-setup-import-contract.md).
 
 São listados arquivos apenas na raiz e nos diretórios conhecidos data,
 data/public e data/private. Arquivos desconhecidos são ignorados. Symlinks são
@@ -47,9 +48,9 @@ python -m pytest tests/test_setup_legacy.py tests/test_setup_bootstrap.py tests/
 python -m pytest -q
 ```
 
-## Continuidade
+## Integração atual
 
-Etapa 4 permanece em andamento: importação direta de SQLite legado/ORM,
-revisões antigas, relatório estruturado de erros e importação parcial ainda
-precisam de entrega. Upload e grid visual ficam na Etapa 6. Esta entrega não
-afirma suporte a formatos não reconhecidos pelos adaptadores existentes.
+O motor também é usado pelo assistente visual. Importação SQLite e relatórios
+estruturados estão disponíveis; [contrato](16-setup-import-contract.md) e
+[importação no navegador](../manual/16-importacao-navegador.md).
+Somente a publicação explícita transforma um candidato em instalação definitiva.

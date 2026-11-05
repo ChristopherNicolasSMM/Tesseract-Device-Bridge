@@ -1,4 +1,4 @@
-# Etapa 4 — entrega 2: importação direta SQLite
+# 15 — Importação direta SQLite
 
 Publicação com testes escritos, não executados pelo assistente, conforme autorização.
 Encerre o servidor setup para liberar o lock e use uma cópia limpa fora do clone novo:
@@ -24,8 +24,10 @@ Nenhum resultado autoriza runtime ou escreve .env/banco definitivo.
 
 Cada importação cria diretório próprio, captura e relatório. Em falha os resíduos
 ficam privados para diagnóstico; cancelar a tentativa remove apenas seu staging.
-O relatório só é escrito após sucesso. Não há mesclagem automática com importações
+Sucesso gera relatório do candidato; falhas também geram eventos sanitizados
+no contrato consolidado de importação. Não há mesclagem automática com importações
 anteriores nem seleção automática de candidato para publicação.
 
-Continuidade: faltam tratamento parcial de entidades, progresso/log estruturado
-de erros e preparação dos contratos de upload. A Etapa 4 ainda não está encerrada.
+A UI já oferece upload, inventário e prévia. Recuperação parcial é exclusiva
+de YAML/JSON; SQLite incompatível/corrompido continua recusado integralmente.
+Veja o [contrato consolidado](16-setup-import-contract.md).

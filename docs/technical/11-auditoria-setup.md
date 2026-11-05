@@ -4,6 +4,10 @@ Data: 05/11/2026. Branch: `feature/sqlite-full-migration`.
 Base inspecionada: `d38e196f794de28676cf553ae945036883a3291d`.
 Escopo: leitura do código, diagnóstico e verificações locais; sem alteração do runtime, serviço ou banco operacional.
 
+> Inventário histórico da base indicada acima; a coluna de decisões registra
+> o plano naquele momento. Estado implementado atual: [arquitetura do setup](18-setup-arquitetura.md)
+> e [componentes reutilizáveis](../modules/arquitetura.md).
+
 ## Decisão atualizada
 
 Por orientação expressa do usuário, o bloqueio experimental que exige ORM em simulação dura somente até a conclusão válida do setup. Não haverá homologação posterior obrigatória como barreira adicional do ORM. O setup continua sem inicializar GPIO/MQTT, e sua conclusão não inicia o Bridge automaticamente.

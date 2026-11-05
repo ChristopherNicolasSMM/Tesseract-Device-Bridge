@@ -13,9 +13,10 @@ Correção Windows: usar contextlib.closing tanto na validação SQLite quanto n
 teste. O context manager nativo da conexão controla a transação, mas não fecha
 o arquivo, causando WinError 32 ao cancelar a tentativa.
 
-Validação: usuário relatou 620 testes aprovados, 1 omitido e falha de fechamento
-SQLite antes desta correção. A suíte após a correção ainda precisa ser executada;
-o ambiente de execução do assistente estava indisponível na publicação.
+O erro Windows de fechamento foi identificado durante a entrega incremental.
+Resultados atuais e pendências estão na [matriz de homologação](../homologacao/setup-2.0.0.md);
+contagens antigas não certificam a versão atual. O candidato vazio pode ser
+publicado pela tela Concluir, que mantém simulação e administração sem runtime.
 
 Comandos:
 ```powershell

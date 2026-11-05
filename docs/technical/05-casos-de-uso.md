@@ -180,7 +180,7 @@ flowchart TD
     E --> F{Relé respondeu\nfisicamente?}
     F -- Sim --> G["GPIO ok!\nProblema estava no bridge ou config"]
     F -- Não --> H{"active_high\ncorreto?"}
-    H -- Não --> I["Alterar active_high\nno devices.yml e tentar de novo\nou testar com active_high=false"]
+    H -- Não --> I["Revisar active_high no cadastro aprovado\ne reiniciar com equipamento isolado"]
     H -- Sim --> J["[2] Diagnóstico rápido\nTesta múltiplos pinos em sequência\nIdentifica quais respondem"]
     J --> K["Hardware ou permissão\nsudo usermod -a -G gpio $USER"]
     I --> E

@@ -5,7 +5,7 @@
 ## Visão geral do painel na 2.0.0
 
 ```mermaid
-flowchart LR
+flowchart TD
     A[Navegador] --> B{Aba}
     B --> C[Painel: sensores e atuadores]
     B --> D[Gerenciamento: inventário + Administração SQLite]
@@ -42,6 +42,14 @@ A área **Administração SQLite** fica logo abaixo. Ela é uma interface de cad
 As funções de manutenção permitem gerar backup consistente do SQLite e consultar eventos recentes de auditoria. Para instruções detalhadas e segurança, consulte [Administração SQLite](13-administracao-sqlite.md).
 
 ---
+
+## Monitor serial administrativo
+
+No bloco de diagnósticos, liste portas do servidor ou informe uma porta nativa
+sem cadastro no banco. Há teste de abertura, amostra pontual e monitor contínuo
+com texto/hex, parâmetros seriais e fechamento explícito/por inatividade.
+A configuração inicial sem dispositivos oferece os mesmos controles.
+Veja [monitor e limites](../modules/serial-monitor/README.md).
 
 ## Aba Receitas
 

@@ -1,12 +1,35 @@
 # 04 — Modelo de dados SQLite | 2.0.0
 
-> **Estado da versão:** em homologação na branch
-> `feature/sqlite-full-migration`. Esquema real em
-> `storage/migrations/0001_initial.sql` e `0002_indexes.sql`.
-> Os desenhos YAML/JSON anteriores são referência histórica da 1.x,
-> não fonte de dados operacional da 2.0.0.
+> Referência atual: instalações do setup usam ORM na revisão bridge_orm_0003.
+> A branch continua em homologação. As tabelas legacy abaixo são mantidas como
+> referência de compatibilidade/importação, não como schema do bootstrap ORM.
 
-## Visão relacional
+## Esquema ORM atual
+
+Fonte: storage/models/ e storage/alembic/versions/bridge_orm_0001.py até 0003.py.
+O setup vazio cria perfis/cabeçalhos mínimos, sem dispositivos ou receitas demo.
+
+| Domínio | Tabelas representativas |
+|---|---|
+| Configuração e dispositivos | bridge_settings_v2, mqtt_settings_v2, panel_settings_v2, bridge_devices_v2 |
+| Propriedades/fontes térmicas | bridge_device_properties_v2, bridge_device_heat_sources_v2 |
+| Receitas | bridge_recipes_v2, bridge_recipe_vessels_v2, bridge_recipe_steps_v2, bridge_recipe_step_pumps_v2, bridge_recipe_hop_alarms_v2 |
+| Controle | bridge_control_profiles_v2, bridge_control_curve_v2, bridge_control_vessel_profiles_v2 |
+| Calibração e receita ativa | bridge_sensor_calibrations_v2, bridge_active_recipe_v2 |
+| Sessão | bridge_session_state_v2 e tabelas auxiliares de campos/alarmes/chaves disparadas |
+| Histórico e manutenção | bridge_configuration_revisions_v2, bridge_configuration_drafts_v2, bridge_recipe_revisions_v2, bridge_audit_events_v2, bridge_legacy_imports_v2 |
+
+O router seleciona um backend; não sincroniza implicitamente legacy e ORM.
+Formato externo de API/snapshot não deve ser confundido com coluna JSON legacy.
+Detalhes: [normalização](08-normalizacao-sqlalchemy.md) e
+[arquitetura do setup](18-setup-arquitetura.md).
+
+Manifesto de tentativa e recibo ficam em JSON privado fora do banco. O recibo
+liga configuração, identidade SQLite e estado de publicação; serial não cria
+tabelas nem grava automaticamente o conteúdo monitorado. Não edite esses metadados
+para aprovar operação física.
+
+## Visão relacional legacy (compatibilidade)
 
 ```mermaid
 erDiagram

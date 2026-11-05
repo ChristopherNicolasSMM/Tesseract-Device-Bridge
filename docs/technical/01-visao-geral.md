@@ -1,106 +1,76 @@
 # 01 — Visão geral técnica | 2.0.0
 
-**Status:** arquitetura SQLite em homologação na branch
-`feature/sqlite-full-migration`, sem alteração da `main`.
+Branch: `feature/sqlite-full-migration`. Implementação disponível, homologação
+final pendente; consulte as [evidências](../homologacao/setup-2.0.0.md).
 
-## Objetivo e limites
+## Arquitetura atual
 
-O Device Bridge é o processo de automação local do Raspberry Pi:
-recebe sensores, aciona atuadores com failsafe, controla temperatura
-(PID + time-proportioning), executa receitas e pode integrar-se ao
-Tesseract via MQTT. O núcleo de controle continua independente do banco
-durante os ciclos críticos: configurações aprovadas são convertidas em
-objetos e snapshots em memória.
+O Bridge controla sensores/atuadores e receitas com snapshots em memória.
+PID, time-proportioning e intertravamentos não consultam SQLite a cada ciclo.
+O setup é um processo independente: prepara dados/configuração e publica a
+instalação; não inicializa GPIO, MQTT ou runtime durante sua abertura.
 
-## Módulos da versão 2.0.0
-
-> A evolução de persistência relacional SQLAlchemy/Alembic foi iniciada, com [models e migração por cópia](08-normalizacao-sqlalchemy.md). Os repositórios operacionais anteriores permanecem ativos até homologação.
-
-
-> Consulte [Organização dos módulos](07-organizacao-python.md). O pacote interno `tesseract_bridge/` agrupa infraestrutura, segurança, controle e integrações, mantendo entrypoints na raiz.
-
-
-| Componente | Responsabilidade |
+| Camada | Componentes e contrato |
 |---|---|
-| `run_bridge.py` | Inicialização integral: banco, configuração, DeviceRuntime, RecipeEngine, MQTT e painel |
-| `run_panel.py` | Painel isolado, utiliza os mesmos parâmetros de infraestrutura |
-| `tesseract_bridge/infrastructure/env.py` / `.env` | Arquivo de instalação e overrides de processo |
-| `storage/migrate.py` + `storage/migrations/` | Migrações do esquema SQLite |
-| `storage/sqlite_store.py` | Conexões, transações, entidades, revisões e backup |
-| `storage/legacy_import.py` | Conversão **apenas por comando explícito** |
-| `data/__init__.py` | Fachada de receitas no armazenamento SQLite |
-| `panel/api.py` | Endpoints operacionais e de receitas/controle térmico |
-| `panel/admin_api.py` | Administração, rascunhos, aprovação, auditoria e backup |
-| `panel/static/admin-sqlite.js` | Interação de administração no frontend |
-| `device_runtime.py`, `tesseract_bridge/control/` e `recipe_engine/` | Segurança e execução em memória |
-| `data/private/*.sqlite3` | Banco local (ignorado pelo Git) |
+| Instalador do produto | setup/: estado, importadores, bootstrap ORM, candidatos .env e publicação |
+| Componentes reutilizáveis | reusable/serial_monitor e reusable/guided_setup, sem dependência do domínio |
+| Infraestrutura/boot | tesseract_bridge/infrastructure: env, paths, identidade e recibo |
+| Persistência | storage/store_router.py seleciona ORM ou compatibilidade legacy; sem escrita dupla |
+| ORM | storage/models, repositories e Alembic até bridge_orm_0003 |
+| Runtime | device_runtime.py, control/ e recipe_engine/: segurança/controle em memória |
+| Painel | panel/api.py operacional; admin_api/admin_diagnostics para manutenção autorizada |
+| Configuração vazia | panel/configuration_app.py, sem DeviceRuntime; inclui monitor serial explícito |
+| Recursos visuais | Tema do módulo guiado servido também por shared_ui; UI serial compartilhada |
 
-## Inicialização
+Instalações novas usam `python -m setup`, sem `.env` ou banco prévios. O destino
+publicado é `data/private/bridge.sqlite3`, com STORAGE_MODE=orm. `storage.cli init`
+e migrações SQL legadas são caminhos de compatibilidade, não bootstrap do setup.
+
+## Inicialização e guarda operacional
 
 ```mermaid
 flowchart TD
-    A[run_bridge.py] --> B[Carregar .env]
-    B --> C[Resolver arquivo SQLite]
-    C --> D{Banco existe e é íntegro?}
-    D -->|Não| E[Não iniciar operação física]
-    D -->|Sim| F[Aplicar/verificar migrações]
-    F --> G[Validar BridgeConfig aprovado]
-    G --> H{SIMULATION_ONLY?}
-    H -->|Sim| I[Simulação local; MQTT OFF; porta de teste]
-    H -->|Não| J[Backend do SQLite]
-    I --> K[DeviceRuntime + RecipeEngine]
-    J --> K
-    K --> L[Painel Flask e loop de controle]
+    A[Entrypoint do Bridge] --> B[Carregar infraestrutura e validar publicação]
+    B --> C{Publicação consistente?}
+    C -->|Não| D[Bloquear e orientar recuperação]
+    C -->|Sim| E{Há dispositivos válidos?}
+    E -->|Não| F[Administração de configuração sem runtime]
+    E -->|Sim| G[Validar snapshot e modo efetivo]
+    G --> H[Runtime e painel com intertravamentos]
 ```
 
-Caminho de banco: `TESSERACT_BRIDGE_DB` ou
-`data/private/bridge.sqlite3` por padrão. `TESSERACT_BRIDGE_DB`
-explicitamente informado mas inexistente bloqueia a inicialização do
-Bridge até executar importação/inicialização. Para ambiente novo,
-`python -m storage.cli init` cria o banco simulado.
+O recibo `data/private/installation.json`, INSTALL_ID e identidade SQLite são
+verificados pelo bootstrap. Publicação interrompida bloqueia boot; needs_review
+mantém simulação. O modo real ORM exige ready_operational e autorização explícita
+na conclusão/revalidação. Não há barreira ORM adicional após setup válido.
+Sandboxes históricos explicitamente simulados preservam a compatibilidade prevista.
 
-## Administração e segurança
+SIMULATION_ONLY=1 força backend simulado, MQTT desligado e painel de testes em
+loopback. Backend físico mantém a exigência existente de Python 3.9 e validações
+de hardware. Concluir setup não certifica fiação, chama ou atuadores.
 
-O inventário mostra o estado **do snapshot operacional atual**. O
-frontend administrativo edita a revisão persistida em fluxo separado:
-obter configuração → criar rascunho → validar referências/segurança →
-aprovar revisão → reiniciar o processo em condição segura.
+## Administração e diagnóstico
 
-`TESSERACT_BRIDGE_ADMIN_TOKEN` protege somente `/api/admin/*`;
-não é autenticação global nem autorização para publicar o painel na
-Internet. O modo simulado força host `127.0.0.1` e MQTT desabilitado.
-Antes de produção, revisar autenticação, CSRF, transporte e proteção
-de endpoints operacionais.
+As rotas /api/admin/* herdam token ou política local explícita. Token pode ser
+gerado/customizado; valor curto é aceito com aviso. Sem token, LOCAL_ADMIN exige
+cliente/Host de loopback, origem/CSRF e recusa de proxies. Essa política não é
+autenticação global dos endpoints operacionais do painel.
 
-## API SQLite administrativa
+Configuração segue rascunho → validação → aprovação → reinício seguro. O inventário
+reflete o snapshot atual; aprovar banco não remapeia GPIO em execução. Backup
+administrativo copia consistentemente o banco, não todo o conjunto de instalação.
 
-| Verbo | Rota | Uso |
-|---|---|---|
-| GET | `/api/admin/config` | Configuração aprovada e revisão |
-| GET | `/api/admin/drafts` | Lista rascunhos recentes |
-| POST | `/api/admin/drafts` | Valida e persiste um rascunho |
-| POST | `/api/admin/drafts/<id>/activate` | Aprova para próximo boot |
-| GET | `/api/admin/storage` | Status do banco |
-| GET | `/api/admin/audit` | Eventos recentes |
-| POST | `/api/admin/backup` | Criar backup consistente |
-| GET | `/api/admin/backup/<filename>` | Baixar backup criado |
+Diagnósticos incluem 1-Wire, GPIO virtual e serial. O serial lista portas do SO
+ou aceita endereço nativo manual, sem cadastro; permite teste de abertura e
+leitura pontual/contínua. Autenticação e guarda operacional são adaptações do
+Bridge, enquanto conexão, ownership, limites e expiração pertencem ao módulo.
+Não existe transmissão de comandos seriais nessa interface.
 
-As rotas administrativas exigem o header
-`X-Bridge-Admin-Token` com o valor do `.env`.
+## Referências de engenharia
 
-## Dependências e testes
-
-- Python 3.9.x obrigatório com backend físico no Raspberry Pi.
-- `sqlite3` da biblioteca padrão, `Flask`, `PyYAML` somente para migração,
-  `python-dotenv` para infraestrutura, `pytest` para regressões.
-- `python -m storage.cli status` mostra banco, revisão, cadastros e
-  configurações efetivas do processo.
-- `python -m pytest -q` executa a suíte; homologação física depende de
-  revisão específica de sensores, bombas, resistências e GLP.
-
-## Documentos associados
-
-- [Manual de administração](../manual/13-administracao-sqlite.md)
-- [Migração, importação e rollback](../manual/12-sqlite-migracao.md)
-- [Modelo de dados SQLite](04-modelo-de-dados.md)
-- [Primeiros passos da 2.0.0](../manual/02-primeiros-passos.md)
+- [Organização dos pacotes](07-organizacao-python.md)
+- [Arquitetura do setup](18-setup-arquitetura.md)
+- [Componentes e integração em outros projetos](../modules/arquitetura.md)
+- [Modelo de dados e compatibilidade](04-modelo-de-dados.md)
+- [Manutenção e expansão](06-manutencao-e-expansao.md)
+- [Manual consolidado](../manual/20-instalacao-migracao-2.0.0.md)

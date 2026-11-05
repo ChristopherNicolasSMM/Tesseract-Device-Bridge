@@ -1,7 +1,7 @@
-# Etapa 7 — Infraestrutura e preparação do .env
+# 17 — Infraestrutura e preparação do .env
 
 Atualize a branch feature e reinicie python -m setup.
-O terminal e cabeçalho mostram 2.0.0-setup.7.
+O terminal e cabeçalho mostram 2.0.0-setup.11.
 Após iniciar uma tentativa, abra Infraestrutura no menu ou conclua a revisão
 da importação. Não é necessário preencher o caminho do banco manualmente.
 
@@ -33,14 +33,18 @@ comandos vindos do .env.
 Cada salvamento grava um candidato UTF-8 privado e imutável em staging e só depois
 atualiza o manifesto. Se o manifesto falhar, o candidato anterior continua selecionado.
 Candidatos abandonados ficam para diagnóstico e são removidos ao cancelar a tentativa.
-O manifesto registra o hash da origem .env para detectar alterações antes da futura
-publicação; esse controle será consumido pela Etapa 9.
+O manifesto registra o hash da origem .env para detectar alterações antes da
+publicação; a tela Concluir verifica esse controle.
 
 Esta etapa não publica o .env, não cria o banco definitivo e não libera GPIO.
 A escolha por modo configurado será aplicada após conclusão válida do setup,
-preservando intertravamentos existentes. Autenticação/admin token entram na Etapa 8.
+preservando intertravamentos existentes. A credencial é configurada na tela seguinte.
 A autorização do usuário continua sendo encerrar o bloqueio transitório ORM ao
 concluir o setup, sem exigir outra fase posterior de homologação do ORM.
+
+As funções genéricas ficam em `reusable/guided_setup/configuration.py`;
+[guia de integração](../modules/guided-setup/README.md). Prefixos e candidatos
+privados continuam sob responsabilidade do adaptador do Bridge.
 
 ## Validação local — testes escritos, não executados pelo assistente
 

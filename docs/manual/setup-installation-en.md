@@ -77,3 +77,20 @@ The doctor is read-only and does not validate wiring or expose credentials.
 Code updates use git pull --ff-only; do not repeat legacy import over a published DB.
 See the [full Portuguese manual](20-instalacao-migracao-2.0.0.md) and
 [backup/recovery guide](21-manutencao-recuperacao.md).
+
+
+## Serial maintenance and reuse
+
+Administration and the zero-device configuration page include a read-only serial
+monitor. Select an OS port or enter a native server port manually, without a device
+record. Test opening, capture a sample or monitor continuously as UTF-8/hex. Opening
+may reset a microcontroller; isolate connected equipment before confirming.
+The connection expires without reads and remains subject to administrative and
+operational guards. No serial commands are transmitted.
+
+Independent components live in reusable/serial_monitor and reusable/guided_setup.
+The latter provides configuration, persistence and UI building blocks; product
+migration/publication stays in Bridge adapters. Separate technical guides:
+[serial](../modules/serial-monitor/README.md),
+[guided setup](../modules/guided-setup/README.md), and
+[integration architecture](../modules/arquitetura.md).

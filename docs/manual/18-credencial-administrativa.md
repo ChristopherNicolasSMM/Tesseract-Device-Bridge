@@ -1,8 +1,8 @@
-# Etapa 8 — Credencial administrativa e acesso local
+# 18 — Credencial administrativa e acesso local
 
-Atualize a branch feature. O setup mostra 2.0.0-setup.8. Prepare Infraestrutura
-e abra Credencial administrativa no menu. Testes escritos e não executados
-pelo assistente, conforme autorização do usuário. A sintaxe dos arquivos Python e\nos catálogos JSON foi verificada antes da publicação.
+Atualize a branch feature. O setup mostra 2.0.0-setup.11. Prepare Infraestrutura
+e abra Credencial administrativa no menu. Resultados de validação e limites
+estão na [matriz de homologação](../homologacao/setup-2.0.0.md).
 
 ## Opções
 
@@ -17,7 +17,7 @@ pelo assistente, conforme autorização do usuário. A sintaxe dos arquivos Pyth
 
 A credencial é preparada em arquivo .env privado imutável no staging. Não muda o
 .env ativo. O manifesto contém somente modo, aviso de fraqueza e caminho do candidato.
-O candidato só será publicado na Etapa 9. Alterar infraestrutura invalida a escolha
+O candidato só será publicado na tela Concluir. Alterar infraestrutura invalida a escolha
 de credencial anterior para evitar publicar uma configuração desatualizada.
 
 ## Representação e compatibilidade
@@ -59,9 +59,9 @@ Não iniciar setup ou runtime como root para contornar permissões.
 ## Proteções operacionais
 
 Ausência de token não elimina intertravamentos térmicos, GLP, emergência,
-sessão ativa ou aprovação de alterações de hardware. Esta etapa não remove
-o bloqueio transitório ORM: ele será trocado pela conclusão válida do setup
-na Etapa 9, conforme decisão do usuário.
+sessão ativa ou aprovação de alterações de hardware. A credencial sozinha não
+conclui a instalação. O bloqueio transitório ORM termina com a conclusão válida
+e autorização do modo configurado, sem uma fase adicional obrigatória do ORM.
 
 ## Validação local
 

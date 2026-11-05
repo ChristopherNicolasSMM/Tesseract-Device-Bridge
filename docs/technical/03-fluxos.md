@@ -1,5 +1,12 @@
 # 03 — Fluxos de Execução
 
+> Os diagramas detalhados abaixo preservam fluxos históricos de controle e
+> implantação, incluindo arquivos YAML/JSON e desktop/kiosk da instalação antiga.
+> Para boot/setup/persistência atuais, consulte [visão técnica](01-visao-geral.md),
+> [arquitetura do setup](18-setup-arquitetura.md) e
+> [componentes reutilizáveis](../modules/arquitetura.md). O serviço gerenciado
+> atual não depende de LXDE/kiosk; fontes legadas são usadas apenas para importação.
+
 > **Navegação:** [Visão Geral](01-visao-geral.md) | [C4 Diagrams](02-diagrama-c4.md) | [Modelo de Dados](04-modelo-de-dados.md) | [Casos de Uso](05-casos-de-uso.md) | [Manutenção](06-manutencao-e-expansao.md)
 
 ## Fluxo 1 — Boot do serviço systemd e seleção de backend GPIO

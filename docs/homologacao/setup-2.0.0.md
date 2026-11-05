@@ -11,7 +11,9 @@ Não há merge em main, tag de release ou certificado de operação física.
 | 604 testes aprovados no início | Execução Linux/Python 3.12 na auditoria inicial, antes das etapas posteriores |
 | 617 testes aprovados após núcleo | Execução do assistente para a Etapa 2, não resultado da versão atual |
 | 639 aprovados / 1 falha / 1 skip | Retorno Windows/Python 3.13 do usuário após Etapa 6; falha de isolamento corrigida depois |
-| 672 aprovados / 1 falha / 2 skips | Último retorno completo do usuário após Etapa 9; falha de isolamento do teste de serviço |
+| 672 aprovados / 1 falha / 2 skips | Retorno após Etapa 9; falha de isolamento do teste de serviço |
+| 699 aprovados / 1 falha / 2 skips | Último retorno Windows/Python 3.13 após setup.11; clone mínimo omitia reusable/ |
+| Correção 2133f7e publicada | Inclui reusable/ e verifica recursos CSS via HTTP; resultado posterior ainda não informado |
 | Correção 7e3e2a9 publicada | Isola pasta do teste e preserva sentinela; resultado após correção ainda não informado |
 | Verificações de sintaxe | Python/JSON/JS/shell conferidos na Etapa 9; não equivalem à suíte funcional |
 | CI anterior | Sem confirmação de sucesso da matriz ampliada; verificar execução real após publicação |

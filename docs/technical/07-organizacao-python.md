@@ -1,92 +1,60 @@
 # 07 — Organização dos módulos Python | 2.0.0
 
-> Branch: `feature/sqlite-full-migration`. Refatoração sem mudança
-> deliberada na lógica de PID, intertravamentos ou GPIO.
+Referência: branch feature/sqlite-full-migration, setup.11. O clone mantém layout
+flat para executar entrypoints diretamente, sem exigir instalação do Bridge como
+wheel. O pyproject.toml da raiz configura ferramentas; o de reusable/ define
+somente a distribuição opcional dos componentes independentes.
 
-## Diretriz de arquitetura
+## Pacotes e fronteiras
 
-Adotamos uma transição do layout plano para um pacote interno
-`tesseract_bridge/`, mantendo os entrypoints `run_bridge.py` e
-`run_panel.py` e as interfaces públicas usadas pelo Flask.
+| Local | Responsabilidade | Dependências permitidas |
+|---|---|---|
+| reusable/serial_monitor | Conexão serial, sessão, limites e expiração | stdlib; pyserial carregado sob demanda |
+| reusable/guided_setup | Configuração, persistência, layout e navegação | stdlib; extras opcionais dotenv/Flask |
+| setup/ | Assistente específico do Bridge, migração e publicação | Componentes genéricos e domínio sob demanda |
+| shared_ui/ | URL de compatibilidade para os recursos visuais | Estáticos do componente guiado; sem runtime |
+| tesseract_bridge/infrastructure | Ambiente, caminhos e guarda de publicação | Não inicializa hardware ao importar |
+| tesseract_bridge/control e safety | Controle, prioridades e failsafe | Contratos do runtime |
+| tesseract_bridge/diagnostics | Adaptação de diagnóstico para o domínio | Núcleo serial, configuração e leitura 1-Wire |
+| tesseract_bridge/integrations | MQTT e status externos | Inicialização explícita pelo processo operacional |
+| storage/ | Router, ORM, migrações, importadores e compatibilidade | Não depende de tela Flask para persistir |
+| panel/ | HTTP operacional/administrativo e apresentações | Serviços de domínio; autorização no adaptador |
+| gpio/ e recipe_engine/ | Backends e execução de receitas | Fluxo operacional, fora do instalador |
 
-A PEP 8 recomenda nomes de pacotes/módulos em minúsculas e imports
-absolutos claros; o Python Packaging User Guide documenta os layouts
-*flat* e *src*. Neste estágio, o layout *flat* é mantido para preservar
-a execução direta do serviço systemd e os comandos já utilizados no
-Windows sem impor uma instalação `pip install -e .`.
+Entrypoints preservados: run_bridge.py, run_panel.py e python -m setup.
+BridgeConfig permanece em config.py e DeviceRuntime em device_runtime.py.
+A fachada data/ resolve receitas no banco; arquivos legados servem ao importador.
 
-## Estrutura
+## Direção de dependências
 
-```text
-Tesseract-Device-Bridge/
-├── .env.example
-├── .gitignore
-├── .python-version
-├── pyproject.toml                # pytest / Ruff, sem build wheel
-├── run_bridge.py                # boot do processo completo
-├── run_panel.py                 # boot do painel independente
-├── bridge.py                    # orquestração: preservado nesta etapa
-├── config.py                    # BridgeConfig: preservado nesta etapa
-├── device_runtime.py            # GPIO real: preservado nesta etapa
-├── control_settings.py          # validação térmica
-├── temperature_calibration.py   # calibração física
-├── tesseract_bridge/
-│   ├── version.py
-│   ├── infrastructure/
-│   │   ├── env.py               # .env e overrides por processo
-│   │   ├── paths.py             # local raiz e dados
-│   │   ├── logging_config.py
-│   │   └── python_runtime.py
-│   ├── safety/
-│   │   ├── failsafe_coercion.py
-│   │   ├── watchdog.py
-│   │   └── lifecycle.py
-│   ├── control/
-│   │   ├── source_control.py
-│   │   ├── time_proportioning.py
-│   │   └── remote_device_control.py
-│   └── integrations/
-│       ├── mqtt_client.py
-│       └── status_handler.py
-├── gpio/
-├── recipe_engine/
-├── panel/
-├── storage/                      # SQLite; evolução via ORM
-├── tools/
-├── tests/
-└── docs/
-```
+O hospedeiro importa os módulos reutilizáveis; eles não importam config, storage,
+panel, setup, device_runtime, GPIO ou MQTT. Integrações específicas não devem ser
+adicionadas ao núcleo genérico. Scripts do produto permanecem nos adaptadores.
+[Guia de arquitetura e integração](../modules/arquitetura.md).
 
-## Contrato de compatibilidade
+O monitor HTTP usa panel/admin_diagnostics.py e compartilha apresentação entre
+index.html e configuration.html por _serial_monitor.html e serial-monitor.js.
+O callback HTTP da tela fornece autenticação ao componente visual. O backend
+não precisa de cadastro ORM para enumerar/abrir uma porta.
 
-Os comandos permanecem:
+No setup, state.py preserva schema/staging e delega lock/gravação JSON. A base
+Jinja do produto estende guided_setup/base.html. CSS do tema fica no componente;
+/shared-ui/theme.css continua disponível sem duplicar a fonte dos estilos.
+
+## Distribuição e cópia mínima
+
+Outro projeto pode instalar `./reusable[serial,wizard]`, com os extras necessários.
+Isso não instala o runtime do Bridge nem transporta migrações e arquivos privados.
+Para iniciar o setup isolado deste produto, são necessários setup/, shared_ui/ e
+reusable/. O teste de CLI copia esses três pacotes e omite storage/runtime/GPIO.
+Copiar somente setup/ deixa de ser uma instalação válida desse assistente.
+
+## Verificação
 
 ```powershell
-python run_bridge.py
-python run_panel.py
-python -m storage.cli status
+python -m pytest tests/test_package_layout.py tests/test_guided_setup_module.py tests/test_serial_monitor_module.py tests/test_setup.py -q
+python -m pytest -q
 ```
 
-Imports internos agora devem usar `tesseract_bridge.<subpacote>`.
-Scripts externos que importavam diretamente `source_control`,
-`infra_env`, `version` etc. precisam atualizar os caminhos.
-Não existem importações globais de GPIO nos `__init__.py`.
-
-**Não movemos** `device_runtime.py`, `config.py`, `bridge.py`
-nem o motor de receitas nesta entrega: sua migração exige análise de
-interfaces externas e testes elétricos separados.
-
-## Comandos de validação
-
-```powershell
-python -m compileall -q .
-python -m pytest -q tests/test_package_layout.py tests/test_infra_env.py tests/test_app_version.py tests/test_logging_config.py tests/test_python_runtime.py tests/test_failsafe_coercion.py tests/test_failsafe_watchdog.py tests/test_time_proportioning.py tests/test_source_control.py tests/test_status_handler.py tests/test_bridge.py
-python -m storage.cli status
-```
-
-No Windows mantenha `TESSERACT_BRIDGE_SIMULATION_ONLY=1` no .env.
-A mudança estrutural não autoriza teste de GPIO real.
-
-Referências:
-- [PEP 8](https://peps.python.org/pep-0008/)
-- [Python Packaging User Guide: src layout e flat layout](https://packaging.python.org/en/latest/discussions/src-layout-vs-flat-layout/)
+A matriz CI cobre Windows/Linux e Python 3.9/3.13. Isso não certifica hardware,
+permissões de porta ou systemd real; ver [homologação](../homologacao/setup-2.0.0.md).

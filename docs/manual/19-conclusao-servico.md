@@ -1,9 +1,8 @@
-# Etapa 9 — Publicação, recuperação e serviço
+# 19 — Publicação, recuperação e serviço
 
-Entrega na branch feature/sqlite-full-migration. Testes escritos e não executados
-pelo assistente, por autorização do usuário. Sintaxe Python/JSON, JavaScript e shell verificada antes
-da publicação; Windows/Pi/systemd exigem homologação local. Templates Jinja ainda
-precisam da validação funcional local (a dependência não estava disponível aqui). Build: 2.0.0-setup.9.
+Fluxo atual da branch feature/sqlite-full-migration. A validação de serviço,
+permissões, recuperação e operação física permanece local. Consulte os resultados
+registrados na [matriz de homologação](../homologacao/setup-2.0.0.md). Build de referência atual: 2.0.0-setup.11.
 
 ## Concluir
 

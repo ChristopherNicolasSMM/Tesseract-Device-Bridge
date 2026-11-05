@@ -1,31 +1,49 @@
-# Etapa 5 — i18n e identidade compartilhada
+# 17 — i18n, layout e recursos compartilhados
 
-Catálogos pt_BR/en com paridade de chaves; mensagens Jinja, JSON HTTP e eventos
-de importação possuem códigos estáveis e tradução para exibição. O CLI aceita
---language. Idioma continua no manifesto da tentativa; dados persistidos e
-identificadores de eventos não são traduzidos. Não há JavaScript no núcleo
-atual: as telas usam formulários POST com CSRF e requisição completa.
+Referência atual: setup.11. Catálogos `setup/translations/pt_BR.json` e `en.json`
+alimentam Jinja, mensagens HTTP/JS e exibição de eventos. Idioma e tema ficam no
+manifesto; códigos de evento e dados persistidos não são traduzidos. O painel
+operacional não foi integralmente traduzido por esta entrega.
 
-shared_ui é um pacote estático sem dependência de painel/runtime. Extrai os tokens
-CSS e as regras de select existentes do HTML do painel para theme.css, servido
-por blueprint independente. Painel e setup carregam a mesma fonte de tokens.
-O CSS específico do painel permanece no HTML, preservando o layout operacional.
-Componentes bridge-card/button/field servem como base do assistente.
-Tema claro é opt-in no setup; painel mantém seu tema escuro atual.
-Não foi feita tradução completa do painel operacional, fora do escopo desta etapa.
+## Composição visual
 
-Aparência usa POST protegido e persiste no manifesto; não inicia hardware nem
-altera configuração operacional. CSP continua sem scripts inline. O assistente
-tem layout responsivo, labels, foco visível e mensagens de sucesso/erro traduzidas.
-Grid, prévia/modal e upload por navegador pertencem à Etapa 6.
+| Fonte | Uso |
+|---|---|
+| reusable/guided_setup/templates/guided_setup/base.html | Estrutura genérica, blocos e navegação |
+| reusable/guided_setup/static/theme.css | Tokens e controles compartilhados |
+| reusable/guided_setup/static/wizard.css | Layout responsivo claro/escuro |
+| setup/templates/base.html | Marca, breadcrumb, scripts e modal do Bridge |
+| setup/static/setup.css | Overrides específicos do produto |
+| setup/static/setup.js | Envio de formulários, feedback de processamento e prévia |
+| shared_ui | Adaptador que preserva /shared-ui/theme.css para os consumidores |
 
-Testes escritos e não executados pelo assistente, conforme autorização.
-Validar temas e selects também visualmente no Windows/Chromium.
+O registro `register_wizard_ui` recebe WizardStep e disponibiliza os recursos em
+`/wizard-assets/`. Não inicializa runtime ou banco. O tema tem uma única fonte;
+não copie estilos para cada aplicação. Recursos são locais, sem CDN obrigatória.
+Blocos de marca, conteúdo, scripts e estilos permitem customizar outro produto.
 
-python -m pytest tests/test_setup_i18n.py tests/test_setup.py tests/test_dark_select_css.py tests/test_panel.py -q
-python -m pytest -q
-python -m setup
+## Fluxo e segurança
 
-Revisar idioma, aparência clara/escura, persistência após reinício, CSRF,
-legibilidade do painel e abertura sem .env/banco. O teste de clone mínimo agora
-copia setup/ e shared_ui/, sem storage ou runtime.
+A navegação marca a etapa atual, mas não concede autorização. Rotas validam
+estado e pré-requisitos no servidor. POST de aparência mantém CSRF/origem.
+JS trata o redirecionamento JSON do setup e usa textContent para prévias e erros;
+a CSP não depende de scripts executáveis inline. O indicador de processamento
+não apresenta percentual fictício de progresso.
+
+O grid suporta seleção, upload e modal JSON/YAML, com mascaramento e limites.
+Uploads sucessivos acrescentam arquivos; destino duplicado é recusado. Não há
+tradução de conteúdo importado. Detalhes: [importação visual](../manual/16-importacao-navegador.md).
+
+## Reaproveitamento e verificação
+
+Catálogo, etapas e marca são fornecidos pelo hospedeiro. A biblioteca visual não
+configura autenticação, CSRF, publicação ou migrações. Veja o
+[contrato do componente](../modules/guided-setup/README.md).
+
+```powershell
+python -m pytest tests/test_setup_i18n.py tests/test_guided_setup_module.py tests/test_dark_select_css.py tests/test_setup.py -q
+```
+
+Conferir visualmente temas, selects nativos Windows, foco, modal e telas pequenas.
+O teste CLI mínimo inclui os três pacotes setup/shared_ui/reusable. Não registrar
+aprovação visual sem execução no navegador de destino.

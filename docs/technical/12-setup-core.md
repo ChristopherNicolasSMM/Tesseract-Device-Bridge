@@ -1,54 +1,60 @@
-# Núcleo independente do setup
+# 12 — Núcleo e fronteira HTTP do setup
 
-## Contrato desta entrega
+Referência atual: setup.11. A entrada `python -m setup [--port 8090]` utiliza
+`setup.app.create_app(root, port=...)`. O assistente não importa módulos que
+inicializam painel operacional, DeviceRuntime, GPIO ou MQTT ao abrir.
+Os serviços ORM são carregados quando a ação de bootstrap/importação/publicação
+os exige. A raiz padrão deriva do módulo, não do CWD.
 
-`python -m setup [--port 8090]` inicia exclusivamente o servidor local do
-assistente. `setup.app.create_app(root, port=...)` é a factory testável. Não há
-import de storage, painel, DeviceRuntime, backend GPIO ou cliente MQTT. A raiz
-padrão vem do arquivo do módulo, não do CWD. Esta etapa usa apenas `new` e
-`in_progress`; nenhum endpoint declara a instalação pronta.
+## Núcleo genérico e adaptador
 
-## Persistência
+| Camada | Responsabilidade |
+|---|---|
+| reusable.guided_setup.persistence | FileLock do SO e gravação JSON atômica |
+| reusable.guided_setup.configuration | Host/porta, teste de bind e atualização dotenv |
+| reusable.guided_setup.web + templates/static | Navegação configurável, layout Jinja e CSS offline |
+| setup.state.InstallationState | Schema versão 1, UUID de tentativa, staging, transições e cancelamento |
+| setup.app | Sessão, origem/CSRF, limites HTTP, rotas e regras específicas do produto |
+| setup.publication/finalize | Recibo, publicação, recuperação, revalidação e serviço |
 
-`InstallationState` adquire lock do SO (flock POSIX, msvcrt no Windows), mantido
-até o servidor encerrar. O arquivo do lock permanece, mas um processo encerrado
-libera o bloqueio do SO. O estado tem versão 1, idioma e ID UUID da tentativa.
-A escrita usa arquivo privado temporário, flush/fsync e replace; POSIX também
-sincroniza o diretório. A gravação antecede a criação do staging para permitir
-retomar uma interrupção entre as operações. Resíduos de escrita interrompida
-não são considerados instalações publicadas.
+O núcleo genérico não interpreta estados do Bridge nem publica arquivos de
+produção. O adaptador mantém os estados new, in_progress, needs_review,
+ready_simulated e ready_operational. A publicação registra também publishing
+no recibo para bloquear boot incompleto. Veja [arquitetura consolidada](18-setup-arquitetura.md).
 
-O staging está restrito a `data/private/setup/attempt-<uuid>`. Cancelamento é
-idempotente e não procura bancos ou arquivos pelo disco. Diretórios base e staging
-com symlinks são recusados. Corrupção/versão desconhecida falha de forma fechada,
-preservando o arquivo. Windows precisa de validação local de ACLs; o modo 0700/0600
-POSIX não substitui ACL Windows. Não há alterações em banco operacional ou `.env`.
+## Persistência e limpeza
+
+O lock usa flock no POSIX e msvcrt no Windows, mantido durante o servidor.
+O arquivo de lock pode permanecer após fechar: a exclusividade é do SO.
+JSON usa temporário privado, flush/fsync, replace e fsync do diretório em POSIX.
+O estado é gravado antes da criação de staging para permitir retomada.
+
+O staging é `data/private/setup/attempt-<uuid>`. Cancelamento remove somente a
+área identificada da tentativa, sem varrer o disco; symlinks de diretórios são
+recusados. Se existe recibo de publicação, cancelar é bloqueado: use recuperação.
+ACLs Windows e permissões do usuário continuam sendo responsabilidade do ambiente.
 
 ## HTTP
 
-Werkzeug make_server sem debugger/reloader, um único processo/thread atendendo
-requisições, bind 127.0.0.1. Acesso requer cliente loopback e Host local explícito (`127.0.0.1`, `localhost` ou `[::1]`) incluindo
-porta. Endereços IPv4 mapeados em IPv6 são normalizados antes da checagem.
-O servidor CLI continua escutando em IPv4; o Host IPv6 é aceito pela factory
-para transportes locais que o utilizem. Não há ProxyFix nem confiança em X-Forwarded-For. POST exige Origin igual ao Host local validado,
-token CSRF de sessão assinado e cookie HttpOnly/SameSite Strict. Segredo de sessão
-é aleatório por execução e não é persistido. Respostas usam no-store, CSP sem
-scripts/frames externos e nosniff. Limite de corpo: 16 KiB. Não há CORS, SQL ou
-shell remoto. Erros de estado/permissão não expõem caminhos em JSON.
+A CLI usa Werkzeug make_server sem debugger/reloader e um processo síncrono,
+bind 127.0.0.1. A factory valida cliente loopback, Host local e porta; não instala
+ProxyFix. Formulários exigem Origin da mesma origem ou Referer correspondente
+quando Origin estiver ausente, além de CSRF. Cookies são HttpOnly/SameSite Strict,
+com segredo aleatório por processo. Reiniciar exige recarregar a página.
 
-Catálogos JSON pt_BR/en incluem as mensagens da página e erros do núcleo. Textos
-traduzidos não são identificadores de estado. A consolidação visual e expansão
-dos catálogos continuam previstas na Etapa 5.
+Respostas usam no-store, nosniff, CSP e política de referência. Limites atuais:
+257 MiB de corpo, 120 partes e 512 KiB de memória de campos; importadores impõem
+limites menores por arquivo/formato. Não há CORS público, shell remoto ou endpoint
+de leitura arbitrária. Guardas de publicação impedem ações antigas após publicar.
 
-## Testes
+## Testes e distribuição
 
-`python -m pytest tests/test_setup.py -q` cobre: factory sem dados, idiomas,
-retomada, cancelamento preservando arquivos alheios, lock concorrente, acesso
-remoto/proxy/Host, CSRF/Origin, estado corrompido, staging symlink, falha de
-replace por permissão, CLI/porta ocupada, sentinela de imports operacionais e
-processo HTTP real a partir de cópia contendo somente setup/.
+`tests/test_setup.py` cobre factory, estado, lock, origem/CSRF, imports proibidos
+e CLI real. O clone mínimo do subprocesso precisa copiar **setup/, shared_ui/ e
+reusable/**; runtime, storage e GPIO ficam ausentes para provar isolamento na abertura.
+O teste verifica também o CSS por HTTP. O módulo reutilizável tem testes próprios
+em `tests/test_guided_setup_module.py`.
 
-O teste POSIX de symlink é explicitamente omitido em Windows quando os privilégios
-adicionais necessários não estão disponíveis. O teste de permissão injeta falha
-de replace para ser reproduzível inclusive em ambientes de teste privilegiados.
-Não representa homologação de ACLs ou Raspberry físico.
+Veja o [guia de integração em outro produto](../modules/guided-setup/README.md).
+O sucesso da suíte não valida ACLs, GPIO ou cargas físicas; evidências e pendências
+ficam na [matriz de homologação](../homologacao/setup-2.0.0.md).
