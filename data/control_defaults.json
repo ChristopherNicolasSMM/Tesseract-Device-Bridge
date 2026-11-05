@@ -1,0 +1,9 @@
+{
+  "mash_curve": [[-3, 100], [-2, 75], [-1, 60], [0, 50], [0.5, 30], [1, 0]],
+  "alert_above": 3.0,
+  "alert_clear": 2.5,
+  "freeze_hold_on_alert": false,
+  "boil_temperature": 100.0,
+  "boil_power": 100.0,
+  "vessel_profiles": {"mash": "mash", "boil": "boil"}
+}
