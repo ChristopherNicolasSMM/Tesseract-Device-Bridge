@@ -87,7 +87,7 @@ def test_referer_fallback_and_cross_origin_denied(browser):
 
 def test_assets_version_and_fetch_redirect(browser):
     app, client, base, csrf = browser
-    assert client.get('/setup-version', base_url=base).json['build'] == '2.0.0-setup.6'
+    assert client.get('/setup-version', base_url=base).json['build'] == app.config['SETUP_BUILD']
     for url in ['/static/setup.css', '/static/setup.js', '/shared-ui/theme.css']:
         assert client.get(url, base_url=base).status_code == 200
     response = client.post('/appearance', base_url=base,

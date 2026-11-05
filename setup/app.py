@@ -22,13 +22,16 @@ def create_app(root=None, *, port=8090):
     app = Flask(__name__)
     from shared_ui import register_ui
     register_ui(app)
-    app.config["SETUP_BUILD"] = "2.0.0-setup.6"
+    app.config["SETUP_BUILD"] = "2.0.0-setup.7"
+    app.config["SETUP_PORT"] = port
     app.secret_key = secrets.token_bytes(32)
     app.config.update(MAX_CONTENT_LENGTH=257 * 1024 * 1024, MAX_FORM_PARTS=120, MAX_FORM_MEMORY_SIZE=512 * 1024, SESSION_COOKIE_HTTPONLY=True,
                       SESSION_COOKIE_SAMESITE="Strict", SESSION_COOKIE_NAME="bridge_setup_" + str(port))
     app.extensions["installation_state"] = state
     from .browser_import import bp as import_bp
     app.register_blueprint(import_bp)
+    from .infrastructure import bp as infrastructure_bp
+    app.register_blueprint(infrastructure_bp)
     local_hosts = {"127.0.0.1:" + str(port), "localhost:" + str(port),
                    "[::1]:" + str(port)}
     translations = {language: catalog(language) for language in ('pt_BR', 'en')}
@@ -134,6 +137,7 @@ def create_app(root=None, *, port=8090):
     @app.errorhandler(SetupError)
     def setup_error(exc):
         # Never render paths, imported data or credentials in HTTP errors.
-        return jsonify(code="setup_state_error", message=translations[state.value["language"]]["error"]), 409
+        code = getattr(exc, "code", "error")
+        return jsonify(code=code, message=translations[state.value["language"]].get(code, translations[state.value["language"]]["error"])), 409
 
     return app

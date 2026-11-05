@@ -257,4 +257,4 @@ def acknowledge():
     # This acknowledges review only; it is never an operational readiness flag.
     value.save(dict(value.value, browser_acknowledged=True))
     session['notice'] = 'review_saved'
-    return redirect('/', code=303)
+    return redirect('/infrastructure/', code=303)

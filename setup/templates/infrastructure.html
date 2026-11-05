@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block heading %}{{ t.infrastructure }}{% endblock %}
+{% block content %}
+<p class="setup-lead">{{ t.infra_intro }}</p>
+{% if saved %}<p class="setup-alert success" role="status">{{ t.infra_saved }} {{ t.get(port_status, '') }}</p>{% endif %}
+<form method="post" action="/infrastructure/save" class="bridge-card setup-form">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="simulation">{{ t.infra_mode }}</label>
+  <select class="bridge-field" id="simulation" name="SIMULATION_ONLY">
+    <option value="1" {% if values.SIMULATION_ONLY == '1' %}selected{% endif %}>{{ t.infra_simulated }}</option>
+    <option value="0" {% if values.SIMULATION_ONLY == '0' %}selected{% endif %}>{{ t.infra_configured }}</option>
+  </select>
+  <details class="setup-hint"><summary>{{ t.info }} · TESSERACT_BRIDGE_SIMULATION_ONLY</summary><p>{{ t.infra_mode_hint }}</p></details>
+  <label for="test-port">{{ t.infra_test_port }}</label>
+  <input class="bridge-field" id="test-port" type="number" min="1" max="65535" required name="TEST_PANEL_PORT" value="{{ values.TEST_PANEL_PORT }}">
+  <details class="setup-hint"><summary>{{ t.info }} · TESSERACT_BRIDGE_TEST_PANEL_PORT</summary><p>{{ t.infra_test_hint }}</p></details>
+  <label for="panel-host">{{ t.infra_host }}</label>
+  <input class="bridge-field" id="panel-host" name="PANEL_HOST" required maxlength="253" value="{{ values.PANEL_HOST }}">
+  <details class="setup-hint"><summary>{{ t.info }} · TESSERACT_BRIDGE_PANEL_HOST</summary><p>{{ t.infra_host_hint }}</p></details>
+  <label for="panel-port">{{ t.infra_port }}</label>
+  <input class="bridge-field" id="panel-port" type="number" min="1" max="65535" required name="PANEL_PORT" value="{{ values.PANEL_PORT }}">
+  <details class="setup-hint"><summary>{{ t.info }} · TESSERACT_BRIDGE_PANEL_PORT</summary><p>{{ t.infra_port_hint }}</p></details>
+  <label for="database">{{ t.infra_database }}</label>
+  <input class="bridge-field" id="database" readonly value="{{ db_path }}">
+  <details class="setup-hint"><summary>{{ t.info }} · TESSERACT_BRIDGE_DB</summary><p>{{ t.infra_db_hint }}</p></details>
+  <p class="setup-alert warning">{{ t.infra_not_active }}</p>
+  <button class="bridge-button">{{ t.infra_save }}</button>
+</form>
+{% endblock %}

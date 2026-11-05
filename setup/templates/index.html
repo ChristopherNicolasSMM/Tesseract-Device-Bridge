@@ -29,7 +29,8 @@
     <h2>{{ t.actions }}</h2>
     <p class="bridge-muted">{{ t.staging_only }}</p>
     {% if state.status == 'in_progress' %}
-    <a class="bridge-button" href="/import/">{{ t.open_import }}</a>
+    <div class="setup-actions"><a class="bridge-button" href="/import/">{{ t.open_import }}</a>
+    <a class="bridge-button secondary" href="/infrastructure/">{{ t.infrastructure }}</a></div>
     <div class="setup-actions">
       <form method="post" action="/clean">
         <input type="hidden" name="csrf" value="{{ csrf }}"><button class="bridge-button secondary">{{ t.clean }}</button>

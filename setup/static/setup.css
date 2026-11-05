@@ -85,3 +85,7 @@ dialog pre { max-height: 55vh; overflow: auto; background: var(--bg-primary); pa
   .setup-header { flex-wrap: wrap; }
   .setup-brand small { display: block; margin-left: 0; }
 }
+
+.setup-hint { font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; }
+.setup-hint summary { cursor: pointer; color: var(--accent-blue); }
+.setup-hint p { margin: 8px 0; padding-left: 12px; border-left: 2px solid var(--border-subtle); }
