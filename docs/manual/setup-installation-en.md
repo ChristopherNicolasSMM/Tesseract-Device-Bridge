@@ -1,6 +1,6 @@
 # Device Bridge 2.0.0 — Setup and migration
 
-Working branch: feature/sqlite-full-migration. Installer build: 2.0.0-setup.11.
+Working branch: feature/sqlite-full-migration. Installer build: 2.0.0-setup.12.
 Implemented for acceptance testing; physical Raspberry/systemd qualification is
 not yet certified. See [acceptance matrix](../homologacao/setup-2.0.0.md).
 

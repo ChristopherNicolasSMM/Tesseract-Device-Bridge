@@ -1,6 +1,6 @@
 # 15 — Assistente de instalação
 
-Referência atual: **2.0.0-setup.11**, branch `feature/sqlite-full-migration`.
+Referência atual: **2.0.0-setup.12**, branch `feature/sqlite-full-migration`.
 O [manual consolidado](20-instalacao-migracao-2.0.0.md) cobre o fluxo completo;
 este guia descreve abertura, retomada e cancelamento.
 

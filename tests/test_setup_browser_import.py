@@ -146,3 +146,59 @@ def test_successive_uploads_preserve_inventory_and_reject_duplicates(browser):
     assert upload('devices.yml', b'devices: changed').status_code == 409
     assert state.value['browser_source'] == desc
     assert (Path(desc['root']) / 'devices.yml').read_bytes() == original
+
+
+def test_directory_inventory_excludes_unrelated_files(browser, tmp_path):
+    app, client, base, csrf = browser
+    source = tmp_path / 'previous-clone'
+    (source / 'data/private').mkdir(parents=True)
+    (source / 'devices.yml').write_text('devices: []', encoding='utf-8')
+    (source / 'README.md').write_text('not an import', encoding='utf-8')
+    (source / '.gitignore').write_text('not an import', encoding='utf-8')
+    (source / 'unrelated.json').write_text('{}', encoding='utf-8')
+    (source / 'data/private/sensor_calibration.json').write_text('{}', encoding='utf-8')
+    result = client.post('/import/discover', base_url=base, headers={'Origin': base},
+        data={'csrf': csrf, 'source': '"' + str(source) + '"', 'kind': 'directory'})
+    assert result.status_code == 303
+    desc = app.extensions['installation_state'].value['browser_source']
+    assert {row['path'] for row in desc['rows']} == {'devices.yml', 'data/private/sensor_calibration.json'}
+    page = client.get('/import/', base_url=base)
+    assert b'README.md' not in page.data
+    assert b'.gitignore' not in page.data
+    assert b'unrelated.json' not in page.data
+    # The engine still records ignored entries in its own discovery/report contract.
+    from setup.legacy import discover
+    assert any(row['path'] == 'README.md' and row['status'] == 'ignored' for row in discover(source))
+
+
+def test_folder_navigation_requires_csrf_and_returns_only_directories(browser, tmp_path):
+    app, client, base, csrf = browser
+    source = tmp_path / 'old project with spaces'
+    (source / 'data').mkdir(parents=True)
+    (source / '.hidden').mkdir()
+    (source / 'README.md').write_text('private contents', encoding='utf-8')
+    endpoint = '/import/folders'
+    assert client.post(endpoint, base_url=base, json={'path': str(source)}).status_code == 403
+    response = client.post(endpoint, base_url=base,
+        headers={'Origin': base, 'X-Setup-CSRF': csrf}, json={'path': str(source)})
+    assert response.status_code == 200
+    assert response.json['path'] == str(source.resolve())
+    assert [row['name'] for row in response.json['folders']] == ['data']
+    assert 'private contents' not in response.get_data(as_text=True)
+    assert response.json['parent'] == str(tmp_path.resolve())
+    assert not app.extensions['installation_state'].value.get('browser_source')
+    missing = client.post(endpoint, base_url=base,
+        headers={'Origin': base, 'X-Setup-CSRF': csrf}, json={'path': str(source / 'missing')})
+    assert missing.status_code == 409
+    assert missing.json['code'] == 'folder_unavailable'
+
+
+def test_resumed_inventory_filters_old_ignored_rows(browser):
+    app, client, base, csrf = browser
+    state = app.extensions['installation_state']
+    state.save(dict(state.value, browser_source=dict(kind='directory', root='unused', rows=[
+        dict(id='7', path='README.md', bytes=5, format='md', count=None, status='ignored')])))
+    page = client.get('/import/', base_url=base)
+    assert page.status_code == 200
+    assert b'README.md' not in page.data
+    assert b'Select the old installation root' in page.data

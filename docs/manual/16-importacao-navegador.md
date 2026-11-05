@@ -15,11 +15,42 @@ python -m setup
 ```
 
 Se o pull falhar, preserve alterações locais e resolva a divergência antes de
-iniciar o setup. O terminal e o cabeçalho devem mostrar 2.0.0-setup.11.
+iniciar o setup. O terminal e o cabeçalho devem mostrar 2.0.0-setup.12.
 GET /setup-version informa o mesmo identificador.
 Abra http://127.0.0.1:8090 e recarregue a página após cada reinício do servidor.
 O cookie é específico da porta; CSRF continua obrigatório. Origin deve coincidir;
 quando ausente, exige Referer da mesma origem. Não usar proxy externo.
+
+## Selecionar ou colar uma pasta
+
+Em Descobrir arquivos, mantenha Pasta da instalação anterior. Cole o caminho no
+campo ou clique **Selecionar pasta no servidor**. O modal permite abrir um caminho,
+navegar nas subpastas, subir um nível e escolher unidade/raiz. **Usar esta pasta**
+preenche o campo; depois clique Descobrir arquivos para inventariar.
+
+Selecione a raiz da instalação antiga, que contém devices.yml ou a pasta data;
+não selecione data isoladamente. O seletor mostra o sistema de arquivos do servidor
+do setup. Se o servidor é o Raspberry e os arquivos estão no Windows do navegador,
+use upload, não o seletor do servidor. O navegador não fornece caminhos absolutos
+de pastas locais ao servidor por uma caixa de seleção nativa.
+
+O seletor lista somente pastas, oculta diretórios internos e não lê conteúdo de
+arquivos. Listagens limitadas avisam para colar caminho mais específico. Falhas de
+permissão/caminho não criam uma origem nem iniciam importação.
+
+## Inventário filtrado
+
+A grade contém somente nomes/caminhos reconhecidos pelos adaptadores de migração:
+dispositivos, receitas, controles, calibrações, sessão e seleção ativa nos locais
+legados suportados. Não basta ter extensão JSON/YAML; arquivos sem papel conhecido
+na migração não são candidatos. .md, código, .gitignore e .env não entram na grade.
+Arquivos reconhecidos acima do limite ou com conteúdo inválido continuam sujeitos
+às validações; aparecer na lista não significa ter sido importado/aprovado.
+
+Arquivos desconhecidos continuam registrados como ignorados pelo motor/relatório,
+sem conteúdo executado. Inventários de tentativas antigas também são filtrados na
+exibição. Se não houver arquivo reconhecido, a tela orienta corrigir a origem ou
+usar upload, e não oferece importar uma seleção vazia.
 
 ## Visual
 

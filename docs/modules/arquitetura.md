@@ -60,7 +60,8 @@ bancos por conta própria.
 
 ## Evolução
 
-O contrato inicial é `0.1.0`. Preserve as funções de compatibilidade do Bridge;
+A versão atual é `0.1.1`, com navegação de pastas adicionada de forma compatível
+ao contrato inicial `0.1.0`. Preserve as funções de compatibilidade do Bridge;
 novos recursos devem entrar primeiro no núcleo quando forem independentes do
 domínio. Recursos específicos entram em adaptadores. Mudanças incompatíveis
 nos parâmetros/resultados exigem versão e guia de migração do componente.

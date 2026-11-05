@@ -23,6 +23,73 @@ document.addEventListener('DOMContentLoaded', () => {
       text.textContent = data.text || '';
     } catch (error) { status.textContent = messages.request_error || 'Error'; }
   }));
+  const folderDialog = document.getElementById('folder-dialog');
+  if (folderDialog) {
+    const byId = id => document.getElementById(id);
+    let currentFolder = '', parentFolder = null, navigation = 0;
+    const cleanPath = value => value.trim().replace(/^"(.*)"$/, '$1');
+    const csrf = document.querySelector('form[action="/import/discover"] input[name="csrf"]').value;
+    async function navigateFolder(path) {
+      const sequence = ++navigation;
+      currentFolder = ''; parentFolder = null;
+      byId('folder-select').disabled = true;
+      byId('folder-parent').disabled = true;
+      byId('folder-list').replaceChildren();
+      byId('folder-status').textContent = messages.processing;
+      try {
+        const response = await fetch('/import/folders', {
+          method: 'POST', credentials: 'same-origin',
+          headers: {'Content-Type': 'application/json', 'X-Setup-CSRF': csrf},
+          body: JSON.stringify({path: cleanPath(path)})
+        });
+        const data = await response.json();
+        if (sequence !== navigation) return;
+        if (!response.ok) throw new Error(data.message || messages.folder_unavailable);
+        currentFolder = data.path; parentFolder = data.parent;
+        byId('folder-path').value = data.path;
+        byId('folder-select').disabled = false;
+        byId('folder-parent').disabled = !data.parent;
+        const roots = byId('folder-root'); roots.replaceChildren();
+        data.roots.forEach(root => {
+          const option = document.createElement('option');
+          option.value = root; option.textContent = root; roots.appendChild(option);
+          if (data.path.toLowerCase().startsWith(root.toLowerCase())) roots.value = root;
+        });
+        data.folders.forEach(folder => {
+          const li = document.createElement('li');
+          const button = document.createElement('button');
+          button.type = 'button'; button.className = 'bridge-button secondary';
+          button.textContent = folder.name;
+          button.addEventListener('click', () => navigateFolder(folder.path));
+          li.appendChild(button); byId('folder-list').appendChild(li);
+        });
+        byId('folder-status').textContent = data.truncated ? messages.folder_truncated :
+          data.folders.length ? messages.folder_navigation : messages.folder_no_children;
+      } catch (error) {
+        if (sequence === navigation) byId('folder-status').textContent = error.message || messages.folder_unavailable;
+      }
+    }
+    const kind = byId('source-kind');
+    const syncFolderKind = () => { byId('browse-source').disabled = kind.value !== 'directory'; };
+    kind.addEventListener('change', syncFolderKind); syncFolderKind();
+    byId('browse-source').addEventListener('click', () => {
+      folderDialog.showModal(); navigateFolder(byId('source-path').value);
+    });
+    byId('folder-path').addEventListener('input', () => {
+      currentFolder = ''; byId('folder-select').disabled = true;
+    });
+    byId('folder-open').addEventListener('click', () => navigateFolder(byId('folder-path').value));
+    byId('folder-path').addEventListener('keydown', event => {
+      if (event.key === 'Enter') { event.preventDefault(); navigateFolder(event.target.value); }
+    });
+    byId('folder-parent').addEventListener('click', () => { if (parentFolder) navigateFolder(parentFolder); });
+    byId('folder-root').addEventListener('change', event => navigateFolder(event.target.value));
+    byId('folder-select').addEventListener('click', () => {
+      if (currentFolder) { byId('source-path').value = currentFolder; folderDialog.close(); }
+    });
+    document.querySelectorAll('[data-folder-close]').forEach(button => button.addEventListener('click', () => folderDialog.close()));
+    folderDialog.addEventListener('close', () => { navigation++; });
+  }
   document.querySelectorAll('form').forEach(form => form.addEventListener('submit', async event => {
     if (!window.fetch) return;
     event.preventDefault();

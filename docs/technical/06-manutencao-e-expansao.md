@@ -55,7 +55,7 @@ scripts systemd de uma instalação para generalizar o componente.
 
 Trabalhe na branch feature/sqlite-full-migration. Preserve instalações antigas e
 main. Documente novos contratos e mudanças incompatíveis dos módulos independentes.
-O pacote reutilizável está em 0.1.0; o build do assistente do Bridge é setup.11,
+O pacote reutilizável está em 0.1.1; o build do assistente do Bridge é setup.12,
 identificadores com escopos diferentes.
 
 Antes de homologar, valide clone limpo, importação YAML/JSON e SQLite, falhas de

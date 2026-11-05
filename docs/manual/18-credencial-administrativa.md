@@ -1,6 +1,6 @@
 # 18 — Credencial administrativa e acesso local
 
-Atualize a branch feature. O setup mostra 2.0.0-setup.11. Prepare Infraestrutura
+Atualize a branch feature. O setup mostra 2.0.0-setup.12. Prepare Infraestrutura
 e abra Credencial administrativa no menu. Resultados de validação e limites
 estão na [matriz de homologação](../homologacao/setup-2.0.0.md).
 

@@ -13,7 +13,9 @@
         <option value="directory">{{ t.legacy_folder }}</option><option value="sqlite">{{ t.sqlite_file }}</option>
       </select>
       <label for="source-path">{{ t.source_path }}</label>
-      <input class="bridge-field" id="source-path" name="source" required maxlength="2048">
+      <input class="bridge-field" id="source-path" name="source" required maxlength="2048" aria-describedby="source-help">
+      <p class="bridge-muted" id="source-help">{{ t.folder_help }}</p>
+      <button class="bridge-button secondary" type="button" id="browse-source">{{ t.folder_choose }}</button>
       <button class="bridge-button">{{ t.discover }}</button>
     </form>
   </section>
@@ -43,6 +45,8 @@
 {% if source %}
 <section class="bridge-card">
   <h2>{{ t.inventory }}</h2>
+  <p class="bridge-muted">{{ t.inventory_filter }}</p>
+  {% if not source.rows %}<p class="setup-alert warning">{{ t.inventory_empty }}</p>{% endif %}
   <form method="post" action="/import/run" data-run>
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <div class="setup-table-scroll">
@@ -59,7 +63,7 @@
     </table></div>
     {% if source.kind != 'sqlite' %}<label class="setup-check"><input type="checkbox" name="allow_partial" value="1">{{ t.allow_partial }}</label>{% endif %}
     <p class="bridge-muted">{{ t.import_options_hint }}</p>
-    <button class="bridge-button">{{ t.run_import }}</button>
+    <button class="bridge-button" {% if not source.rows %}disabled{% endif %}>{{ t.run_import }}</button>
   </form>
 </section>
 {% endif %}
@@ -84,4 +88,22 @@
 <form method="post" action="/abort" data-confirm="{{ t.abort_confirm }}">
   <input type="hidden" name="csrf" value="{{ csrf }}"><button class="bridge-button danger">{{ t.abort }}</button>
 </form>
+{% endblock %}
+
+{% block dialogs %}
+{{ super() }}
+<dialog id="folder-dialog" aria-labelledby="folder-title">
+  <header><h2 id="folder-title">{{ t.folder_choose }}</h2><button type="button" class="bridge-button secondary" data-folder-close>{{ t.close }}</button></header>
+  <p>{{ t.server_paths }}</p>
+  <label for="folder-path">{{ t.source_path }}</label>
+  <input class="bridge-field" id="folder-path" maxlength="2048" aria-describedby="folder-status">
+  <div class="setup-actions">
+    <button type="button" class="bridge-button secondary" id="folder-open">{{ t.folder_open }}</button>
+    <button type="button" class="bridge-button secondary" id="folder-parent">{{ t.folder_parent }}</button>
+    <label for="folder-root">{{ t.folder_root }}</label><select id="folder-root" class="bridge-field"></select>
+  </div>
+  <p id="folder-status" role="status" aria-live="polite"></p>
+  <ul id="folder-list" class="setup-folder-list"></ul>
+  <button type="button" class="bridge-button" id="folder-select" disabled>{{ t.folder_use }}</button>
+</dialog>
 {% endblock %}

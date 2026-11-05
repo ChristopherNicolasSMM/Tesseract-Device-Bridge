@@ -175,5 +175,18 @@
   "finish_maintenance_hint": "Após corrigir dispositivos ou pendências no painel simulado, revise a configuração e revalide aqui. Para modo configurado, o .env deve estar ajustado e a autorização abaixo é obrigatória. Nenhum hardware será iniciado pelo assistente.",
   "finish_review_confirm": "Confirmei que as pendências foram corrigidas e revisei os dados desta instalação.",
   "finish_revalidate": "Revalidar instalação publicada",
-  "publish_python": "Backend real exige o ambiente Python 3.9 já validado para GPIO no Raspberry. Use simulação neste ambiente ou conclua no equipamento correto."
+  "publish_python": "Backend real exige o ambiente Python 3.9 já validado para GPIO no Raspberry. Use simulação neste ambiente ou conclua no equipamento correto.",
+  "folder_choose": "Selecionar pasta no servidor",
+  "folder_help": "Cole o caminho ou use o seletor. Escolha a raiz da instalação anterior, que contém devices.yml ou a pasta data; não selecione data isoladamente. Para arquivos no computador do navegador, use Enviar pelo navegador.",
+  "folder_open": "Abrir caminho",
+  "folder_parent": "Pasta acima",
+  "folder_root": "Unidade / raiz",
+  "folder_use": "Usar esta pasta",
+  "folder_navigation": "Clique em uma pasta para navegar e depois em Usar esta pasta.",
+  "folder_no_children": "Nenhuma subpasta visível. Você pode usar esta pasta ou colar outro caminho.",
+  "folder_truncated": "Lista limitada. Cole um caminho mais específico para acessar outras pastas.",
+  "folder_unavailable": "Não foi possível abrir esta pasta. Confira o caminho e a permissão do usuário do setup.",
+  "folder_invalid": "Informe um caminho de pasta válido.",
+  "inventory_filter": "Mostramos somente arquivos nos nomes e caminhos reconhecidos pela migração. Documentação, código, .env e outros arquivos ficam fora da grade e não são importados.",
+  "inventory_empty": "Nenhum arquivo reconhecido nesta pasta. Selecione a raiz da instalação antiga ou envie os arquivos compatíveis pelo navegador."
 }

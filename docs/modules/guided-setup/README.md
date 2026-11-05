@@ -9,6 +9,7 @@ trata apenas de um modelo para extração futura.
 |---|---|---|
 | persistence.py | FileLock e atomic_json_write | setup/state.py |
 | configuration.py | host_name, port_number, probe_bind, update_env | setup/infrastructure.py e security.py |
+| folders.py | Listagem limitada de pastas/unidades, sem ler arquivos | setup/browser_import.py |
 | web.py | WizardStep e register_wizard_ui | setup/app.py |
 | templates/guided_setup/base.html | Layout Jinja com blocos e navegação | setup/templates/base.html |
 | static/theme.css e wizard.css | Tema compartilhado e layout offline | shared_ui e setup |
@@ -149,3 +150,18 @@ A CLI do Bridge continua `python -m setup`; as rotas de setup e
 lock, gravação atômica e renderização em um Flask de outro projeto.
 A suíte `tests/test_setup*.py` verifica os adaptadores e contratos anteriores.
 A extração não altera a autorização operacional criada na etapa 9.
+
+
+## Navegação de pastas (0.1.1)
+
+`reusable.guided_setup.folders.list_folders(path)` retorna caminho resolvido,
+pasta pai, raízes/unidades, nomes/caminhos de subpastas e indicador de truncamento.
+Limites padrão: 200 subpastas e 2000 entradas examinadas por requisição, sem
+recursão. Links simbólicos e pastas internas comuns são omitidos da listagem.
+Caminho vazio começa na pasta pessoal do usuário do processo. Não abre arquivos,
+não executa shell e não depende de uma interface gráfica no servidor.
+
+A autorização é do hospedeiro. No Bridge a rota POST /import/folders exige tentativa
+em andamento, cliente/Host local, origem e CSRF do setup. O resultado não cria
+browser_source nem dispara descoberta/importação. Não exponha essa função como
+explorador de arquivos público em outra aplicação.

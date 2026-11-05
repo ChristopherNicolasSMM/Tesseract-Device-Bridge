@@ -1,6 +1,6 @@
 # 17 — i18n, layout e recursos compartilhados
 
-Referência atual: setup.11. Catálogos `setup/translations/pt_BR.json` e `en.json`
+Referência atual: setup.12. Catálogos `setup/translations/pt_BR.json` e `en.json`
 alimentam Jinja, mensagens HTTP/JS e exibição de eventos. Idioma e tema ficam no
 manifesto; códigos de evento e dados persistidos não são traduzidos. O painel
 operacional não foi integralmente traduzido por esta entrega.

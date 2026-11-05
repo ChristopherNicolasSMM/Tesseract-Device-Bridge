@@ -1,6 +1,6 @@
 # 12 — Núcleo e fronteira HTTP do setup
 
-Referência atual: setup.11. A entrada `python -m setup [--port 8090]` utiliza
+Referência atual: setup.12. A entrada `python -m setup [--port 8090]` utiliza
 `setup.app.create_app(root, port=...)`. O assistente não importa módulos que
 inicializam painel operacional, DeviceRuntime, GPIO ou MQTT ao abrir.
 Os serviços ORM são carregados quando a ação de bootstrap/importação/publicação

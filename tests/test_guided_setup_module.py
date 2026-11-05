@@ -53,3 +53,20 @@ def test_reusable_layout_can_render_without_bridge_setup():
     assert b'aria-current="step"' in response.data
     assert b'Tesseract' not in response.data
     assert client.get('/wizard-assets/wizard.css').status_code == 200
+
+
+def test_folder_navigation_is_bounded_and_read_only(tmp_path):
+    from reusable.guided_setup.folders import list_folders, FolderError
+    root = tmp_path / 'folder-selector'
+    root.mkdir()
+    for name in ('a', 'b', 'c'):
+        (root / name).mkdir()
+    (root / 'not-a-folder.txt').write_text('keep', encoding='utf-8')
+    result = list_folders(str(root), limit=2)
+    assert len(result['folders']) == 2
+    assert result['truncated'] is True
+    assert (root / 'not-a-folder.txt').read_text() == 'keep'
+    with pytest.raises(FolderError):
+        list_folders(str(root / 'not-a-folder.txt'))
+    with pytest.raises(FolderError):
+        list_folders({})

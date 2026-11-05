@@ -1,7 +1,7 @@
 # 17 — Infraestrutura e preparação do .env
 
 Atualize a branch feature e reinicie python -m setup.
-O terminal e cabeçalho mostram 2.0.0-setup.11.
+O terminal e cabeçalho mostram 2.0.0-setup.12.
 Após iniciar uma tentativa, abra Infraestrutura no menu ou conclua a revisão
 da importação. Não é necessário preencher o caminho do banco manualmente.
 

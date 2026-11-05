@@ -10,6 +10,8 @@ possui seu próprio contrato e guia; não importa `config`, `storage`, `panel`,
 | Setup guiado/configurações | `reusable/guided_setup/` | [Integração e responsabilidades](guided-setup/README.md) |
 | Integração entre camadas | Adaptadores do projeto | [Guia de arquitetura](arquitetura.md) |
 
+Versão dos componentes: 0.1.1.
+
 Instalação opcional em outro projeto, a partir deste checkout:
 
 ```bash

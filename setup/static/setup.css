@@ -1,1 +1,7 @@
 /* Project-specific overrides. Shared wizard layout: /wizard-assets/wizard.css. */
+
+/* Folder navigation is a project UI adapter over the reusable read-only backend. */
+#folder-dialog { width: min(760px, 94vw); }
+.setup-folder-list { list-style: none; padding: 0; max-height: 320px; overflow: auto; }
+.setup-folder-list li { margin: 6px 0; }
+.setup-folder-list button { text-align: left; width: 100%; overflow-wrap: anywhere; }

@@ -175,5 +175,18 @@
   "finish_maintenance_hint": "After fixing devices or review items in the simulated panel, review configuration and revalidate here. Configured mode requires an updated .env and the authorization below. The wizard never starts hardware.",
   "finish_review_confirm": "I confirm outstanding issues were corrected and reviewed this installation.",
   "finish_revalidate": "Revalidate published installation",
-  "publish_python": "The real backend requires the validated Python 3.9 GPIO environment on Raspberry. Use simulation here or complete setup on the target hardware."
+  "publish_python": "The real backend requires the validated Python 3.9 GPIO environment on Raspberry. Use simulation here or complete setup on the target hardware.",
+  "folder_choose": "Choose folder on server",
+  "folder_help": "Paste a path or use the folder selector. Choose the old installation root containing devices.yml or the data folder; do not select data by itself. For files on the browser computer, use browser upload.",
+  "folder_open": "Open path",
+  "folder_parent": "Parent folder",
+  "folder_root": "Drive / root",
+  "folder_use": "Use this folder",
+  "folder_navigation": "Click a folder to navigate, then choose Use this folder.",
+  "folder_no_children": "No visible subfolders. Use this folder or paste another path.",
+  "folder_truncated": "Limited list. Paste a more specific path to reach other folders.",
+  "folder_unavailable": "Could not open this folder. Check its path and the setup user permissions.",
+  "folder_invalid": "Enter a valid folder path.",
+  "inventory_filter": "Only file names and paths recognized by migration are listed. Documentation, code, .env and unrelated files are excluded from the grid and are not imported.",
+  "inventory_empty": "No recognized files in this folder. Select the old installation root or upload compatible files."
 }

@@ -137,3 +137,17 @@ O mantenedor reportou 699 testes aprovados, 1 falha e 2 ignorados. A falha
 mínimo temporário e resultava em ModuleNotFoundError antes de abrir o servidor.
 A preparação foi corrigida e passou a verificar também os recursos CSS via HTTP.
 Esta correção não foi executada localmente nesta sessão; confirmação pendente.
+
+
+## Extensão setup.12 — pasta e inventário
+
+Incluídos seletor de pastas do servidor e filtro por nomes/caminhos reconhecidos
+pelos importadores. Nenhum arquivo desconhecido vira importável por ter extensão
+JSON/YAML. O motor preserva eventos de ignorados; apenas a grade é filtrada.
+
+Testes adicionados em test_setup_browser_import e test_guided_setup_module para
+origem com .md/JSON alheio, retomada de inventário antigo, navegação com espaços,
+CSRF, erros, ausência de efeitos e limites. Não executados nesta entrega.
+Validar no Windows seleção de unidade, pasta acima, colar caminho e permissões;
+no Raspberry, confirmar que o seletor mostra pastas do servidor e que arquivos
+no cliente continuam sendo enviados por upload.

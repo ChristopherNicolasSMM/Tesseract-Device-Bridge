@@ -1,6 +1,6 @@
 # 07 — Organização dos módulos Python | 2.0.0
 
-Referência: branch feature/sqlite-full-migration, setup.11. O clone mantém layout
+Referência: branch feature/sqlite-full-migration, setup.12. O clone mantém layout
 flat para executar entrypoints diretamente, sem exigir instalação do Bridge como
 wheel. O pyproject.toml da raiz configura ferramentas; o de reusable/ define
 somente a distribuição opcional dos componentes independentes.

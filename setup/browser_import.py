@@ -81,7 +81,10 @@ def remember(value, desc):
 
 def inventory_rows(root):
     from .legacy import discover, _safe
-    rows = discover(root)
+    from storage.legacy_import import LEGACY_FILES
+    known = set(LEGACY_FILES) | {'devices.yml'}
+    # Keep unknown entries in the engine/report, not in the selectable browser grid.
+    rows = [row for row in discover(root) if row['path'] in known]
     for index, row in enumerate(rows):
         row.update(id=str(index), format=Path(row['path']).suffix.lstrip('.'), count=None)
         if row['status'] == 'supported':
@@ -116,17 +119,39 @@ def page():
     session.setdefault('csrf', __import__('secrets').token_urlsafe(32))
     language = value.value['language']
     report = value.value.get('browser_report')
+    source = value.value.get('browser_source')
+    if source and source.get('kind') != 'sqlite':
+        from storage.legacy_import import LEGACY_FILES
+        known = set(LEGACY_FILES) | {'devices.yml'}
+        # Resumed attempts may contain an inventory written by an older build.
+        source = dict(source, rows=[row for row in source['rows'] if row['path'] in known])
     return render_template('import.html', t=catalog(language), language=language,
         theme=value.value.get('theme', 'light'), csrf=session['csrf'],
-        source=value.value.get('browser_source'), report=translate_report(report, language) if report else None,
+        source=source, report=translate_report(report, language) if report else None,
         build=current_app.config['SETUP_BUILD'])
+
+
+@bp.post('/folders')
+def browse_folders():
+    from reusable.guided_setup.folders import list_folders, FolderError
+    value = state()
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        abort(400)
+    try:
+        return jsonify(list_folders(payload.get('path', '')))
+    except FolderError as exc:
+        code = str(exc)
+        return jsonify(code=code, message=catalog(value.value['language'])[code]), 409
 
 
 @bp.post('/discover')
 def discover_source():
     from .legacy import _root
     value = state()
-    path = request.form.get('source', '')
+    path = request.form.get('source', '').strip()
+    if len(path) >= 2 and path[0] == path[-1] == '"':
+        path = path[1:-1]
     if not path or len(path) > 2048:
         raise SetupError('Choose a source.')
     if request.form.get('kind') == 'sqlite':

@@ -1,3 +1,12 @@
+## 2026-11-05 — Setup.12: seleção de pasta e inventário reconhecido
+
+- Seletor de pastas do servidor com caminho colável, navegação e unidades Windows;
+  listagem limitada e somente leitura, sob a proteção local/CSRF do setup.
+- Grade exibe somente nomes/caminhos suportados pela migração, inclusive em retomadas;
+  documentação/código/JSON desconhecidos ficam fora, preservando ignorados no relatório.
+- Navegação genérica em reusable/guided_setup/folders.py; componentes em 0.1.1.
+- Testes escritos e documentação atualizada; execução da suíte pelo mantenedor pendente.
+
 ## 2026-11-05 — Consolidação dos manuais e documentação técnica
 
 - Atualizados guias de instalação, caminhos, FAQ, telas do setup, segurança e serviço
