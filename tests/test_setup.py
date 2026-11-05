@@ -201,8 +201,10 @@ app.extensions['installation_state'].close()
 def test_actual_cli_in_clean_clone(tmp_path):
     root = Path(__file__).resolve().parents[1]
     clean = tmp_path / "clone"
-    shutil.copytree(root / "setup", clean / "setup", ignore=shutil.ignore_patterns("__pycache__"))
-    shutil.copytree(root / "shared_ui", clean / "shared_ui", ignore=shutil.ignore_patterns("__pycache__"))
+    # Include the extracted toolkit, while omitting runtime/storage/hardware packages.
+    for package in ("setup", "shared_ui", "reusable"):
+        shutil.copytree(root / package, clean / package,
+                        ignore=shutil.ignore_patterns("__pycache__"))
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
@@ -220,6 +222,15 @@ def test_actual_cli_in_clean_clone(tmp_path):
                 time.sleep(0.03)
         else:
             pytest.fail("Setup did not answer HTTP requests")
+        # Exercise resource delivery in the subprocess, not just imports/test_client.
+        for path, expected in (
+                ("/wizard-assets/wizard.css", b".setup-page"),
+                ("/wizard-assets/theme.css", b"color-scheme"),
+                ("/shared-ui/theme.css", b"color-scheme"),
+                ("/static/setup.css", b"Project-specific overrides")):
+            with urllib.request.urlopen("http://127.0.0.1:" + str(port) + path, timeout=2) as asset:
+                assert asset.status == 200
+                assert expected in asset.read()
         assert not (clean / ".env").exists()
         assert not list(clean.rglob("*.sqlite3"))
     finally:

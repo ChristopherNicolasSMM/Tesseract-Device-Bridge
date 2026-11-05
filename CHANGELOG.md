@@ -1,3 +1,12 @@
+## 2026-11-05 — Correção do teste de clone mínimo
+
+- O teste CLI copia também `reusable/`, dependência extraída do setup, preservando
+  o isolamento de storage/runtime/GPIO.
+- Verifica os estilos do assistente e a URL de compatibilidade do tema pelo
+  servidor real iniciado no subprocesso.
+- Falha reportada no Windows: 699 aprovados, 1 falha, 2 ignorados antes desta correção.
+  Correção sem execução local da suíte; confirmação pelo mantenedor pendente.
+
 ## 2026-11-05 — Monitor serial e módulos reutilizáveis (setup.11)
 
 - Monitor serial administrativo: porta manual sem cadastro, teste de abertura,

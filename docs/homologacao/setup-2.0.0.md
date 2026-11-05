@@ -126,3 +126,12 @@ Para o setup, conferir tema claro/escuro, navegação e retomada após a extraç
 para `reusable/guided_setup`, sem mudar o formato do manifesto nem o fluxo de
 publicação. Empacotamento opcional e instalação em outro projeto exigem sua
 própria validação; não há publicação no PyPI.
+
+
+### Retorno Windows da extensão setup.11
+
+O mantenedor reportou 699 testes aprovados, 1 falha e 2 ignorados. A falha
+`test_actual_cli_in_clean_clone` omitia o pacote `reusable/` ao montar o clone
+mínimo temporário e resultava em ModuleNotFoundError antes de abrir o servidor.
+A preparação foi corrigida e passou a verificar também os recursos CSS via HTTP.
+Esta correção não foi executada localmente nesta sessão; confirmação pendente.
