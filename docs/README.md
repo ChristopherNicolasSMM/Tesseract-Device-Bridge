@@ -43,3 +43,9 @@ a conclusão válida e autorização do modo configurado, preservando intertrava
 - [Monitor serial: UI, API e limites](modules/serial-monitor/README.md)
 - [Setup guiado: configuração, persistência e layout](modules/guided-setup/README.md)
 - [Arquitetura e guia de integração](modules/arquitetura.md)
+
+
+## Auditorias
+
+- [Arquivos possivelmente sem uso — 05/11/2026](audits/arquivos-sem-uso-2026-11-05.md):
+  candidatos à limpeza, evidências de referências e itens de compatibilidade a preservar.
