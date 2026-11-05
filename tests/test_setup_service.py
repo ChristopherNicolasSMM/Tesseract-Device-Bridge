@@ -16,10 +16,18 @@ def test_unit_paths_are_quoted_and_specifiers_escaped():
 def test_service_unavailable_does_not_mutate_files(tmp_path, monkeypatch):
     from setup import service
     monkeypatch.setattr(service, 'compatible', lambda: False)
-    fake = SimpleNamespace(root=tmp_path)
+    # The autouse fixture creates its legacy DB in tmp_path, outside this root.
+    root = tmp_path / 'service-clone'
+    root.mkdir()
+    sentinel = root / 'existing.txt'
+    sentinel.write_bytes(b'preserve-existing-content')
+    before = {path.relative_to(root): path.read_bytes() for path in root.rglob('*') if path.is_file()}
+    fake = SimpleNamespace(root=root)
     with pytest.raises(SetupError):
         service.generate(fake)
-    assert list(tmp_path.iterdir()) == []
+    after = {path.relative_to(root): path.read_bytes() for path in root.rglob('*') if path.is_file()}
+    assert after == before
+    assert not (root / 'data').exists()
 
 
 @pytest.mark.skipif(os.name == 'nt', reason='POSIX account database required')
