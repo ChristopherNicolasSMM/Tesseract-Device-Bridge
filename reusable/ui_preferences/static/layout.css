@@ -1,0 +1,29 @@
+/* Shared content-width policy. Default mode deliberately leaves host limits intact. */
+.layout-control { position:relative; display:inline-block; flex-shrink:0; color:var(--text-primary,var(--text,#e5edf7)); font:13px/1.5 system-ui,sans-serif; text-align:left; }
+.layout-control>summary { display:block; list-style:none; padding:7px 10px; border:1px solid var(--border-subtle,var(--line,#475569)); border-radius:6px; background:var(--bg-card,var(--card,#172236)); cursor:pointer; white-space:nowrap; font-weight:600; }
+.layout-control>summary::-webkit-details-marker { display:none; }
+.layout-control :focus-visible { outline:3px solid var(--accent-blue,var(--accent,#9bc3ff)); outline-offset:2px; }
+.layout-popover { position:absolute; z-index:1000; right:0; top:calc(100% + 8px); width:min(320px,calc(100vw - 24px)); padding:16px; border:1px solid var(--border-subtle,var(--line,#475569)); border-radius:8px; background:var(--bg-card,var(--card,#172236)); box-shadow:0 8px 28px #0005; }
+.layout-popover label { display:block; margin:0 0 7px; font-size:13px; color:inherit; }
+.layout-popover select,.layout-popover button { box-sizing:border-box; width:100%; padding:8px; margin:0 0 10px; border:1px solid var(--border-subtle,var(--line,#64748b)); border-radius:5px; background:var(--bg-primary,var(--bg,#101827)); color:inherit; font:inherit; }
+.layout-popover input[type=range] { display:block; width:100%; padding:0; margin:12px 0; accent-color:var(--accent-blue,var(--accent,#9bc3ff)); }
+.layout-popover p,.layout-status { font-size:12px; line-height:1.5; margin:10px 0; color:var(--text-secondary,var(--muted,#a9b8cd)); }
+.layout-status { display:block; min-height:1em; }
+.layout-popover [hidden] { display:none!important; }
+html[data-layout-embedded=true] .layout-control { display:none; }
+html[data-layout-mode]:not([data-layout-mode=default]) [data-layout-surface] { box-sizing:border-box; min-width:0; }
+html[data-layout-mode]:not([data-layout-mode=default]) [data-layout-surface=panel],
+html[data-layout-mode]:not([data-layout-mode=default]) [data-layout-surface=configuration],
+html[data-layout-mode]:not([data-layout-mode=default]) [data-layout-surface=help] { width:100%; max-width:var(--layout-max); margin-inline:auto; }
+html[data-layout-mode]:not([data-layout-mode=default]) [data-layout-surface=panel] #control-settings,
+html[data-layout-mode]:not([data-layout-mode=default]) [data-layout-surface=help]>main { max-width:none; }
+html[data-layout-mode]:not([data-layout-mode=default]) [data-layout-surface=wizard] { width:calc(100% - 260px); max-width:var(--layout-max); margin-left:max(260px,calc((100% + 260px - var(--layout-max))/2)); margin-right:auto; }
+.configuration-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; padding:12px 24px; }
+.configuration-header .layout-control { --bg-primary:#f6f9ff; --bg-card:#fff; --text-primary:#012970; --text-secondary:#526782; --border-subtle:#c7d5e6; }
+@media(max-width:1100px) { html[data-layout-mode]:not([data-layout-mode=default]) [data-layout-surface=wizard] { width:100%; margin-inline:auto; } }
+@media(max-width:760px) { .layout-popover { position:fixed; top:auto; right:12px; margin-top:8px; } }
+@media print { .layout-control { display:none!important; } }
+
+.layout-header-actions { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:12px; }
+
+.help-header { flex-wrap:wrap; }

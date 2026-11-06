@@ -40,7 +40,7 @@ pastas podem ser publicadas. O Bridge fornece documentos públicos do repositór
 se for reutilizar em um projeto com arquivos privados, configure a regra antes
 de registrar o blueprint. Cada app registra este blueprint uma vez.
 
-O extra opcional é `documentation` no pacote `reusable/`, versão 0.2.0:
+O extra opcional é `documentation` no pacote `reusable/`, versão 0.2.1:
 
 ```bash
 python -m pip install './reusable[documentation]'
@@ -74,8 +74,9 @@ HTML a uma allow-list sem eventos, scripts, formulários ou estilos embutidos.
 A etapa seguinte reescreve links relativos somente para documentos publicados e
 imagens locais permitidas. Protocolos externos aceitos para links são HTTP, HTTPS
 e mailto, com `noopener noreferrer`; não há imagens externas, SVG ou fetch de
-URLs remotas no servidor. Conteúdo de código é texto. O viewer envia CSP sem
-scripts, `nosniff`, `no-store` e política de referrer restritiva.
+URLs remotas no servidor. Conteúdo de código é texto. O viewer envia CSP restritivo, `nosniff`, `no-store` e política de referrer
+restritiva. Com `layout_control=True`, a página independente permite somente o
+script de layout com nonce por resposta; `embedded=1` continua sem scripts.
 
 O módulo possui tratamento de erros próprio: falhas na consulta retornam 503
 sem invocar o tratador global de falhas de hardware. O iframe do painel permite
@@ -86,3 +87,6 @@ Testes: `tests/test_documentation.py`. Execução e validação visual ficam com
 mantenedor. Fontes dos componentes de renderização:
 [Python-Markdown](https://python-markdown.github.io/extensions/) e
 [Bleach](https://bleach.readthedocs.io/en/latest/clean.html).
+
+O [módulo de preferências visuais](../ui-preferences/README.md) detalha o contrato
+de integração de largura e o registro dos assets quando `layout_control=True`.

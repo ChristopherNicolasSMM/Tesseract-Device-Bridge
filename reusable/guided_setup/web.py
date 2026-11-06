@@ -16,6 +16,8 @@ def register_wizard_ui(app, steps):
     and validates actions server-side. Supply a trusted catalog `t`, language,
     theme, build and csrf through your views, as shown in the integration guide.
     """
+    from reusable.ui_preferences import register_layout
+    register_layout(app)
     from flask import Blueprint, request
     steps = tuple(steps)
     blueprint = Blueprint('guided_setup_ui', __name__, template_folder='templates',

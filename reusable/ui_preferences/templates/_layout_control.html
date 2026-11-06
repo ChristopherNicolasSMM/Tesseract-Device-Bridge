@@ -1,0 +1,19 @@
+{% set layout_en = language | default('pt_BR') == 'en' %}
+<details class="layout-control" data-layout-control data-saved="{{ 'Preference saved in this browser.' if layout_en else 'Preferência salva neste navegador.' }}" data-unsaved="{{ 'Applied to this page; browser storage is unavailable.' if layout_en else 'Aplicado nesta página; armazenamento do navegador indisponível.' }}">
+<summary aria-label="{{ 'Content width' if layout_en else 'Largura do conteúdo' }}">↔ Layout</summary>
+<div class="layout-popover">
+<label for="layout-width-mode">{{ 'Content width' if layout_en else 'Largura do conteúdo' }}</label>
+<select id="layout-width-mode" data-layout-mode-input>
+<option value="default">{{ 'Default' if layout_en else 'Padrão' }}</option>
+<option value="wide">{{ 'Wide' if layout_en else 'Ampla' }}</option>
+<option value="full">{{ 'Full width' if layout_en else 'Total' }}</option>
+<option value="custom">{{ 'Custom' if layout_en else 'Personalizada' }}</option>
+</select>
+<div data-layout-custom hidden>
+<label for="layout-width-range">{{ 'Maximum width' if layout_en else 'Largura máxima' }}: <output data-layout-value for="layout-width-range">1400 px</output></label>
+<input id="layout-width-range" type="range" data-layout-range min="960" max="2560" step="40" value="1400">
+</div>
+<p>{{ 'Small screens keep the responsive layout.' if layout_en else 'Em telas menores, o layout continua responsivo.' }}</p>
+<button type="button" data-layout-reset>{{ 'Restore default' if layout_en else 'Restaurar padrão' }}</button>
+<span class="layout-status" role="status" aria-live="polite" data-layout-status></span>
+</div></details>

@@ -5,6 +5,8 @@ from reusable.documentation import DocumentLibrary
 
 def register_help(app):
     from reusable.documentation.web import register_documentation
+    from reusable.ui_preferences import register_layout
+    register_layout(app)
     root = Path(__file__).resolve().parents[1]
     library = DocumentLibrary(root, folders=('docs',), files=('README.md',), categories=(
         ('docs/manual/04-', 'FAQ'), ('docs/manual/', 'Manuais'),
@@ -13,7 +15,7 @@ def register_help(app):
         ('docs/', 'Índices'), ('README.md', 'Apresentação')))
     # These are published repository documents, readable wherever the host panel
     # is accessible. No administrative token, local data or environment is read.
-    return register_documentation(app, library, home_links=(
+    return register_documentation(app, library, layout_control=True, home_links=(
         ('docs/manual/04-perguntas-frequentes.md', 'Perguntas frequentes', 'Respostas e caminhos para os guias completos.'),
         ('docs/manual/20-instalacao-migracao-2.0.0.md', 'Instalação e migração', 'Clone novo, importação, publicação e recuperação.'),
         ('docs/manual/03-funcionalidades.md', 'Operação do Bridge', 'Painel, receitas, sensores e atuadores.'),

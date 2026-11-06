@@ -3,6 +3,8 @@ from pathlib import Path
 
 
 def register_ui(app):
+    from reusable.ui_preferences import register_layout
+    register_layout(app)
     from flask import Blueprint
     from reusable import guided_setup
     blueprint = Blueprint('shared_ui', __name__, static_folder=str(Path(guided_setup.__file__).parent / 'static'),

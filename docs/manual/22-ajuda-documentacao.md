@@ -44,3 +44,8 @@ python -m pip install -r requirements.txt
 Reinicie o aplicativo e recarregue a página. Validação visual e regressão da nova
 aba permanecem pendentes de execução local; o aceite anterior da simulação é
 anterior a esta entrega. O cenário real continua pendente do mantenedor.
+
+## Largura do leitor
+
+O botão **↔ Layout** fica ao lado do tema na central independente. Dentro da aba
+de ajuda, o leitor herda a largura do painel. Veja [modos e persistência](23-layout-interface.md).

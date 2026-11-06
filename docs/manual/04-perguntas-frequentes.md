@@ -165,3 +165,9 @@ O Bridge publica o estado; comandos vão ao `command_topic`. O tópico recebe o
 prefixo MQTT configurado. Controle manual, liberação para receita e confirmação
 automática estão descritos em [Bombas e MQTT](16-bombas-mqtt.md). Em simulação
 isolada, não há acionamento físico.
+
+## Posso aumentar a largura de todas as telas?
+
+Use **↔ Layout** no cabeçalho: Padrão, Ampla, Total ou Personalizada. A preferência
+fica no navegador e não altera configurações de hardware.
+[Detalhes e compartilhamento entre portas](23-layout-interface.md).

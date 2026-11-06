@@ -7,8 +7,8 @@ from .render import render_document
 
 
 def register_documentation(app, library, *, url_prefix='/help', authorize=None, title='Ajuda e documentação',
-                           home_links=()):
-    from flask import Blueprint, abort, jsonify, render_template, request, send_file, url_for
+                           home_links=(), layout_control=False):
+    from flask import Blueprint, abort, g, jsonify, render_template, request, send_file, url_for
     from markupsafe import Markup
     from werkzeug.exceptions import HTTPException
     bp = Blueprint('documentation', __name__, template_folder='templates', static_folder='static',
@@ -25,9 +25,11 @@ def register_documentation(app, library, *, url_prefix='/help', authorize=None, 
 
     @bp.after_request
     def headers(response):
+        nonce = getattr(g, 'documentation_layout_nonce', None)
+        script_policy = "script-src 'nonce-" + nonce + "'; " if nonce else "script-src 'none'; "
         response.headers.update({'Cache-Control':'no-store', 'X-Content-Type-Options':'nosniff',
             'Referrer-Policy':'no-referrer',
-            'Content-Security-Policy':"default-src 'none'; style-src 'self'; img-src 'self'; form-action 'self'; frame-ancestors 'self'; base-uri 'none'"})
+            'Content-Security-Policy':"default-src 'none'; " + script_policy + "style-src 'self'; img-src 'self'; form-action 'self'; frame-ancestors 'self'; base-uri 'none'"})
         return response
 
     @bp.errorhandler(Exception)
@@ -42,6 +44,12 @@ def register_documentation(app, library, *, url_prefix='/help', authorize=None, 
     def page():
         theme = request.args.get('theme', 'dark')
         theme = theme if theme in ('dark','light') else 'dark'
+        embedded = request.args.get('embedded') == '1'
+        nonce = None
+        if layout_control and not embedded:
+            import secrets
+            nonce = secrets.token_urlsafe(24)
+            g.documentation_layout_nonce = nonce
         query = request.args.get('q', '')[:160]
         category = request.args.get('category', '')[:80]
         documents = library.catalog()
@@ -55,11 +63,12 @@ def register_documentation(app, library, *, url_prefix='/help', authorize=None, 
             except (DocumentError, OSError):
                 abort(404)
             rendered = render_document(library, current,
-                document_url=lambda path: url_for('documentation.page', doc=path, theme=theme),
+                document_url=lambda path: url_for('documentation.page', doc=path, theme=theme, embedded='1' if embedded else None),
                 asset_url=lambda path: url_for('documentation.asset', path=path))
             rendered = {k: Markup(v) for k,v in rendered.items()}
         return render_template('documentation/page.html', title=title, current=current, rendered=rendered,
             documents=visible, categories=categories, category=category, query=query, theme=theme,
+            layout_enabled=layout_control, layout_nonce=nonce, embedded=embedded,
             results=library.search(query, visible) if query.strip() else [], home_links=home_links)
 
     @bp.get('/raw')

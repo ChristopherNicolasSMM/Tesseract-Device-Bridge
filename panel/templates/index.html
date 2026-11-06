@@ -6,6 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tesseract Device Bridge v{{ app_version }} — Painel de Controle</title>
   <link rel="stylesheet" href="{{ url_for('shared_ui.static', filename='theme.css') }}">
+  <link rel="stylesheet" href="{{ url_for('layout_ui.static', filename='layout.css', v=1) }}">
+  <script src="{{ url_for('layout_ui.static', filename='layout.js', v=1) }}" defer></script>
   <style>
     /* ===== RESET & VARIÁVEIS ===== */
     * {
@@ -1829,6 +1831,7 @@
         <span class="led-dot unknown" id="statusDot"></span>
         <span id="statusText">Conectando...</span>
       </div>
+      {% include "_layout_control.html" %}
       <span class="clock" id="clockDisplay"></span>
     </div>
   </header>
@@ -1844,11 +1847,11 @@
   </nav>
 
   <!-- ===== CONTEÚDO ===== -->
-  <main class="main-content">
+  <main class="main-content" data-layout-surface="panel">
 
     <section id="help" class="tab-pane" aria-label="Ajuda e documentação">
       <p><a href="/help/" target="_blank" rel="noopener noreferrer">Abrir documentação em outra aba</a></p>
-      <iframe src="/help/" title="Ajuda, FAQ e manuais do Device Bridge" loading="lazy"
+      <iframe src="/help/?embedded=1" data-layout-frame title="Ajuda, FAQ e manuais do Device Bridge" loading="lazy"
         sandbox="allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
         style="width:100%;height:82vh;min-height:540px;border:1px solid #344258;border-radius:8px;margin-top:12px"></iframe>
     </section>

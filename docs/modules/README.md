@@ -34,3 +34,8 @@ nenhuma homologação física é inferida a partir de mocks.
 
 [Visualizador Markdown reutilizável](documentation/README.md): catálogo, busca,
 renderização sanitizada e integração Flask, sem dependência de hardware ou ORM.
+
+## Preferências visuais
+
+[Controle de largura reutilizável](ui-preferences/README.md): ativos, template,
+persistência no navegador e herança de largura na documentação incorporada.

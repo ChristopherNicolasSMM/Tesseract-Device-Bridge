@@ -78,3 +78,10 @@ outros programas. O setup segue com um processo e lock exclusivo da instalação
 e configuração inicial registram o mesmo componente sem criar runtime.
 Falhas do leitor não passam pelo tratador de emergência do painel.
 Consulte [contratos e integração](documentation/README.md).
+
+## Largura de conteúdo como preferência visual
+
+`reusable/ui_preferences` publica o controle Layout. A preferência vive apenas no
+navegador, com adaptadores de CSS por superfície. Documentação independente usa
+nonce para o script confiável; o iframe herda a escolha sem habilitar scripts.
+[Arquitetura e contratos](ui-preferences/README.md).

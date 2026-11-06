@@ -188,3 +188,12 @@ tratamento de documento indisponível sem `runtime.trip`, consulta durante
 emergência e tela de configuração vazia sem instanciar hardware. As dependências
 de renderização devem ser instaladas pelo requirements atualizado.
 A validação física permanece pendente do mantenedor, como registrado acima.
+
+## Entrega posterior ao aceite: largura de conteúdo (setup.22)
+
+O controle global Layout foi entregue após o aceite anterior da simulação.
+Pendente: testes Python/Node listados no módulo ui-preferences e validação visual
+em painel, setup, configuração inicial e documentação independente/incorporada.
+Conferir mudança imediata, restauração, responsividade, armazenamento bloqueado,
+herança em navegação no iframe e compartilhamento entre portas do mesmo host.
+O aceite da nova interface não foi informado; a operação física segue pendente.
