@@ -63,7 +63,7 @@ def discover(source):
 def import_directory(state, source, *, selected=None, disable_invalid_remote_control=False,
                      allow_partial=False, _owned_upload=False, remote_state_topics=None):
     """Import selected YAML/JSON through legacy adapters into an independent ORM copy."""
-    from storage.legacy_import import collect, import_snapshot
+    from storage.legacy_import import collect, import_snapshot, LEGACY_FILES
     from storage.orm_normalize import normalize_copy
     if state.value['status'] != 'in_progress':
         raise SetupError('Start an installation attempt first.')
@@ -156,6 +156,7 @@ def import_directory(state, source, *, selected=None, disable_invalid_remote_con
               'runtime_authorized': False,
               'needs_review': bool(snapshot['repairs']) or any(e['category'] in ('warning', 'blocking_error') for e in events),
               'events': events + [event('ignored', 'file_ignored', file=row['path'])
-                                  for row in rows if row['path'] not in chosen]}
+                                  for row in rows if row['path'] not in chosen
+                                  and row['path'] in set(LEGACY_FILES) | {'devices.yml'}]}
     save_report(job, report)
     return report

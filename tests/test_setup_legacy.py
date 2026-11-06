@@ -22,6 +22,7 @@ def test_yaml_only_source_preserved_and_normalized(tmp_path):
         assert config.read_bytes() == before
         assert report['runtime_authorized'] is False
         assert 'unknown.txt' in report['ignored']
+        assert not any(e.get('file') == 'unknown.txt' for e in report['events'])
         target = state.staging() / report['database']
         with closing(sqlite3.connect(target)) as conn:
             assert conn.execute('SELECT count(*) FROM bridge_devices_v2').fetchone()[0] == 1

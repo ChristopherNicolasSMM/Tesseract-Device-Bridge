@@ -18,6 +18,13 @@ def translate(language, code):
 def translate_report(report, language):
     # Keep stable identifiers and return a translated display copy.
     result = dict(report)
+    events = report.get('events', [])
+    if any(item.get('code') == 'file_ignored' for item in events):
+        from storage.legacy_import import LEGACY_FILES
+        known = set(LEGACY_FILES) | {'devices.yml'}
+        # Also filter reports persisted by older builds, without rewriting them.
+        events = [item for item in events if item.get('code') != 'file_ignored'
+                  or item.get('file') in known]
     result['events'] = [dict(item, message=translate(language, item['code']))
-                        for item in report.get('events', [])]
+                        for item in events]
     return result

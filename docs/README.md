@@ -17,6 +17,7 @@ reutilizáveis **0.1.1**. A documentação não representa aprovação da homolo
 | Operação e administração | [Funcionalidades](manual/03-funcionalidades.md) · [Administração SQLite](manual/13-administracao-sqlite.md) |
 | Controle térmico e sensores | [Temperatura](manual/05-configuracoes-temperatura.md) · [Calibração](manual/11-calibracao-sensores.md) |
 | Monitor serial, inclusive sem cadastro | [Diagnóstico](manual/14-diagnostico-hardware.md) · [API e limites](modules/serial-monitor/README.md) |
+| Bombas e tópicos MQTT | [Estado, comandos e confirmação automática](manual/16-bombas-mqtt.md) |
 | Emergência | [Desligamento](manual/06-desligamento-emergencia.md) |
 
 ## Engenharia e aceite

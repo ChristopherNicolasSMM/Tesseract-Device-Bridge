@@ -129,3 +129,11 @@ Se a resposta for `abort_publication_exists`, existe uma publicação no destino
 Abra **Concluir instalação** para examinar o estado e usar a recuperação ou o
 rollback permitido. O descarte de temporários não remove o banco publicado nem
 ignora essa proteção. O status HTTP 409 sozinho não identifica qual caso ocorreu.
+
+### Relatório restrito ao escopo de importação (setup.17)
+
+Arquivos de código, documentação, `.gitkeep` e exemplos não aparecem como itens
+ignorados no relatório visível. Arquivos reconhecidos pela migração que o usuário
+não selecionou continuam identificados, assim como avisos e erros de arquivos
+importáveis. O filtro também vale para relatórios salvos por builds anteriores.
+O inventário técnico de descoberta permanece disponível para diagnóstico.

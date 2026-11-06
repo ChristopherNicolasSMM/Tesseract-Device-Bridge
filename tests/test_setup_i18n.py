@@ -42,3 +42,17 @@ def test_localized_errors_styles_and_theme_persist(tmp_path):
         assert again.extensions['installation_state'].value['theme'] == 'light'
     finally:
         again.extensions['installation_state'].close()
+
+
+def test_report_hides_non_import_files_including_saved_old_reports():
+    from copy import deepcopy
+    report = {'events': [
+        {'category': 'ignored', 'code': 'file_ignored', 'file': name}
+        for name in ['README.md', 'bridge.py', '.gitignore', 'data/.gitkeep',
+                     'data/public/devices.yml.example', 'data/private/receita.json']
+    ] + [{'category': 'warning', 'code': 'file_rejected', 'file': 'data/private/recipe_state.json'}]}
+    before = deepcopy(report)
+    displayed = translate_report(report, 'pt_BR')
+    assert [item['file'] for item in displayed['events']] == [
+        'data/private/receita.json', 'data/private/recipe_state.json']
+    assert report == before

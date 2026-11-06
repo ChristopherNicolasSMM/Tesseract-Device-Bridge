@@ -173,3 +173,20 @@ def test_bridge_wires_retained_rejection_for_opted_in_devices(setup):
     message.retain=False
     connected._mqtt._handle_message(None,None,message)
     assert runtime.get_state('mash_heater').duty_enabled
+
+
+def test_pump_custom_state_topic_is_published_with_prefix_and_original_id(setup):
+    bridge, runtime, _ = setup
+    device = runtime.get_device_config('pump')
+    device.state_topic = 'actuators/pump_1/state'
+    bridge._config.mqtt.topic_prefix = 'brewery'
+    send(bridge, 'pump_set', True, 'pump')
+    bridge.publish_sensor_states()
+    messages = [call for call in bridge._mqtt.publish.call_args_list
+                if call.args[0] == 'brewery/actuators/pump_1/state']
+    assert len(messages) == 1
+    payload = json.loads(messages[0].args[1])
+    assert payload['value'] is True
+    assert payload['control']['device_id'] == 'pump'
+    assert payload['control']['owner'] == 'manual'
+    assert messages[0].kwargs['retain'] is False
