@@ -130,9 +130,20 @@ def import_directory(state, source, *, selected=None, disable_invalid_remote_con
         save_report(job, report)
         return report
     intermediate = job / 'legacy.sqlite3'
-    import_snapshot(snapshot, destination=intermediate)
+    from .reports import failure_report
+    try:
+        import_snapshot(snapshot, destination=intermediate)
+    except Exception as exc:
+        report = failure_report('legacy_write_failed', exc, events=events)
+        save_report(job, report)
+        return report
     target = job / 'bridge.sqlite3'
-    result = normalize_copy(source=intermediate, destination=target)
+    try:
+        normalize_copy(source=intermediate, destination=target)
+    except Exception as exc:
+        report = failure_report('orm_conversion_failed', exc, events=events)
+        save_report(job, report)
+        return report
     report = {'version': 1, 'status': 'imported_staging', 'database': str(target.relative_to(staging)),
               'files': hashes, 'counts': snapshot['counts'], 'repairs': snapshot['repairs'],
               'ignored': [row['path'] for row in rows if row['path'] not in chosen],

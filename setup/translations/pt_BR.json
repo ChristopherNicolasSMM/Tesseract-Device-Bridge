@@ -196,5 +196,15 @@
   "devices_yaml_invalid": "A sintaxe YAML do devices.yml é inválida. Revise a indentação e a estrutura em uma cópia.",
   "abort_files_busy": "Não foi possível remover todos os temporários. Feche programas que estejam usando esses arquivos e tente descartar novamente. O estado da tentativa foi preservado.",
   "abort_publication_exists": "Já existe um registro de publicação. Use a recuperação ou o rollback na conclusão antes de descartar os temporários.",
-  "unsupported": "Não importável: esquema inválido, banco em uso ou formato incompatível"
+  "unsupported": "Não importável: esquema inválido, banco em uso ou formato incompatível",
+  "legacy_write_failed": "Falha ao gravar a cópia SQLite intermediária. Nenhum banco foi aprovado.",
+  "orm_conversion_failed": "Falha ao converter ou verificar a cópia ORM. Nenhum banco foi aprovado.",
+  "import_preparation_failed": "Falha ao preparar ou validar a origem selecionada.",
+  "import_permission_error": "O sistema recusou acesso a um arquivo. Confira permissões e arquivos abertos por outros programas.",
+  "import_integrity_error": "Uma restrição de integridade do banco foi violada durante a migração.",
+  "import_sqlite_error": "O SQLite recusou uma operação. Confira espaço disponível, bloqueios e o formato do banco.",
+  "import_mapping_error": "Os dados não puderam ser representados ou conferidos no modelo ORM sem perda. Preserve a origem para análise.",
+  "import_structure_error": "A estrutura ou o tipo de um campo não atende ao contrato do importador.",
+  "import_filesystem_error": "Uma operação de arquivo falhou. Confira espaço, caminho e bloqueios de outros programas.",
+  "import_internal_error": "Falha interna não classificada. Informe o build e a etapa exibida para análise."
 }

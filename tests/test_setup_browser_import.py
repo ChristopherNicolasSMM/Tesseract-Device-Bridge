@@ -243,3 +243,22 @@ def test_empty_devices_has_actionable_report_in_both_modes(browser, tmp_path):
         assert report['events'][0]['code'] == 'devices_empty'
     assert client.post('/abort', base_url=base, headers={'Origin': base},
         data={'csrf': csrf}).status_code == 303
+
+
+@pytest.mark.parametrize('kind', ['directory', 'sqlite'])
+def test_source_path_and_kind_survive_reload(browser, tmp_path, kind):
+    from storage.sqlite_store import initialize
+    from markupsafe import escape
+    app, client, base, csrf = browser
+    old = tmp_path / 'old & previous'
+    old.mkdir()
+    if kind == 'sqlite':
+        initialize(path=old / 'bridge.sqlite3')
+    response = client.post('/import/discover', base_url=base, headers={'Origin': base},
+        data={'csrf': csrf, 'source': str(old), 'kind': kind})
+    assert response.status_code == 303
+    for _ in range(2):
+        page = client.get('/import/', base_url=base).get_data(as_text=True)
+        assert 'value="' + str(escape(str(old))) + '" required' in page
+        assert 'value="' + kind + '" selected' in page
+    assert app.extensions['installation_state'].value['source_input'] == {'path': str(old), 'kind': kind}

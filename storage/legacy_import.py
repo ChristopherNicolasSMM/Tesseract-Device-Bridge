@@ -165,10 +165,12 @@ def collect(source_dir, *, devices_file="data/public/devices.yml", disable_inval
             raise LegacyImportError("ID global de receita duplicado: " + entry["id"])
         seen_global.add(entry["id"])
 
-    settings = _read_json(root / "data/private/control_settings.json", store.DEFAULT_CONTROL_SETTINGS)
-    validate_settings(settings)
+    # Import preflight must not consult the process-selected operational DB.
+    # The guided setup intentionally runs before an operational store is ready.
     defaults = _read_json(root / "data/control_defaults.json", store.DEFAULT_CONTROL_SETTINGS)
-    validate_settings(defaults)
+    validate_settings(defaults, defaults=store.DEFAULT_CONTROL_SETTINGS)
+    settings = _read_json(root / "data/private/control_settings.json", defaults)
+    validate_settings(settings, defaults=defaults)
     calibrations = _read_json(root / "data/private/sensor_calibration.json",
                               {"schema": 1, "sensors": {}})
     calibrations = validate_calibrations(calibrations, parsed.devices)

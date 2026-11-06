@@ -130,7 +130,9 @@ def page():
         source = dict(source, rows=[row for row in source['rows'] if row['path'] in known])
     return render_template('import.html', t=catalog(language), language=language,
         theme=value.value.get('theme', 'light'), csrf=session['csrf'],
-        source=source, report=translate_report(report, language) if report else None,
+        source=source, source_input=value.value.get('source_input',
+            {'path': source['root'], 'kind': 'directory'} if source and source.get('kind') == 'directory' else {}),
+        report=translate_report(report, language) if report else None,
         build=current_app.config['SETUP_BUILD'])
 
 
@@ -157,6 +159,7 @@ def discover_source():
         path = path[1:-1]
     if not path or len(path) > 2048:
         raise SetupError('Choose a source.')
+    value.save(dict(value.value, source_input={'path': path, 'kind': request.form.get('kind', '')}))
     if request.form.get('kind') == 'sqlite':
         source_path = Path(path).expanduser()
         if source_path.is_dir():
@@ -307,9 +310,9 @@ def run_import():
             report = import_directory(value, desc['root'], selected=[allowed[key] for key in selected],
                 allow_partial=request.form.get('allow_partial') == '1',
                 _owned_upload=desc['kind'] == 'upload')
-    except Exception:
-        report = dict(status='failed', database=None, needs_review=True, runtime_authorized=False,
-                      events=[dict(category='blocking_error', code='import_failed')])
+    except Exception as exc:
+        from .reports import failure_report
+        report = failure_report('import_preparation_failed', exc)
     value.save(dict(value.value, browser_report=report, browser_acknowledged=False))
     return redirect('/import/', code=303)
 

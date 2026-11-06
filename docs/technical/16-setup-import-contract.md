@@ -48,3 +48,26 @@ serviços setup.infrastructure, security, publication e finalize. Permissões do
 
 python -m pytest tests/test_setup_partial.py tests/test_setup_legacy.py tests/test_setup_sqlite_import.py tests/test_setup_bootstrap.py -q
 python -m pytest -q
+
+### Diagnóstico por etapa e isolamento (setup.14)
+
+A origem digitada e o tipo de descoberta ficam no manifesto privado do setup,
+separados do caminho da cópia capturada. A página repõe esses valores após o
+redirecionamento e em recargas; os caminhos nunca são colocados no cookie.
+
+O preflight YAML/JSON valida os padrões e configurações de controle da própria
+origem, passando `defaults` explicitamente. Não consulta `factory_settings()` nem
+o banco operacional selecionado no ambiente, que pode ainda não estar disponível.
+
+Falhas retornam códigos estáveis de preparação (`import_preparation_failed`),
+gravação intermediária (`legacy_write_failed`) ou conversão/verificação ORM
+(`orm_conversion_failed`), acompanhados de uma categoria estática da causa.
+Mensagens brutas de exceção, SQL, valores importados e credenciais não são exibidos
+nem persistidos. Avisos da coleta parcial são preservados mesmo se a etapa seguinte
+falhar. Um relatório de falha sempre tem `database=null` e não autoriza runtime.
+
+A referência versionada em `tests/fixtures/legacy_main/` reproduz os quatro arquivos
+públicos consultados da `main` em 06/11/2026: seis dispositivos e receita base.
+Os testes cobrem importação estrita/parcial sem banco operacional acessível.
+Os arquivos privados de uma instalação real continuam exigindo validação própria;
+a referência não comprova equivalência a uma origem com sete dispositivos.

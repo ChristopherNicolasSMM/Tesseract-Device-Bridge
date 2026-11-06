@@ -196,5 +196,15 @@
   "devices_yaml_invalid": "Invalid YAML syntax in devices.yml. Review indentation and structure in a copy.",
   "abort_files_busy": "Temporary files could not all be removed. Close programs using them and retry cancellation. Attempt state was preserved.",
   "abort_publication_exists": "A publication receipt exists. Use recovery or rollback on the completion page before cancelling.",
-  "unsupported": "Not importable: invalid schema, database in use or incompatible format"
+  "unsupported": "Not importable: invalid schema, database in use or incompatible format",
+  "legacy_write_failed": "Failed to write the intermediate SQLite copy. No database was approved.",
+  "orm_conversion_failed": "Failed to convert or verify the ORM copy. No database was approved.",
+  "import_preparation_failed": "Failed to prepare or validate the selected source.",
+  "import_permission_error": "File access was denied. Check permissions and other programs using these files.",
+  "import_integrity_error": "A database integrity constraint was violated during migration.",
+  "import_sqlite_error": "SQLite rejected an operation. Check free space, locks and database format.",
+  "import_mapping_error": "Source data could not be mapped or verified without loss in the ORM model. Preserve the source for analysis.",
+  "import_structure_error": "A field structure or type does not meet the import contract.",
+  "import_filesystem_error": "A filesystem operation failed. Check free space, paths and locks.",
+  "import_internal_error": "Unclassified internal failure. Report the build and displayed stage for analysis."
 }

@@ -52,6 +52,7 @@ def collect_partial(source, devices_file, *, disable_invalid_remote_control=Fals
                     accepted.append(entry)
                     snapshot = current
             dest.write_text(json.dumps(accepted, ensure_ascii=False), encoding='utf-8')
+            snapshot = collect(working, **options)
         else:
             # Two aliases of the base recipe must not silently mask each other.
             if relative == 'recipe.yml' and (working / 'data/public/receita_base.yaml').exists():

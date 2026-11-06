@@ -38,3 +38,27 @@ def record_import(function):
                     events=[event('blocking_error', 'import_failed')]))
             raise
     return run
+
+
+def failure_report(stage, exc, *, events=()):
+    """Static diagnostics only; exception messages can contain imported secrets."""
+    import sqlite3
+    from storage.mappers import NormalizationError
+    if isinstance(exc, PermissionError):
+        reason = 'import_permission_error'
+    elif isinstance(exc, sqlite3.IntegrityError):
+        reason = 'import_integrity_error'
+    elif isinstance(exc, sqlite3.Error):
+        reason = 'import_sqlite_error'
+    elif isinstance(exc, NormalizationError):
+        reason = 'import_mapping_error'
+    elif isinstance(exc, (KeyError, TypeError, ValueError)):
+        reason = 'import_structure_error'
+    elif isinstance(exc, OSError):
+        reason = 'import_filesystem_error'
+    else:
+        reason = 'import_internal_error'
+    return dict(version=1, status='failed', database=None, needs_review=True,
+                runtime_authorized=False,
+                events=list(events) + [event('blocking_error', stage),
+                                      event('blocking_error', reason)])
