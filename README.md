@@ -5,6 +5,9 @@
 > estável anterior. Não faça merge nem ative GPIO real antes de validar
 > sensores, bombas, resistências, failsafe e GLP com o hardware isolado.
 
+**Aceite em 06/11/2026:** simulação validada pelo mantenedor; cenário real
+pendente de sua execução. Ver [evidências e limites da homologação](docs/homologacao/setup-2.0.0.md).
+
 O Device Bridge é a aplicação local de automação física do Tesseract:
 interpreta sensores, executa receitas, controla temperatura por PID e
 potência por janela, e gerencia atuadores com intertravamentos de segurança.

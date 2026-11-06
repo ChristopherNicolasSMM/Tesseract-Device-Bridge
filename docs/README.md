@@ -1,7 +1,9 @@
 # Documentação — Tesseract Device Bridge 2.0.0
 
-Atualizado em 05/11/2026. Referência: setup **2.0.0-setup.12**, componentes
-reutilizáveis **0.1.1**. A documentação não representa aprovação da homologação.
+Atualizado em 06/11/2026. Referência: setup **2.0.0-setup.20**, componentes
+reutilizáveis **0.1.1**. Simulação validada pelo mantenedor em 06/11/2026; cenário real pendente de sua
+execução. O resultado da suíte atual não foi informado. Veja a
+[matriz de homologação](homologacao/setup-2.0.0.md).
 
 ## Começar e manter
 

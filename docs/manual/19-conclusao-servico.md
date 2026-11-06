@@ -1,8 +1,14 @@
 # 19 — Publicação, recuperação e serviço
 
+**Situação em 06/11/2026:** cenário de simulação validado pelo mantenedor.
+A validação em cenário real permanece pendente de sua execução, incluindo
+hardware, MQTT, bombas, aquecimento e serviço no Raspberry Pi. O aceite não
+informa novos totais da suíte nem homologa operação física. Consulte a
+[matriz de homologação](../homologacao/setup-2.0.0.md).
+
 Fluxo atual da branch feature/sqlite-full-migration. A validação de serviço,
 permissões, recuperação e operação física permanece local. Consulte os resultados
-registrados na [matriz de homologação](../homologacao/setup-2.0.0.md). Build de referência atual: 2.0.0-setup.12.
+registrados na [matriz de homologação](../homologacao/setup-2.0.0.md). Build de referência atual: 2.0.0-setup.20.
 
 ## Concluir
 

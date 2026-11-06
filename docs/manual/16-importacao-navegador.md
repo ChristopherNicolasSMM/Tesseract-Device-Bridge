@@ -15,7 +15,7 @@ python -m setup
 ```
 
 Se o pull falhar, preserve alterações locais e resolva a divergência antes de
-iniciar o setup. O terminal e o cabeçalho devem mostrar 2.0.0-setup.12.
+iniciar o setup. O terminal e o cabeçalho devem mostrar 2.0.0-setup.20.
 GET /setup-version informa o mesmo identificador.
 Abra http://127.0.0.1:8090 e recarregue a página após cada reinício do servidor.
 O cookie é específico da porta; CSRF continua obrigatório. Origin deve coincidir;

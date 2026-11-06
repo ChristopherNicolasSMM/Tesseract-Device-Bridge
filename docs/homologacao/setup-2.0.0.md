@@ -1,8 +1,28 @@
 # Matriz de homologação — setup 2.0.0
 
-Atualização: 05/11/2026. Branch: feature/sqlite-full-migration.
-Estado: implementação das dez etapas entregue; homologação final ainda pendente.
+Atualização: 06/11/2026. Branch: feature/sqlite-full-migration.
+Estado: cenário de simulação validado pelo mantenedor; homologação em cenário real pendente de sua execução.
+Referência documental: 2.0.0-setup.20.
 Não há merge em main, tag de release ou certificado de operação física.
+
+## Aceite informado em 06/11/2026
+
+O mantenedor confirmou: "no cenário de simulação esta ok". A validação em cenário
+real ficou explicitamente pendente de sua parte. Esse aceite manual global da
+simulação não informa commit executado, SO/Python, totais da suíte atual nem o
+resultado individual de cada item da matriz; esses campos não serão presumidos.
+
+| Escopo | Situação atual | Responsável / limite |
+|---|---|---|
+| Cenário de simulação | Validado pelo mantenedor em 06/11/2026 | Aceite manual global informado nesta conversa |
+| Suíte automatizada atual | Resultado consolidado não informado | Números abaixo são históricos; não equivalem ao build atual |
+| Hardware real e intertravamentos | Pendente | Mantenedor: sensores, GPIO, bombas, aquecimento, emergência, failsafe e GLP |
+| Integração MQTT em cenário real | Pendente | Mantenedor: comandos, telemetria e comportamento após falhas/reconexão |
+| Raspberry Pi e serviço systemd | Pendente em cenário real | Mantenedor: instalação, boot, reinício e permissões |
+
+O aceite da simulação não encerra a homologação física nem altera as autorizações
+e proteções do runtime. Os roteiros abaixo permanecem como referência; sua
+presença não declara que todos os seus passos foram executados.
 
 ## Evidência recebida
 
@@ -12,11 +32,12 @@ Não há merge em main, tag de release ou certificado de operação física.
 | 617 testes aprovados após núcleo | Execução do assistente para a Etapa 2, não resultado da versão atual |
 | 639 aprovados / 1 falha / 1 skip | Retorno Windows/Python 3.13 do usuário após Etapa 6; falha de isolamento corrigida depois |
 | 672 aprovados / 1 falha / 2 skips | Retorno após Etapa 9; falha de isolamento do teste de serviço |
-| 699 aprovados / 1 falha / 2 skips | Último retorno Windows/Python 3.13 após setup.11; clone mínimo omitia reusable/ |
+| 699 aprovados / 1 falha / 2 skips | Retorno histórico Windows/Python 3.13 após setup.11; clone mínimo omitia reusable/ |
 | Correção 2133f7e publicada | Inclui reusable/ e verifica recursos CSS via HTTP; resultado posterior ainda não informado |
 | Correção 7e3e2a9 publicada | Isola pasta do teste e preserva sentinela; resultado após correção ainda não informado |
 | Verificações de sintaxe | Python/JSON/JS/shell conferidos na Etapa 9; não equivalem à suíte funcional |
 | CI anterior | Sem confirmação de sucesso da matriz ampliada; verificar execução real após publicação |
+| Simulação — aceite manual global | Confirmação do mantenedor em 06/11/2026; sem novos totais de testes ou commit executado informado |
 | Raspberry físico/systemd/GLP | Sem homologação final registrada nesta conversa |
 
 Não transformar falhas corrigidas em aprovação presumida nem extrapolar um teste
@@ -68,7 +89,7 @@ novos testes e skips específicos de plataforma alteram os totais.
 
 ## Roteiro Windows
 
-1. Confirmar pull e build 2.0.0-setup.11.
+1. Confirmar pull, commit e build 2.0.0-setup.20 (ou sucessor explicitamente registrado).
 2. Executar suíte completa sem erros de coleta.
 3. Clone descartável novo: instalar vazio; confirmar zero devices e tela administrativa.
 4. Importar pasta YAML/JSON por caminho e upload; acrescentar receita.json com destino explícito.
@@ -143,7 +164,9 @@ Esta correção não foi executada localmente nesta sessão; confirmação pende
 
 Incluídos seletor de pastas do servidor e filtro por nomes/caminhos reconhecidos
 pelos importadores. Nenhum arquivo desconhecido vira importável por ter extensão
-JSON/YAML. O motor preserva eventos de ignorados; apenas a grade é filtrada.
+JSON/YAML. Na entrega setup.12, apenas a grade era filtrada. Desde setup.17, o relatório
+visível também omite arquivos fora do escopo, inclusive em relatórios antigos.
+O inventário técnico mantém o registro de descoberta.
 
 Testes adicionados em test_setup_browser_import e test_guided_setup_module para
 origem com .md/JSON alheio, retomada de inventário antigo, navegação com espaços,

@@ -1,6 +1,12 @@
 # 15 — Assistente de instalação
 
-Referência atual: **2.0.0-setup.12**, branch `feature/sqlite-full-migration`.
+**Situação em 06/11/2026:** cenário de simulação validado pelo mantenedor.
+A validação em cenário real permanece pendente de sua execução, incluindo
+hardware, MQTT, bombas, aquecimento e serviço no Raspberry Pi. O aceite não
+informa novos totais da suíte nem homologa operação física. Consulte a
+[matriz de homologação](../homologacao/setup-2.0.0.md).
+
+Referência atual: **2.0.0-setup.20**, branch `feature/sqlite-full-migration`.
 O [manual consolidado](20-instalacao-migracao-2.0.0.md) cobre o fluxo completo;
 este guia descreve abertura, retomada e cancelamento.
 

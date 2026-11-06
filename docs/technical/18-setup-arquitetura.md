@@ -146,3 +146,17 @@ A suíte local fornecida pelo usuário é evidência somente da versão e plataf
 efetivamente executadas. CI configura Ubuntu/Windows e Python 3.9/3.13, mas não
 certifica hardware nem serviço físico. Resultados e pendências estão na
 [matriz de homologação](../homologacao/setup-2.0.0.md).
+
+### Aceite de simulação e fronteira de validação física
+
+Em 06/11/2026, o mantenedor confirmou o funcionamento no cenário de simulação e
+reservou para si a validação em cenário real. A referência documental é
+2.0.0-setup.20; o aceite não identifica o commit executado nem apresenta novos
+totais automatizados. Não há alteração de código ou de gates por este registro.
+
+Permanecem pendentes no ambiente real: leitura de sensores e GPIO, bombas e
+aquecimento, intertravamentos/emergência/failsafe/GLP, troca MQTT com o Tesseract
+e operação do serviço no Raspberry Pi. O backend simulado e as verificações
+estáticas não comprovam fiação, fluxo de líquido, chama, relés ou boot do serviço.
+A [matriz de homologação](../homologacao/setup-2.0.0.md) é o registro de evidências
+e deve receber os resultados reais antes de declarar esse escopo homologado.
