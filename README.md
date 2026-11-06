@@ -17,6 +17,43 @@ A aba **Ajuda e documentação** permite consultar FAQ, manuais e guias técnico
 com busca local. Também está disponível no setup e na configuração inicial.
 [Guia da central](docs/manual/22-ajuda-documentacao.md).
 
+## Início rápido — copiar e colar
+
+Requer Git e Python instalados. Execute em uma pasta onde deseja criar o clone
+novo; preserve a instalação anterior como origem da importação.
+
+### Windows — PowerShell
+
+```powershell
+git clone --branch feature/sqlite-full-migration --single-branch https://github.com/ChristopherNicolasSMM/Tesseract-Device-Bridge.git Tesseract-Device-Bridge-SQLite
+cd Tesseract-Device-Bridge-SQLite
+python -m venv venv
+.\venv\Scripts\python.exe -m pip install -r requirements.txt
+.\venv\Scripts\python.exe -m setup
+```
+
+Os comandos usam o Python da venv diretamente, sem precisar ativá-la ou alterar
+a política de execução do PowerShell.
+
+### Linux / Raspberry Pi — Bash
+
+Com Python 3.9 e o suporte a `venv` disponíveis:
+
+```bash
+git clone --branch feature/sqlite-full-migration --single-branch https://github.com/ChristopherNicolasSMM/Tesseract-Device-Bridge.git Tesseract-Device-Bridge-SQLite
+cd Tesseract-Device-Bridge-SQLite
+python3.9 -m venv venv
+source venv/bin/activate
+python -m pip install -r requirements.txt
+python -m setup
+```
+
+Abra **http://127.0.0.1:8090** no computador onde o setup está rodando e siga o
+assistente. No Raspberry sem navegador local, use o
+[túnel SSH descrito no manual](docs/manual/20-instalacao-migracao-2.0.0.md).
+Não é necessário criar `.env` ou banco antes de iniciar. Concluir o setup não
+inicia hardware nem instala/inicia o serviço automaticamente.
+
 ## O que muda na versão 2.0.0
 
 - **SQLite como fonte única de dados operacionais**: dispositivos, GPIOs,
