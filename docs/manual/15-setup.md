@@ -184,3 +184,18 @@ A tentativa antiga mantém o layout anterior até ser descartada; candidatos já
 preparados não são movidos silenciosamente. Se mesmo a nova tentativa exceder o
 limite, use uma pasta curta para o clone, por exemplo `C:\TesseractBridge`.
 Os dados de origem e o banco publicado não são alterados por essa correção.
+
+### Sessão expirada após reiniciar (setup.20)
+
+Reiniciar o setup troca a chave de sessão do processo. Uma página que ficou
+aberta ainda contém o cookie e o CSRF antigos: o envio é rejeitado com 403 antes
+de executar a operação. Isso não significa falha nos arquivos da origem.
+
+A tela oferece **Renovar sessão**. Essa ação atualiza a sessão e os tokens dos
+formulários sem reenviar a operação rejeitada. Confira os campos e envie novamente.
+O seletor de pasta também usa o token renovado. Se outra tentativa foi iniciada,
+a página recarrega para atualizar o inventário, em vez de reaproveitar a seleção
+antiga. Os controles de origem, Host e acesso local permanecem ativos.
+
+Em páginas abertas antes dessa versão, recarregue uma vez após atualizar. Use o
+mesmo endereço durante o fluxo: `127.0.0.1` e `localhost` têm cookies distintos.

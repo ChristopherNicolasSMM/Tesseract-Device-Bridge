@@ -223,5 +223,8 @@
   "diagnostic_id": "ID do diagnóstico",
   "diagnostics_hint": "O log registra etapas e erros técnicos, sem conteúdo dos arquivos, credenciais ou mensagens brutas de exceção. É preservado após descartar temporários.",
   "diagnostics_unavailable": "Não foi possível acessar o log. Confira permissão e espaço disponível em data/private/setup/logs.",
-  "setup_path_too_long": "O caminho dos temporários excede o limite previsto do Windows. Cancele a tentativa e inicie uma nova para usar caminhos compactos. Se persistir, use um clone em uma pasta mais curta, como C:\\TesseractBridge."
+  "setup_path_too_long": "O caminho dos temporários excede o limite previsto do Windows. Cancele a tentativa e inicie uma nova para usar caminhos compactos. Se persistir, use um clone em uma pasta mais curta, como C:\\TesseractBridge.",
+  "session_expired": "A sessão desta página expirou ou o setup foi reiniciado. Renove a sessão e confira o formulário antes de enviar novamente.",
+  "refresh_session": "Renovar sessão",
+  "session_renewed": "Sessão renovada. Os campos foram preservados; confira os dados e envie novamente a operação desejada."
 }

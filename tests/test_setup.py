@@ -339,3 +339,48 @@ def test_readonly_cleanup_retries_owned_delete_only(tmp_path, monkeypatch):
     cleanup.remove_staging_tree(root)
     assert not root.exists()
     assert outside.read_text() == 'keep'
+
+
+def test_session_can_be_renewed_after_restart_without_replaying_form(wizard):
+    import secrets
+    from setup.diagnostics import logger
+    app, root = wizard
+    client = app.test_client()
+    base = 'http://127.0.0.1:8090'
+    assert post(client, '/start', language='en').status_code == 303
+    with client.session_transaction(base_url=base) as current:
+        old_csrf = current['csrf']
+    state = app.extensions['installation_state']
+    before = dict(state.value)
+    # Equivalent cookie invalidation to restarting the setup process.
+    app.secret_key = secrets.token_bytes(32)
+    response = client.post('/import/discover', base_url=base, headers={'Origin': base},
+        data={'csrf': old_csrf, 'kind': 'directory', 'source': 'not-read-before-renewal'})
+    assert response.status_code == 403
+    assert response.json['code'] == 'session_expired'
+    assert state.value == before
+    renewed = client.get('/session/csrf', base_url=base)
+    assert renewed.status_code == 200
+    assert renewed.headers['Cache-Control'] == 'no-store'
+    assert renewed.json['attempt'] == before['attempt']
+    new_csrf = renewed.json['csrf']
+    assert new_csrf and new_csrf != old_csrf
+    assert state.value == before  # GET does not execute the rejected import.
+    assert old_csrf not in logger(state).read_all().decode('utf-8')
+    assert new_csrf not in logger(state).read_all().decode('utf-8')
+    response = client.post('/appearance', base_url=base, headers={'Origin': base},
+        data={'csrf': new_csrf, 'theme': 'dark'})
+    assert response.status_code == 303
+    assert state.value['theme'] == 'dark'
+
+
+def test_session_renewal_keeps_local_and_origin_guards(wizard):
+    app, root = wizard
+    client = app.test_client()
+    base = 'http://127.0.0.1:8090'
+    assert client.get('/session/csrf', base_url=base,
+        environ_overrides={'REMOTE_ADDR': '192.0.2.9'}).status_code == 403
+    token = client.get('/session/csrf', base_url=base).json['csrf']
+    assert client.post('/start', base_url=base, headers={'Origin': 'https://external.example'},
+        data={'csrf': token, 'language': 'en'}).status_code == 403
+    assert app.extensions['installation_state'].value['status'] == 'new'

@@ -7,6 +7,30 @@ document.addEventListener('DOMContentLoaded', () => {
   const status = document.getElementById('preview-status');
   const messages = JSON.parse(document.getElementById('setup-messages')?.textContent || '{}');
   const showError = (value) => { message.textContent = value; message.hidden = false; message.className = 'setup-alert warning'; };
+  const sessionAttempt = JSON.parse(document.getElementById('setup-session')?.textContent || 'null');
+  const renewSession = document.createElement('button');
+  renewSession.type = 'button'; renewSession.className = 'bridge-button secondary';
+  renewSession.textContent = messages.refresh_session; renewSession.hidden = true;
+  message.after(renewSession);
+  const showRequestError = data => {
+    showError((data.message || messages.request_error) +
+      (data.diagnostic_id ? ' — ' + messages.diagnostic_id + ': ' + data.diagnostic_id : ''));
+    renewSession.hidden = data.code !== 'session_expired';
+  };
+  renewSession.addEventListener('click', async () => {
+    renewSession.disabled = true;
+    try {
+      const response = await fetch('/session/csrf', {credentials: 'same-origin', cache: 'no-store'});
+      const data = await response.json();
+      if (!response.ok || typeof data.csrf !== 'string' || !data.csrf) throw new Error();
+      if (data.attempt !== sessionAttempt) { window.location.reload(); return; }
+      document.querySelectorAll('input[name="csrf"]').forEach(input => { input.value = data.csrf; });
+      renewSession.hidden = true;
+      message.textContent = messages.session_renewed; message.hidden = false;
+      message.className = 'setup-alert success';
+    } catch (error) { showError(messages.request_error); }
+    finally { renewSession.disabled = false; }
+  });
   document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => dialog.close()));
   document.querySelectorAll('[data-select-all]').forEach(button => button.addEventListener('change', () => {
     document.querySelectorAll('input[name="selected"]:not(:disabled)').forEach(input => { input.checked = button.checked; });
@@ -28,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const byId = id => document.getElementById(id);
     let currentFolder = '', parentFolder = null, navigation = 0;
     const cleanPath = value => value.trim().replace(/^"(.*)"$/, '$1');
-    const csrf = document.querySelector('form[action="/import/discover"] input[name="csrf"]').value;
+    const csrf = () => document.querySelector('form[action="/import/discover"] input[name="csrf"]').value;
     async function navigateFolder(path) {
       const sequence = ++navigation;
       currentFolder = ''; parentFolder = null;
@@ -39,12 +63,15 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         const response = await fetch('/import/folders', {
           method: 'POST', credentials: 'same-origin',
-          headers: {'Content-Type': 'application/json', 'X-Setup-CSRF': csrf},
+          headers: {'Content-Type': 'application/json', 'X-Setup-CSRF': csrf()},
           body: JSON.stringify({path: cleanPath(path)})
         });
         const data = await response.json();
         if (sequence !== navigation) return;
-        if (!response.ok) throw new Error(data.message || messages.folder_unavailable);
+        if (!response.ok) {
+          if (data.code === 'session_expired') { folderDialog.close(); showRequestError(data); }
+          throw new Error(data.message || messages.folder_unavailable);
+        }
         currentFolder = data.path; parentFolder = data.parent;
         byId('folder-path').value = data.path;
         byId('folder-select').disabled = false;
@@ -142,8 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (!response.ok) {
         const error = await response.json();
-        showError((error.message || messages.request_error) +
-          (error.diagnostic_id ? ' — ' + messages.diagnostic_id + ': ' + error.diagnostic_id : ''));
+        showRequestError(error);
       } else {
         const result = await response.json();
         if (result.redirect && result.redirect.startsWith('/')) window.location.assign(result.redirect);

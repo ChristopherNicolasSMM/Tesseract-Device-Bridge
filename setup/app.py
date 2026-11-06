@@ -9,7 +9,7 @@ import sys
 from urllib.parse import urlsplit
 from pathlib import Path
 
-from flask import Flask, abort, jsonify, render_template, request, session
+from flask import Flask, abort, g, jsonify, render_template, request, session
 
 from .state import InstallationState, SetupError
 from .i18n import catalog
@@ -81,7 +81,8 @@ def create_app(root=None, *, port=8090):
                 app.logger.warning("Setup rejected form: origin/referer mismatch")
                 abort(403)
             if not expected or not secrets.compare_digest(expected, received):
-                app.logger.warning("Setup rejected form: session/CSRF mismatch; reload the page")
+                app.logger.warning("Setup rejected form: session/CSRF mismatch; renew the page session")
+                g.setup_session_expired = True
                 abort(403)
             receipt = state.root / "data/private/installation.json"
             if (receipt.exists() or receipt.is_symlink()) and request.path not in (
@@ -113,6 +114,18 @@ def create_app(root=None, *, port=8090):
             raise error from exc
         return send_file(BytesIO(content), as_attachment=True,
                          download_name='setup-diagnostics.jsonl', mimetype='application/x-ndjson')
+
+    @app.context_processor
+    def setup_session_context():
+        return dict(setup_attempt=state.value.get('attempt'))
+
+    @app.get('/session/csrf')
+    def refresh_setup_session():
+        # Same local Host/remote-address boundary and no-store headers apply.
+        # Same-origin policy protects this response; no CORS is enabled.
+        session.setdefault('csrf', secrets.token_urlsafe(32))
+        record(state, 'session.refresh', 'completed')
+        return jsonify(csrf=session['csrf'], attempt=state.value.get('attempt'))
 
     @app.get("/setup-version")
     def version():
@@ -163,6 +176,8 @@ def create_app(root=None, *, port=8090):
     @app.errorhandler(HTTPException)
     def http_error(exc):
         code = {403: "forbidden", 404: "not_found", 413: "too_large"}.get(exc.code, "request_error")
+        if exc.code == 403 and getattr(g, 'setup_session_expired', False):
+            code = 'session_expired'
         event_id = record(state, 'http.' + (request.endpoint or 'unmatched'), 'rejected', exc=exc)
         return jsonify(code=code, message=translations[state.value["language"]][code], diagnostic_id=event_id), exc.code
 
