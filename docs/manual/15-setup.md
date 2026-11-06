@@ -161,3 +161,26 @@ O log não grava corpos HTTP, cookies, CSRF, tokens, tópicos fornecidos pelo us
 conteúdo YAML/JSON, mensagens brutas de exceção, linhas de código ou variáveis
 locais. Se o disco ou a permissão também impedirem salvar o log, o erro original
 continua prevalecendo; o download informa a indisponibilidade.
+
+### Caminhos longos no Windows (setup.19)
+
+O log de uma falha real registrou `FileNotFoundError`, `errno=2`, na criação da
+cópia temporária de `data/control_defaults.json`, com destino de 268 caracteres.
+Essa falha ocorre antes da validação YAML/JSON e é compatível com o limite
+tradicional de caminhos do Windows.
+
+Novas tentativas usam nomes compactos de pastas, sem truncar o identificador
+UUID. As cópias de importação e SQLite também usam nomes internos mais curtos.
+O setup verifica previamente espaço no comprimento do caminho para os arquivos
+mais profundos e journals SQLite. Não altera o registro do Windows.
+
+Após atualizar um clone que já apresentou essa falha:
+
+1. Encerre e reinicie o setup atualizado.
+2. Cancele a tentativa antiga e descarte os temporários.
+3. Inicie uma nova tentativa e repita a descoberta/importação.
+
+A tentativa antiga mantém o layout anterior até ser descartada; candidatos já
+preparados não são movidos silenciosamente. Se mesmo a nova tentativa exceder o
+limite, use uma pasta curta para o clone, por exemplo `C:\TesseractBridge`.
+Os dados de origem e o banco publicado não são alterados por essa correção.

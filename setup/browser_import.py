@@ -100,7 +100,9 @@ def inventory_rows(root):
 
 def sqlite_source(value, path, *, persist=True):
     from .sqlite_import import capture, inspect
-    job = Path(tempfile.mkdtemp(prefix='sqlite-source-', dir=str(value.staging())))
+    from reusable.guided_setup.paths import require_staging_budget
+    require_staging_budget(value.staging())
+    job = Path(tempfile.mkdtemp(prefix='q-', dir=str(value.staging())))
     copied = job / 'source.sqlite3'
     capture(path, copied)
     kind, revision = inspect(copied)

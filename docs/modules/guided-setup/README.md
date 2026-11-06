@@ -180,3 +180,15 @@ controlados, nunca conteúdo ou valores secretos. O Bridge usa apenas etapas
 internas, ID da tentativa e nomes relativos reconhecidos pela migração. A API
 raiseia erros de filesystem: o adaptador do host decide como preservar a falha
 original sem depender da disponibilidade do log.
+
+## Orçamento de caminhos Windows
+
+`paths.py` fornece `compact_attempt_name(uuid_hex)` e
+`require_staging_budget(directory)`. O primeiro usa Base32 minúsculo dos 128 bits
+integrais; o segundo reserva 54 unidades de nome mais separador para as árvores
+compactas do Bridge, medindo o caminho absoluto em UTF-16 no Windows. Um host com
+outra árvore de arquivos deve adequar esse orçamento. A exceção `PathLengthError`
+permite apresentar uma orientação de caminho curto sem tentar gravar o arquivo.
+O adaptador mantém o layout declarado no manifesto para preservar tentativas
+anteriores. Não há prefixos especiais de caminho, alterações de registro ou
+realocação fora do clone.

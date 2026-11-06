@@ -58,7 +58,9 @@ def failure_report(stage, exc, *, events=(), state=None):
     """Static diagnostics only; exception messages can contain imported secrets."""
     import sqlite3
     from storage.mappers import NormalizationError
-    if isinstance(exc, PermissionError):
+    if getattr(exc, 'code', None) == 'setup_path_too_long':
+        reason = 'setup_path_too_long'
+    elif isinstance(exc, PermissionError):
         reason = 'import_permission_error'
     elif isinstance(exc, sqlite3.IntegrityError):
         reason = 'import_integrity_error'

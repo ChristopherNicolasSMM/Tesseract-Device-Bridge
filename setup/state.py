@@ -49,6 +49,7 @@ class InstallationState:
         value = json.loads(path.read_text(encoding="utf-8"))
         if (not isinstance(value, dict) or value.get("version") != 1 or value.get("status") not in ("new", "in_progress", "ready_simulated", "ready_operational", "needs_review")
                 or value.get("language") not in ("pt_BR", "en")
+                or value.get("staging_layout", "legacy") not in ("legacy", "compact")
                 or (value.get("attempt") is not None
                     and (not isinstance(value["attempt"], str)
                          or not re.fullmatch(r"[0-9a-f]{32}", value["attempt"])))
@@ -68,7 +69,9 @@ class InstallationState:
             raise SetupError("Installation already published. Use maintenance, not a new setup.")
         value = dict(self.value, language=language)
         if value["status"] == "new":
-            value.update(status="in_progress", attempt=uuid.uuid4().hex)
+            value.update(status="in_progress", attempt=uuid.uuid4().hex, staging_layout="compact")
+            from reusable.guided_setup.paths import compact_attempt_name, require_staging_budget
+            require_staging_budget(self.directory / compact_attempt_name(value['attempt']))
         # Persist ownership before creating staging, allowing recovery after a crash.
         self.save(value)
         self.staging().mkdir(mode=0o700, exist_ok=True)
@@ -77,7 +80,12 @@ class InstallationState:
         attempt = self.value.get("attempt")
         if not isinstance(attempt, str) or not re.fullmatch(r"[0-9a-f]{32}", attempt):
             raise SetupError("No valid installation attempt.")
-        path = self.directory / ("attempt-" + attempt)
+        if self.value.get('staging_layout', 'legacy') == 'compact':
+            from reusable.guided_setup.paths import compact_attempt_name
+            name = compact_attempt_name(attempt)
+        else:
+            name = 'attempt-' + attempt
+        path = self.directory / name
         if path.is_symlink():
             raise SetupError("Invalid staging directory.")
         return path

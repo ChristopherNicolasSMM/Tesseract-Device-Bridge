@@ -9,7 +9,7 @@ from .reports import event
 def collect_partial(source, devices_file, *, disable_invalid_remote_control=False, remote_state_topics=None, state=None):
     from storage.legacy_import import collect
     # The input is already a bounded private snapshot.
-    working = Path(source).parent / 'validated'
+    working = Path(source).parent / 'v'
     working.mkdir(mode=0o700)
     devices = working / devices_file
     devices.parent.mkdir(parents=True, exist_ok=True)

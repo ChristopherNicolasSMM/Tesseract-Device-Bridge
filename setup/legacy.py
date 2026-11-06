@@ -71,6 +71,8 @@ def import_directory(state, source, *, selected=None, disable_invalid_remote_con
     checkpoint(state, 'legacy.discover')
     root = _root(source)
     staging = state.staging()
+    from reusable.guided_setup.paths import require_staging_budget
+    require_staging_budget(staging)
     owned = (_owned_upload and root.parent == staging and root.name.startswith('upload-'))
     if not owned and (root == state.root or root in staging.parents or staging == root or staging in root.parents):
         raise SetupError('Select a separate old installation, not the active clone or staging.')
@@ -85,8 +87,8 @@ def import_directory(state, source, *, selected=None, disable_invalid_remote_con
     if sum(available[name]['bytes'] for name in chosen) > MAX_TOTAL_BYTES:
         raise SetupError('Source exceeds import size limit.')
     checkpoint(state, 'legacy.staging')
-    job = Path(tempfile.mkdtemp(prefix='import-', dir=str(staging)))
-    snapshot_dir = job / 'source'
+    job = Path(tempfile.mkdtemp(prefix='i-', dir=str(staging)))
+    snapshot_dir = job / 's'
     snapshot_dir.mkdir(mode=0o700)
     hashes = {}
     # All parsers consume private copies; original paths never reach the importer.

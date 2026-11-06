@@ -64,7 +64,7 @@ def test_strict_failure_records_safe_error(tmp_path):
         assert report['events'] == [{
             'category': 'blocking_error', 'code': 'devices_empty', 'file': 'devices.yml',
         }]
-        reports = list(state.staging().glob('import-*/report.json'))
+        reports = list(state.staging().glob('i-*/report.json'))
         assert len(reports) == 1
         assert json.loads(reports[0].read_text(encoding='utf-8')) == report
         assert not list(state.staging().rglob('*.sqlite3'))

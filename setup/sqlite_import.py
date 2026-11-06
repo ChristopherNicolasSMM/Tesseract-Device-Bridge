@@ -78,12 +78,14 @@ def import_sqlite(state, source, *, _owned_capture=False):
         raise SetupError('Start an installation attempt first.')
     from .diagnostics import checkpoint
     checkpoint(state, 'sqlite.source')
+    from reusable.guided_setup.paths import require_staging_budget
+    require_staging_budget(state.staging())
     source = Path(source).expanduser()
     owned = (_owned_capture and source.parent.parent == state.staging()
-             and source.parent.name.startswith('sqlite-source-'))
+             and source.parent.name.startswith(('sqlite-source-', 'q-')))
     if source.resolve().is_relative_to(state.root) and not owned:
         raise SetupError('Select a snapshot outside the new installation.')
-    job = Path(tempfile.mkdtemp(prefix='sqlite-import-', dir=str(state.staging())))
+    job = Path(tempfile.mkdtemp(prefix='d-', dir=str(state.staging())))
     captured = job / 'captured.sqlite3'
     checkpoint(state, 'sqlite.capture')
     digest = capture(source, captured)

@@ -29,7 +29,10 @@ O arquivo de lock pode permanecer após fechar: a exclusividade é do SO.
 JSON usa temporário privado, flush/fsync, replace e fsync do diretório em POSIX.
 O estado é gravado antes da criação de staging para permitir retomada.
 
-O staging é `data/private/setup/attempt-<uuid>`. Cancelamento remove somente a
+Desde setup.19, novas tentativas usam `data/private/setup/<uuid-base32>` (26
+caracteres minúsculos, preservando os 128 bits do UUID). Manifestos antigos sem
+`staging_layout` continuam usando `attempt-<uuid>`; não há movimentação de
+candidatos existentes. Cancelamento remove somente a
 área identificada da tentativa, sem varrer o disco; symlinks de diretórios são
 recusados. Se existe recibo de publicação, cancelar é bloqueado: use recuperação.
 ACLs Windows e permissões do usuário continuam sendo responsabilidade do ambiente.
