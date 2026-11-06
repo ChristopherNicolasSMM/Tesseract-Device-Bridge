@@ -71,6 +71,7 @@
 <section class="bridge-card" id="import-report">
   <h2>{{ t.report }}</h2>
   <p class="setup-alert {% if report.needs_review %}warning{% else %}success{% endif %}">{{ t.get(report.status, report.status) }}</p>
+  {% if report.diagnostic_id %}<p>{{ t.diagnostic_id }}: <code>{{ report.diagnostic_id }}</code></p>{% endif %}
   {% if report.counts %}<p>{{ t.records }}: {{ report.counts }}</p>{% endif %}
   {% if report.remote_conflicts %}
   <button type="button" class="bridge-button" id="remote-open">{{ t.remote_resolve }}</button>

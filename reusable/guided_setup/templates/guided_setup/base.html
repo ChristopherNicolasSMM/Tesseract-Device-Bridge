@@ -30,6 +30,7 @@
     <p class="setup-breadcrumb">{% block breadcrumb %}{{ t.prepare }}{% endblock %}</p></div>
     <div id="browser-message" role="alert" hidden></div>
     {% block content %}{% endblock %}
+    {% block diagnostics %}{% endblock %}
     <footer class="setup-footer">{{ t.stop }}<br><small>{{ build }}</small></footer>
   </main>
   <div id="busy" class="setup-busy" role="status" aria-live="polite" hidden>

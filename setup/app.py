@@ -37,6 +37,8 @@ def create_app(root=None, *, port=8090):
     app.config.update(MAX_CONTENT_LENGTH=257 * 1024 * 1024, MAX_FORM_PARTS=120, MAX_FORM_MEMORY_SIZE=512 * 1024, SESSION_COOKIE_HTTPONLY=True,
                       SESSION_COOKIE_SAMESITE="Strict", SESSION_COOKIE_NAME="bridge_setup_" + str(port))
     app.extensions["installation_state"] = state
+    from .diagnostics import record, logger
+    record(state, 'setup.start', 'ready')
     from .browser_import import bp as import_bp
     app.register_blueprint(import_bp)
     from .infrastructure import bp as infrastructure_bp
@@ -89,6 +91,8 @@ def create_app(root=None, *, port=8090):
 
     @app.after_request
     def headers(response):
+        if request.method not in ('GET', 'HEAD', 'OPTIONS'):
+            record(state, 'http.' + (request.endpoint or 'unmatched'), 'http_' + str(response.status_code))
         if response.status_code == 303 and request.headers.get("X-Setup-CSRF"):
             # Let fetch navigate once; following a redirect here would consume flash notices.
             response = jsonify(redirect=response.headers["Location"])
@@ -96,6 +100,19 @@ def create_app(root=None, *, port=8090):
                                  "Referrer-Policy": "same-origin",
                                  "Content-Security-Policy": "default-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'"})
         return response
+
+    @app.get('/diagnostics/download')
+    def download_diagnostics():
+        from io import BytesIO
+        from flask import send_file
+        try:
+            content = logger(state).read_all()
+        except OSError as exc:
+            error = SetupError('Diagnostic log unavailable.')
+            error.code = 'diagnostics_unavailable'
+            raise error from exc
+        return send_file(BytesIO(content), as_attachment=True,
+                         download_name='setup-diagnostics.jsonl', mimetype='application/x-ndjson')
 
     @app.get("/setup-version")
     def version():
@@ -138,18 +155,22 @@ def create_app(root=None, *, port=8090):
     @app.post("/abort")
     def cancel():
         from flask import redirect
+        record(state, 'setup.abort', 'started')
         state.abort()
+        record(state, 'setup.abort', 'completed')
         return redirect("/", code=303)
 
     @app.errorhandler(HTTPException)
     def http_error(exc):
         code = {403: "forbidden", 404: "not_found", 413: "too_large"}.get(exc.code, "request_error")
-        return jsonify(code=code, message=translations[state.value["language"]][code]), exc.code
+        event_id = record(state, 'http.' + (request.endpoint or 'unmatched'), 'rejected', exc=exc)
+        return jsonify(code=code, message=translations[state.value["language"]][code], diagnostic_id=event_id), exc.code
 
     @app.errorhandler(Exception)
     def internal_error(exc):
-        app.logger.error("Setup request failed; imported content omitted from logs")
-        return jsonify(code="request_error", message=translations[state.value["language"]]["request_error"]), 500
+        event_id = record(state, 'http.' + (request.endpoint or 'unmatched'), 'error', exc=exc)
+        app.logger.error('Setup request failed; diagnostic_id=%s', event_id or 'unavailable')
+        return jsonify(code="request_error", message=translations[state.value["language"]]["request_error"], diagnostic_id=event_id), 500
 
     @app.errorhandler(OSError)
     @app.errorhandler(SetupError)
@@ -166,6 +187,7 @@ def create_app(root=None, *, port=8090):
             if isinstance(getattr(exc, 'os_error', None), int):
                 details['os_error'] = exc.os_error
                 message += ' (' + str(exc.os_error) + ')'
-        return jsonify(code=code, message=message, details=details), 409
+        event_id = record(state, 'http.' + (request.endpoint or 'unmatched'), 'error', exc=exc)
+        return jsonify(code=code, message=message, details=details, diagnostic_id=event_id), 409
 
     return app

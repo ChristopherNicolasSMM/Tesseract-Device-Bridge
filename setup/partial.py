@@ -6,7 +6,7 @@ from pathlib import Path
 from .reports import event
 
 
-def collect_partial(source, devices_file, *, disable_invalid_remote_control=False, remote_state_topics=None):
+def collect_partial(source, devices_file, *, disable_invalid_remote_control=False, remote_state_topics=None, state=None):
     from storage.legacy_import import collect
     # The input is already a bounded private snapshot.
     working = Path(source).parent / 'validated'
@@ -17,9 +17,15 @@ def collect_partial(source, devices_file, *, disable_invalid_remote_control=Fals
     options = dict(devices_file=devices_file,
                    disable_invalid_remote_control=disable_invalid_remote_control, remote_state_topics=remote_state_topics)
     events = []
+    def log_failure(exc, relative):
+        if state is not None:
+            from .diagnostics import record
+            record(state, 'legacy.partial.validate', 'error', exc=exc, file_hint=relative)
+
     try:
         snapshot = collect(working, **options)
     except Exception as exc:
+        log_failure(exc, devices_file)
         return None, [event('blocking_error', devices_error_code(exc), file=devices_file)]
     # Keep reference dependencies before active recipe/session pointers.
     order = ['data/control_defaults.json', 'data/private/control_settings.json',
@@ -38,7 +44,8 @@ def collect_partial(source, devices_file, *, disable_invalid_remote_control=Fals
                 entries = json.loads(original.read_text(encoding='utf-8'))
                 if not isinstance(entries, list):
                     raise ValueError('not a list')
-            except (ValueError, UnicodeError):
+            except (ValueError, UnicodeError) as exc:
+                log_failure(exc, relative)
                 events.append(event('warning', 'file_rejected', file=relative))
                 continue
             accepted = []
@@ -46,7 +53,8 @@ def collect_partial(source, devices_file, *, disable_invalid_remote_control=Fals
                 dest.write_text(json.dumps(accepted + [entry], ensure_ascii=False), encoding='utf-8')
                 try:
                     current = collect(working, **options)
-                except Exception:
+                except Exception as exc:
+                    log_failure(exc, relative)
                     events.append(event('warning', 'entity_rejected', file=relative, index=index))
                 else:
                     accepted.append(entry)
@@ -61,7 +69,8 @@ def collect_partial(source, devices_file, *, disable_invalid_remote_control=Fals
             shutil.copyfile(original, dest)
             try:
                 current = collect(working, **options)
-            except Exception:
+            except Exception as exc:
+                log_failure(exc, relative)
                 dest.unlink()
                 events.append(event('warning', 'file_rejected', file=relative))
             else:

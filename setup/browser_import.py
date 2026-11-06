@@ -324,7 +324,7 @@ def run_import():
                 remote_state_topics=topics)
     except Exception as exc:
         from .reports import failure_report
-        report = failure_report('import_preparation_failed', exc)
+        report = failure_report('import_preparation_failed', exc, state=value)
     value.save(dict(value.value, browser_report=report, browser_acknowledged=False))
     return redirect('/import/', code=303)
 

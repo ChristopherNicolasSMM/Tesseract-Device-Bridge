@@ -165,3 +165,18 @@ A autorização é do hospedeiro. No Bridge a rota POST /import/folders exige te
 em andamento, cliente/Host local, origem e CSRF do setup. O resultado não cria
 browser_source nem dispara descoberta/importação. Não exponha essa função como
 explorador de arquivos público em outra aplicação.
+
+## Diagnósticos reutilizáveis
+
+`diagnostics.py` fornece `DiagnosticLog(directory, project_root=..., build=...)`,
+independente de Flask, storage, MQTT e GPIO. O host garante diretório privado e
+lock de processo. Use `write(stage, status, exc=..., file_hint=..., attempt=...)`
+para receber um ID; `read_all()` reúne os arquivos retidos. O padrão é 1 MiB por
+arquivo, com dois backups. Os arquivos são fechados ao terminar cada escrita.
+
+A serialização de exceções omite mensagens, linhas-fonte e variáveis locais.
+O host deve fornecer `stage`, `status`, `attempt` e `file_hint` como metadados
+controlados, nunca conteúdo ou valores secretos. O Bridge usa apenas etapas
+internas, ID da tentativa e nomes relativos reconhecidos pela migração. A API
+raiseia erros de filesystem: o adaptador do host decide como preservar a falha
+original sem depender da disponibilidade do log.

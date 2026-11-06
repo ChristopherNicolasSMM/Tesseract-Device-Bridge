@@ -86,3 +86,24 @@ O adaptador web usa `remote_policy=keep|disable_invalid` e campos
 relatório bloqueante contém `remote_conflicts` para renderização escapada no
 popup; seleção e modo parcial ficam no manifesto privado. O popup não serve como
 validação de segurança: POSTs diretos passam pelas mesmas regras do backend.
+
+### Diagnóstico correlacionado (setup.18)
+
+`setup.diagnostics` adapta `reusable.guided_setup.diagnostics.DiagnosticLog` para
+JSONL privado com rotação limitada. O decorator `record_import` registra início,
+resultado e exceções com a etapa corrente. `checkpoint` identifica descoberta,
+staging, captura, validação, escrita intermediária e normalização; a captura
+inclui o caminho relativo reconhecido, nunca o caminho absoluto da origem.
+O importador SQLite marca captura, inspeção, normalização e verificação.
+
+`failure_report(..., state=state)` correlaciona o relatório ao `event_id` do log.
+A mesma exceção mantém o ID ao atravessar as camadas. Falhas na persistência do
+relatório são registradas separadamente e não substituem a exceção original.
+Validações rejeitadas na coleta parcial também entram no diagnóstico.
+
+O boundary Flask registra resultados das requisições mutáveis usando nomes de
+endpoints, não URLs ou parâmetros. Falhas HTTP e inesperadas geram IDs. O download
+`GET /diagnostics/download` reúne apenas os arquivos fixos de log, sob as proteções
+locais existentes. A estrutura de exceções guarda coordenadas e causas limitadas,
+sem `traceback.format_exception`, mensagens, texto-fonte ou locals. Erros do log
+não criam candidatos de instalação nem autorizam runtime.

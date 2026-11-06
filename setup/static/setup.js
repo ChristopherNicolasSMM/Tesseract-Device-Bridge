@@ -142,7 +142,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (!response.ok) {
         const error = await response.json();
-        showError(error.message || messages.request_error);
+        showError((error.message || messages.request_error) +
+          (error.diagnostic_id ? ' — ' + messages.diagnostic_id + ': ' + error.diagnostic_id : ''));
       } else {
         const result = await response.json();
         if (result.redirect && result.redirect.startsWith('/')) window.location.assign(result.redirect);

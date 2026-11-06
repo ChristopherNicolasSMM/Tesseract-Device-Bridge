@@ -218,5 +218,9 @@
   "remote_apply": "Apply choice and import again",
   "remote_changes_recorded": "Remote control changes were recorded for this import. Review devices before authorizing operation.",
   "devices_remote_topic_invalid": "Invalid state topic. Enter an actual, specific MQTT topic without + or # wildcards.",
-  "abort_blocked_file": "Blocked temporary file: {file}."
+  "abort_blocked_file": "Blocked temporary file: {file}.",
+  "download_diagnostics": "Download diagnostic log",
+  "diagnostic_id": "Diagnostic ID",
+  "diagnostics_hint": "Logs record stages and technical errors without file contents, credentials or raw exception messages. They survive temporary-file cancellation.",
+  "diagnostics_unavailable": "Cannot access the log. Check permissions and free space in data/private/setup/logs."
 }

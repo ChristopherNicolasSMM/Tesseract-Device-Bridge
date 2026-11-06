@@ -4,6 +4,10 @@
 {% block theme_styles %}<link rel="stylesheet" href="{{ url_for('shared_ui.static', filename='theme.css', v=build) }}">{% endblock %}
 {% block extra_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='setup.css', v=build) }}">{% endblock %}
 {% block scripts %}<script src="{{ url_for('static', filename='setup.js', v=build) }}" defer></script>{% endblock %}
+{% block diagnostics %}
+<p><a class="bridge-button secondary" href="/diagnostics/download">{{ t.download_diagnostics }}</a></p>
+<p class="bridge-muted">{{ t.diagnostics_hint }}</p>
+{% endblock %}
 {% block dialogs %}
   <dialog id="preview-dialog" aria-labelledby="preview-title">
     <header><h2 id="preview-title">{{ t.preview }}</h2><button type="button" class="bridge-button secondary" data-close>{{ t.close }}</button></header>

@@ -76,6 +76,8 @@ def inspect(path):
 def import_sqlite(state, source, *, _owned_capture=False):
     if state.value['status'] != 'in_progress':
         raise SetupError('Start an installation attempt first.')
+    from .diagnostics import checkpoint
+    checkpoint(state, 'sqlite.source')
     source = Path(source).expanduser()
     owned = (_owned_capture and source.parent.parent == state.staging()
              and source.parent.name.startswith('sqlite-source-'))
@@ -83,9 +85,12 @@ def import_sqlite(state, source, *, _owned_capture=False):
         raise SetupError('Select a snapshot outside the new installation.')
     job = Path(tempfile.mkdtemp(prefix='sqlite-import-', dir=str(state.staging())))
     captured = job / 'captured.sqlite3'
+    checkpoint(state, 'sqlite.capture')
     digest = capture(source, captured)
+    checkpoint(state, 'sqlite.inspect')
     kind, revision = inspect(captured)
     target = job / 'bridge.sqlite3'
+    checkpoint(state, 'sqlite.normalize')
     if kind == 'legacy':
         from storage.orm_normalize import normalize_copy
         normalize_copy(source=captured, destination=target)
@@ -102,6 +107,7 @@ def import_sqlite(state, source, *, _owned_capture=False):
         cfg.attributes['db_path'] = target
         command.upgrade(cfg, 'head')
         NormalizedRepository(target)
+    checkpoint(state, 'sqlite.verify')
     inspect(target)
     # Inspect ORM headers and reconstruct entities without relaxing runtime validation.
     from storage.models import session_scope
@@ -123,6 +129,7 @@ def import_sqlite(state, source, *, _owned_capture=False):
               'devices': len(config['devices']), 'recipes': len(repo.list_recipes()),
               'needs_review': not bool(config['devices']), 'runtime_authorized': False,
               'events': [event('imported', 'sqlite_validated')]}
+    checkpoint(state, 'report.persist')
     save_report(job, report)
     return report
 

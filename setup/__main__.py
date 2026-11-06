@@ -20,6 +20,7 @@ def main():
         # No development debugger/reloader; one process owns the installation lock.
         server = make_server("127.0.0.1", args.port, app)
         app.extensions["setup_shutdown"] = server.shutdown
+        print("Diagnostics: data/private/setup/logs/setup.jsonl", flush=True)
         print("Setup build: " + app.config["SETUP_BUILD"], flush=True)
         print("Setup: http://127.0.0.1:" + str(args.port), flush=True)
         try:

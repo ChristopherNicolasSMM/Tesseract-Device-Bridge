@@ -218,5 +218,9 @@
   "remote_apply": "Aplicar escolha e importar novamente",
   "remote_changes_recorded": "Ajustes de controle remoto foram registrados nesta importação. Revise os dispositivos antes de autorizar operação.",
   "devices_remote_topic_invalid": "Tópico de estado inválido. Informe um tópico MQTT real e específico, sem curingas + ou #.",
-  "abort_blocked_file": "Arquivo temporário bloqueado: {file}."
+  "abort_blocked_file": "Arquivo temporário bloqueado: {file}.",
+  "download_diagnostics": "Baixar log de diagnóstico",
+  "diagnostic_id": "ID do diagnóstico",
+  "diagnostics_hint": "O log registra etapas e erros técnicos, sem conteúdo dos arquivos, credenciais ou mensagens brutas de exceção. É preservado após descartar temporários.",
+  "diagnostics_unavailable": "Não foi possível acessar o log. Confira permissão e espaço disponível em data/private/setup/logs."
 }

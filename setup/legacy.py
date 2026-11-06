@@ -67,6 +67,8 @@ def import_directory(state, source, *, selected=None, disable_invalid_remote_con
     from storage.orm_normalize import normalize_copy
     if state.value['status'] != 'in_progress':
         raise SetupError('Start an installation attempt first.')
+    from .diagnostics import checkpoint, record
+    checkpoint(state, 'legacy.discover')
     root = _root(source)
     staging = state.staging()
     owned = (_owned_upload and root.parent == staging and root.name.startswith('upload-'))
@@ -82,12 +84,14 @@ def import_directory(state, source, *, selected=None, disable_invalid_remote_con
         raise SetupError('Select exactly one devices.yml source.')
     if sum(available[name]['bytes'] for name in chosen) > MAX_TOTAL_BYTES:
         raise SetupError('Source exceeds import size limit.')
+    checkpoint(state, 'legacy.staging')
     job = Path(tempfile.mkdtemp(prefix='import-', dir=str(staging)))
     snapshot_dir = job / 'source'
     snapshot_dir.mkdir(mode=0o700)
     hashes = {}
     # All parsers consume private copies; original paths never reach the importer.
     for relative in sorted(chosen):
+        checkpoint(state, 'legacy.capture', file_hint=relative)
         path = _safe(root, relative)
         with path.open('rb') as stream:
             raw = stream.read(MAX_FILE_BYTES + 1)
@@ -104,10 +108,11 @@ def import_directory(state, source, *, selected=None, disable_invalid_remote_con
         with os.fdopen(fd, 'wb') as stream:
             stream.write(raw)
         hashes[relative] = digest
+    checkpoint(state, 'legacy.validate')
     if allow_partial:
         from .partial import collect_partial
         snapshot, events = collect_partial(snapshot_dir, next(iter(devices)),
-            disable_invalid_remote_control=disable_invalid_remote_control, remote_state_topics=remote_state_topics)
+            disable_invalid_remote_control=disable_invalid_remote_control, remote_state_topics=remote_state_topics, state=state)
     else:
         from .partial import devices_error_code
         from storage.legacy_import import _normalize_legacy_config
@@ -118,6 +123,7 @@ def import_directory(state, source, *, selected=None, disable_invalid_remote_con
                 _normalize_legacy_config(yaml.safe_load(stream) or {},
                     disable_invalid_remote_control=disable_invalid_remote_control, remote_state_topics=remote_state_topics)
         except Exception as exc:
+            record(state, 'legacy.devices', 'error', exc=exc, file_hint=devices_file)
             snapshot = None
             events = [event('blocking_error', devices_error_code(exc), file=devices_file)]
         else:
@@ -126,6 +132,7 @@ def import_directory(state, source, *, selected=None, disable_invalid_remote_con
             events = [event('imported', 'legacy_validated')]
     if snapshot is None:
         report = dict(version=1, status='needs_review', database=None, files=hashes,
+                      diagnostic_id=getattr(state, '_last_diagnostic_error_id', None),
                       needs_review=True, runtime_authorized=False, events=events)
         if any(e['code'] in ('devices_remote_invalid', 'devices_remote_topic_invalid') for e in events):
             import yaml
@@ -133,30 +140,37 @@ def import_directory(state, source, *, selected=None, disable_invalid_remote_con
             raw = yaml.safe_load((snapshot_dir / next(iter(devices))).read_text(encoding='utf-8'))
             report['remote_conflicts'] = [dict(id=d['id'], name=d.get('name', d['id']))
                 for d in raw.get('devices', []) if _needs_remote_disable(d)]
+        checkpoint(state, 'report.persist')
         save_report(job, report)
         return report
     intermediate = job / 'legacy.sqlite3'
     from .reports import failure_report
+    checkpoint(state, 'legacy.write')
     try:
         import_snapshot(snapshot, destination=intermediate)
     except Exception as exc:
-        report = failure_report('legacy_write_failed', exc, events=events)
+        report = failure_report('legacy_write_failed', exc, events=events, state=state)
+        checkpoint(state, 'report.persist')
         save_report(job, report)
         return report
     target = job / 'bridge.sqlite3'
+    checkpoint(state, 'legacy.normalize')
     try:
         normalize_copy(source=intermediate, destination=target)
     except Exception as exc:
-        report = failure_report('orm_conversion_failed', exc, events=events)
+        report = failure_report('orm_conversion_failed', exc, events=events, state=state)
+        checkpoint(state, 'report.persist')
         save_report(job, report)
         return report
     report = {'version': 1, 'status': 'imported_staging', 'database': str(target.relative_to(staging)),
               'files': hashes, 'counts': snapshot['counts'], 'repairs': snapshot['repairs'],
+              'diagnostic_id': getattr(state, '_last_diagnostic_error_id', None),
               'ignored': [row['path'] for row in rows if row['path'] not in chosen],
               'runtime_authorized': False,
               'needs_review': bool(snapshot['repairs']) or any(e['category'] in ('warning', 'blocking_error') for e in events),
               'events': events + [event('ignored', 'file_ignored', file=row['path'])
                                   for row in rows if row['path'] not in chosen
                                   and row['path'] in set(LEGACY_FILES) | {'devices.yml'}]}
+    checkpoint(state, 'report.persist')
     save_report(job, report)
     return report

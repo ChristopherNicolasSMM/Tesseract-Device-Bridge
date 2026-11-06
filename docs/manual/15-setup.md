@@ -137,3 +137,27 @@ ignorados no relatório visível. Arquivos reconhecidos pela migração que o us
 não selecionou continuam identificados, assim como avisos e erros de arquivos
 importáveis. O filtro também vale para relatórios salvos por builds anteriores.
 O inventário técnico de descoberta permanece disponível para diagnóstico.
+
+### Logs de diagnóstico (setup.18)
+
+O setup grava `data/private/setup/logs/setup.jsonl`, fora da pasta da tentativa.
+O log permanece depois de cancelar a tentativa e descartar temporários. O terminal
+mostra esse caminho ao iniciar. Há rotação automática de até três arquivos de
+1 MiB cada: `setup.jsonl`, `setup.jsonl.1` e `setup.jsonl.2`.
+
+Use **Baixar log de diagnóstico**, disponível nas telas do assistente. O arquivo
+baixado reúne as partes ainda retidas, da mais antiga para a mais recente. O
+endpoint segue a mesma restrição local do setup e não permite escolher caminhos.
+
+Em caso de falha, informe o **ID do diagnóstico** mostrado na tela e envie o log.
+Repita a operação após atualizar: erros de builds antigos não podem ser
+reconstruídos retroativamente. O arquivo registra build, data/hora UTC, tentativa,
+etapa, tipo da exceção, códigos `errno`/`winerror`/SQLite quando disponíveis e
+arquivo/função/linha do código. Na captura de dados, também registra o nome relativo
+do arquivo importável. O comprimento do caminho envolvido ajuda a identificar
+limites de caminho no Windows, sem registrar seu caminho absoluto.
+
+O log não grava corpos HTTP, cookies, CSRF, tokens, tópicos fornecidos pelo usuário,
+conteúdo YAML/JSON, mensagens brutas de exceção, linhas de código ou variáveis
+locais. Se o disco ou a permissão também impedirem salvar o log, o erro original
+continua prevalecendo; o download informa a indisponibilidade.
