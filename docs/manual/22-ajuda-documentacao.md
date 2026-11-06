@@ -6,6 +6,13 @@ inicial sem dispositivos há um link para a mesma central, sem iniciar runtime.
 A página também pode ser aberta diretamente em `/help/`, na porta do aplicativo
 em uso; não há um servidor ou uma porta adicional.
 
+![Central com busca, categorias, atalhos e leitura de manuais](../assets/screenshots/central-ajuda.png)
+
+*Print do mantenedor, 06/11/2026, anterior ao botão Layout. O contorno vermelho
+é uma anotação sobre a imagem, não um componente do aplicativo.*
+
+Veja também o [guia visual de navegação e importação](24-guia-visual.md).
+
 ## Navegação
 
 - **Início e atalhos:** FAQ, instalação, operação, bombas/MQTT e arquitetura.

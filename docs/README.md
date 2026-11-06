@@ -10,6 +10,8 @@ execução. O resultado da suíte atual não foi informado. Veja a
 | Tema | Guia atual |
 |---|---|
 | Instalação e migração consolidadas | [Manual 2.0.0](manual/20-instalacao-migracao-2.0.0.md) |
+| Visão das telas | [Guia visual ilustrado](manual/24-guia-visual.md) |
+| Perguntas frequentes | [FAQ e solução de problemas](manual/04-perguntas-frequentes.md) |
 | Primeiros passos | [Resumo Windows/Raspberry](manual/02-primeiros-passos.md) |
 | Backup, atualização e recuperação | [Manutenção](manual/21-manutencao-recuperacao.md) |
 | English setup guide | [Installation and migration](manual/setup-installation-en.md) |
@@ -27,6 +29,7 @@ execução. O resultado da suíte atual não foi informado. Veja a
 
 ## Engenharia e aceite
 
+- [Referência funcional ampliada](technical/19-referencia-funcional.md)
 - [Visão geral atual](technical/01-visao-geral.md)
 - [Organização e dependências dos pacotes](technical/07-organizacao-python.md)
 - [Manutenção e extensão](technical/06-manutencao-e-expansao.md)

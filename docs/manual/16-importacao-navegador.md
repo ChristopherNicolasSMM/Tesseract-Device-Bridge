@@ -15,7 +15,7 @@ python -m setup
 ```
 
 Se o pull falhar, preserve alterações locais e resolva a divergência antes de
-iniciar o setup. O terminal e o cabeçalho devem mostrar 2.0.0-setup.21.
+iniciar o setup. O terminal e o cabeçalho devem mostrar 2.0.0-setup.22.
 GET /setup-version informa o mesmo identificador.
 Abra http://127.0.0.1:8090 e recarregue a página após cada reinício do servidor.
 O cookie é específico da porta; CSRF continua obrigatório. Origin deve coincidir;
@@ -37,6 +37,16 @@ de pastas locais ao servidor por uma caixa de seleção nativa.
 O seletor lista somente pastas, oculta diretórios internos e não lê conteúdo de
 arquivos. Listagens limitadas avisam para colar caminho mais específico. Falhas de
 permissão/caminho não criam uma origem nem iniciam importação.
+
+## Conferir a seleção
+
+![Inventário com seleção, formato, contagem e prévia dos arquivos](../assets/screenshots/inventario-importacao.png)
+
+*Print enviado pelo mantenedor em 06/11/2026. A lista depende da origem escolhida.*
+
+Use **Exibir** para revisar o conteúdo antes de **Importar selecionados**.
+“Suportado” não significa que todos os dados passaram pela validação.
+O [guia visual](24-guia-visual.md) explica também a revisão de controle remoto.
 
 ## Inventário filtrado
 

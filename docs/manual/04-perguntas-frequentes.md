@@ -4,6 +4,15 @@
 > [Administração SQLite](13-administracao-sqlite.md) ·
 > [Migração](12-sqlite-migracao.md)
 
+## Encontre sua dúvida
+
+| Assunto | Atalhos |
+|---|---|
+| Instalação e dados | [Guia visual](24-guia-visual.md) · [Instalação e migração](20-instalacao-migracao-2.0.0.md) |
+| Falhas no setup | [Sessão e 403](#o-setup-foi-reiniciado-e-o-formulário-recebeu-403) · [Logs](#como-envio-detalhes-de-uma-falha-de-importação) |
+| Dispositivos | [Controle remoto](#o-importador-rejeita-pump_b1-com-remote_control) · [Bombas e MQTT](16-bombas-mqtt.md) |
+| Interface | [Ajuda](22-ajuda-documentacao.md) · [Largura das telas](23-layout-interface.md) |
+
 ## Por que o inventário e a Administração SQLite estão na mesma aba?
 
 O **inventário** é a configuração **em execução**, em memória, e é
@@ -74,11 +83,13 @@ use recuperação/backup, não gere um banco vazio para substituir o ausente.
 
 ## O importador rejeita pump_b1 com remote_control
 
-Se `remote_control: true` não possui `state_topic`, o schema
-recusa o cadastro. Mantenha a origem preservada; corrija uma cópia de trabalho ou use
-`--disable-invalid-remote-control`, que **desliga** a permissão
-remota no SQLite, mantém o arquivo antigo intacto e registra o ajuste.
-Não invente tópicos nem contorne intertravamentos.
+Se `remote_control: true` não possui `state_topic`, o cadastro precisa de revisão.
+No assistente, use o diálogo para manter remoto com um tópico real ou desabilitar
+remoto nos dispositivos inconsistentes da cópia importada. A origem fica intacta
+e o relatório registra o ajuste. Veja a [mensagem e as opções no guia visual](24-guia-visual.md#2-tratar-controle-remoto-incompleto).
+
+Na migração pela CLI, `--disable-invalid-remote-control` desliga essa permissão
+no SQLite. Não invente tópicos nem contorne intertravamentos.
 
 ## Como adiciono ou escolho outra receita?
 
@@ -171,3 +182,17 @@ isolada, não há acionamento físico.
 Use **↔ Layout** no cabeçalho: Padrão, Ampla, Total ou Personalizada. A preferência
 fica no navegador e não altera configurações de hardware.
 [Detalhes e compartilhamento entre portas](23-layout-interface.md).
+
+## O caminho some depois de descobrir os arquivos
+
+No fluxo atual ele deve permanecer no campo após a descoberta. Recarregue a
+página após atualizar o aplicativo e confirme a versão do setup. Se persistir,
+baixe o diagnóstico e informe versão, tipo de origem e ID da tentativa, sem
+enviar credenciais. Veja o [inventário ilustrado](24-guia-visual.md#1-descobrir-e-revisar-os-arquivos).
+
+## Cancelar e descartar temporários retornou 409
+
+Confira a mensagem e o log da tentativa. O descarte deve atingir somente os
+temporários da instalação, preservando a origem e os dados publicados. Se o
+assistente ainda exibir pendência, não apague o banco operacional manualmente;
+use o [guia de recuperação](21-manutencao-recuperacao.md) e envie o ID do diagnóstico.
