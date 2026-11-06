@@ -174,3 +174,17 @@ CSRF, erros, ausência de efeitos e limites. Não executados nesta entrega.
 Validar no Windows seleção de unidade, pasta acima, colar caminho e permissões;
 no Raspberry, confirmar que o seletor mostra pastas do servidor e que arquivos
 no cliente continuam sendo enviados por upload.
+
+## Entrega posterior ao aceite: central de ajuda (setup.21)
+
+A aba Ajuda e documentação, os links no setup/configuração inicial e o módulo
+`reusable/documentation` foram incluídos após o aceite de simulação do mantenedor.
+Esse aceite anterior não comprova a validação desta nova interface.
+
+Pendentes de execução local: `tests/test_documentation.py`, regressão do painel e
+do setup, navegação Markdown/imagens, busca com acentos, temas e largura móvel.
+Conferir acesso somente ao catálogo publicado, links externos em outra aba,
+tratamento de documento indisponível sem `runtime.trip`, consulta durante
+emergência e tela de configuração vazia sem instanciar hardware. As dependências
+de renderização devem ser instaladas pelo requirements atualizado.
+A validação física permanece pendente do mantenedor, como registrado acima.

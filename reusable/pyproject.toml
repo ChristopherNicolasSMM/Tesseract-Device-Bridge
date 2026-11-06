@@ -4,17 +4,20 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tesseract-reusable-tools"
-version = "0.1.1"
-description = "Independent serial monitor and guided installer building blocks"
+version = "0.2.0"
+description = "Independent serial monitor, guided installer and documentation viewer"
 requires-python = ">=3.9"
 
 [project.optional-dependencies]
 serial = ["pyserial>=3.5,<4"]
 wizard = ["Flask>=3.0,<3.2", "python-dotenv>=1,<2"]
+documentation = ["Flask>=3.0,<3.2", "Markdown>=3.5,<4", "bleach>=6.1,<7"]
 
 [tool.setuptools]
-packages = ["reusable", "reusable.serial_monitor", "reusable.guided_setup"]
+packages = ["reusable", "reusable.serial_monitor", "reusable.guided_setup", "reusable.documentation"]
 package-dir = {reusable = "."}
 
 [tool.setuptools.package-data]
 "reusable.guided_setup" = ["templates/guided_setup/*.html", "static/*.css"]
+
+"reusable.documentation" = ["templates/documentation/*.html", "static/*.css"]

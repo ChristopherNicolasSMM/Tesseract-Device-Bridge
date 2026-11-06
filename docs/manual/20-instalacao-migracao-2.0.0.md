@@ -7,7 +7,7 @@ informa novos totais da suíte nem homologa operação física. Consulte a
 [matriz de homologação](../homologacao/setup-2.0.0.md).
 
 Atualizado em 06/11/2026. Branch de trabalho: feature/sqlite-full-migration.
-Build do instalador: 2.0.0-setup.20. Implementação disponível para homologação;
+Build do instalador: 2.0.0-setup.21. Implementação disponível para homologação;
 a matriz de plataformas ainda precisa dos aceites registrados em
 [Homologação](../homologacao/setup-2.0.0.md). A main permanece preservada.
 

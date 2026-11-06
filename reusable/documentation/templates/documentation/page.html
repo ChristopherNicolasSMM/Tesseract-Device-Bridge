@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="{{ theme }}">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ current.title if current else title }}</title>
+<link rel="stylesheet" href="{{ url_for('documentation.static', filename='documentation.css', v=1) }}"></head>
+<body>
+<header class="help-header"><a href="{{ url_for('documentation.page', theme=theme) }}">{{ title }}</a>
+<a href="{{ url_for('documentation.page', doc=current.path if current else none, q=query, category=category, theme='light' if theme == 'dark' else 'dark') }}">{{ 'Tema claro' if theme == 'dark' else 'Tema escuro' }}</a></header>
+<div class="help-layout">
+<aside aria-label="Navegação da documentação">
+<form action="{{ url_for('documentation.page') }}" method="get" role="search">
+<input type="hidden" name="theme" value="{{ theme }}">
+<label for="help-query">Buscar em títulos e conteúdo</label>
+<input id="help-query" name="q" value="{{ query }}" maxlength="160" placeholder="Ex.: importação, bombas, token">
+<label for="help-category">Categoria</label><select id="help-category" name="category"><option value="">Todas</option>
+{% for name in categories %}<option {% if name == category %}selected{% endif %}>{{ name }}</option>{% endfor %}</select>
+<button>Buscar</button></form>
+<nav><a class="help-home" href="{{ url_for('documentation.page', theme=theme) }}">Início e atalhos</a>
+{% for group in documents | groupby('category') %}
+<details {% if not current or current.category == group.grouper %}open{% endif %}>
+<summary>{{ group.grouper }} <small>({{ group.list | length }})</small></summary>
+{% for item in group.list %}<a href="{{ url_for('documentation.page', doc=item.path, theme=theme) }}" {% if current and current.path == item.path %}aria-current="page"{% endif %}>{{ item.title }}</a>{% endfor %}
+</details>{% endfor %}</nav></aside>
+<main id="help-content">
+{% if query %}<section class="help-results"><h1>Resultados para “{{ query }}”</h1><p>{{ results | length }} documento(s), até 40 resultados.</p>
+{% for result in results %}<article><h2><a href="{{ url_for('documentation.page', doc=result.document.path, theme=theme) }}">{{ result.document.title }}</a></h2><p>{{ result.snippet }}</p><small>{{ result.document.category }}</small></article>{% else %}<p>Nenhum documento encontrado. Tente menos palavras ou outra categoria.</p>{% endfor %}</section>
+{% elif current %}
+<div class="help-document-meta"><span>{{ current.category }} · {{ current.path }}</span><a href="{{ url_for('documentation.raw', doc=current.path) }}">Baixar .md</a></div>
+{% if rendered.toc %}<details class="help-toc"><summary>Sumário do documento</summary>{{ rendered.toc }}</details>{% endif %}
+<article class="markdown-body">{{ rendered.html }}</article>
+{% else %}<h1>Como podemos ajudar?</h1><p>Consulte os documentos desta instalação. A busca considera títulos e conteúdo, incluindo termos sem acentos.</p>
+<div class="help-cards">{% for path,label,description in home_links %}<a href="{{ url_for('documentation.page', doc=path, theme=theme) }}"><strong>{{ label }}</strong><span>{{ description }}</span></a>{% endfor %}</div>
+<h2>Documentação local</h2><p>Os arquivos são lidos diretamente da documentação distribuída com o projeto. A consulta não altera configurações nem inicia hardware.</p>
+<p>Links de documentos e imagens locais abrem aqui. Links externos abrem em outra aba. Diagramas Mermaid são mostrados como código; HTML ativo e imagens externas não são carregados.</p>
+{% endif %}
+</main></div></body></html>

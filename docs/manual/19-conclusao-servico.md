@@ -8,7 +8,7 @@ informa novos totais da suíte nem homologa operação física. Consulte a
 
 Fluxo atual da branch feature/sqlite-full-migration. A validação de serviço,
 permissões, recuperação e operação física permanece local. Consulte os resultados
-registrados na [matriz de homologação](../homologacao/setup-2.0.0.md). Build de referência atual: 2.0.0-setup.20.
+registrados na [matriz de homologação](../homologacao/setup-2.0.0.md). Build de referência atual: 2.0.0-setup.21.
 
 ## Concluir
 

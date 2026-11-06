@@ -139,3 +139,29 @@ confirme o teste de abertura ou leitura. Não há envio de comandos. Veja o
 Atualize a branch. O clone mínimo do teste deve incluir setup/, shared_ui/ e
 reusable/. A correção 2133f7e ajusta essa preparação; não copie só setup/ para
 outra instalação. Confira também o [guia dos componentes](../modules/README.md).
+
+## Onde abro os manuais sem sair do painel?
+
+Use **Ajuda e documentação**. A mesma central tem links no setup e na configuração
+inicial. Consulte [o guia do visualizador](22-ajuda-documentacao.md) para busca,
+categorias, tema e download de Markdown.
+
+## O setup foi reiniciado e o formulário recebeu 403
+
+A sessão antiga da página pode ter expirado. Use **Renovar sessão**, confira os
+campos e envie a operação novamente. Se a página ficou aberta antes da atualização,
+recarregue uma vez. Não há reenvio automático. Veja
+[Sessão expirada](15-setup.md#sessão-expirada-após-reiniciar-setup20).
+
+## Como envio detalhes de uma falha de importação?
+
+Use **Baixar log de diagnóstico** e informe o ID exibido no relatório. Não envie
+`.env`, token ou banco operacional. Veja [logs](15-setup.md#logs-de-diagnóstico-setup18)
+e [caminhos longos no Windows](15-setup.md#caminhos-longos-no-windows-setup19).
+
+## O tópico de estado liga a bomba?
+
+O Bridge publica o estado; comandos vão ao `command_topic`. O tópico recebe o
+prefixo MQTT configurado. Controle manual, liberação para receita e confirmação
+automática estão descritos em [Bombas e MQTT](16-bombas-mqtt.md). Em simulação
+isolada, não há acionamento físico.

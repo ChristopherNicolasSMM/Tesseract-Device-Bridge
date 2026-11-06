@@ -14,6 +14,8 @@ def create_configuration_app(raw):
                       SESSION_COOKIE_SAMESITE='Strict',
                       SESSION_COOKIE_NAME='bridge_admin_' + str(raw['panel']['port']))
     app.register_blueprint(bp)
+    from shared_ui.documentation import register_help
+    register_help(app)
 
     @app.get('/')
     def index():

@@ -13,6 +13,10 @@ interpreta sensores, executa receitas, controla temperatura por PID e
 potência por janela, e gerencia atuadores com intertravamentos de segurança.
 A integração com o Tesseract Core por MQTT é opcional.
 
+A aba **Ajuda e documentação** permite consultar FAQ, manuais e guias técnicos
+com busca local. Também está disponível no setup e na configuração inicial.
+[Guia da central](docs/manual/22-ajuda-documentacao.md).
+
 ## O que muda na versão 2.0.0
 
 - **SQLite como fonte única de dados operacionais**: dispositivos, GPIOs,

@@ -29,3 +29,8 @@ Testes dos módulos: `tests/test_serial_monitor_module.py` e
 `tests/test_guided_setup_module.py`. A integração preserva os testes de setup e
 `tests/test_admin_diagnostics.py`. A execução local/CI deve validar a entrega;
 nenhuma homologação física é inferida a partir de mocks.
+
+## Central de documentação
+
+[Visualizador Markdown reutilizável](documentation/README.md): catálogo, busca,
+renderização sanitizada e integração Flask, sem dependência de hardware ou ORM.

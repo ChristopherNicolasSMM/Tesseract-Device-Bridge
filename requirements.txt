@@ -7,3 +7,6 @@ gpiozero>=2.0   # só necessário com backend=real (devices.yml); roda em modo m
 SQLAlchemy>=2.0,<2.1
 alembic>=1.16,<1.17
 pyserial>=3.5,<4.0  # monitor serial reutilizável (leitura/teste de abertura)
+
+Markdown>=3.5,<4.0  # visualizador de documentação local
+bleach>=6.1,<7.0  # sanitização do HTML dos manuais

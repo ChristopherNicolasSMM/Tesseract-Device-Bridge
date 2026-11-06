@@ -37,6 +37,8 @@ def create_app(root=None, *, port=8090):
     app.config.update(MAX_CONTENT_LENGTH=257 * 1024 * 1024, MAX_FORM_PARTS=120, MAX_FORM_MEMORY_SIZE=512 * 1024, SESSION_COOKIE_HTTPONLY=True,
                       SESSION_COOKIE_SAMESITE="Strict", SESSION_COOKIE_NAME="bridge_setup_" + str(port))
     app.extensions["installation_state"] = state
+    from shared_ui.documentation import register_help
+    register_help(app)
     from .diagnostics import record, logger
     record(state, 'setup.start', 'ready')
     from .browser_import import bp as import_bp
@@ -99,7 +101,7 @@ def create_app(root=None, *, port=8090):
             response = jsonify(redirect=response.headers["Location"])
         response.headers.update({"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
                                  "Referrer-Policy": "same-origin",
-                                 "Content-Security-Policy": "default-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'"})
+                                 "Content-Security-Policy": response.headers.get("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'")})
         return response
 
     @app.get('/diagnostics/download')

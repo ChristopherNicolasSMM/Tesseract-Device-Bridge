@@ -1,7 +1,7 @@
 # Documentação — Tesseract Device Bridge 2.0.0
 
-Atualizado em 06/11/2026. Referência: setup **2.0.0-setup.20**, componentes
-reutilizáveis **0.1.1**. Simulação validada pelo mantenedor em 06/11/2026; cenário real pendente de sua
+Atualizado em 06/11/2026. Referência: setup **2.0.0-setup.21**, componentes
+reutilizáveis **0.2.0**. Simulação validada pelo mantenedor em 06/11/2026; cenário real pendente de sua
 execução. O resultado da suíte atual não foi informado. Veja a
 [matriz de homologação](homologacao/setup-2.0.0.md).
 
@@ -21,6 +21,7 @@ execução. O resultado da suíte atual não foi informado. Veja a
 | Monitor serial, inclusive sem cadastro | [Diagnóstico](manual/14-diagnostico-hardware.md) · [API e limites](modules/serial-monitor/README.md) |
 | Bombas e tópicos MQTT | [Estado, comandos e confirmação automática](manual/16-bombas-mqtt.md) |
 | Logs do setup | [Coleta e ID do diagnóstico](manual/15-setup.md#logs-de-diagnóstico-setup18) |
+| Central de ajuda no painel | [Leitor, FAQ e busca](manual/22-ajuda-documentacao.md) · [Módulo reutilizável](modules/documentation/README.md) |
 | Emergência | [Desligamento](manual/06-desligamento-emergencia.md) |
 
 ## Engenharia e aceite

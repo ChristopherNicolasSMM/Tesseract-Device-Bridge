@@ -70,3 +70,11 @@ O monitor é local ao processo. Múltiplos workers HTTP exigem um serviço/broke
 único de portas; não basta criar um singleton em cada worker. A proteção de
 sessão do monitor não substitui permissões do SO nem reserva a porta contra
 outros programas. O setup segue com um processo e lock exclusivo da instalação.
+
+## Documentação como módulo de consulta
+
+`reusable/documentation` concentra catálogo, busca, renderização e frontend.
+`shared_ui/documentation.py` configura o escopo público do Bridge. Painel, setup
+e configuração inicial registram o mesmo componente sem criar runtime.
+Falhas do leitor não passam pelo tratador de emergência do painel.
+Consulte [contratos e integração](documentation/README.md).

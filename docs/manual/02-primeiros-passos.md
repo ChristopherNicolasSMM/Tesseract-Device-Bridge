@@ -35,7 +35,7 @@ O setup não exige root.
 
 ## Assistente
 
-Abra http://127.0.0.1:8090 e confira build 2.0.0-setup.20.
+Abra http://127.0.0.1:8090 e confira build 2.0.0-setup.21.
 Selecione idioma/aparência e escolha banco vazio, arquivos antigos ou SQLite.
 Revise inventário/relatórios; configure infraestrutura e credencial.
 Conclua com seleção explícita de candidato e consentimentos aplicáveis.

@@ -1,6 +1,6 @@
 # Device Bridge 2.0.0 — Setup and migration
 
-Working branch: feature/sqlite-full-migration. Installer build: 2.0.0-setup.20.
+Working branch: feature/sqlite-full-migration. Installer build: 2.0.0-setup.21.
 The maintainer confirmed the simulation scenario on 6 November 2026.
 Real hardware, MQTT integration and Raspberry/systemd validation remain pending
 with the maintainer; no new full-suite results or executed commit were supplied. See [acceptance matrix](../homologacao/setup-2.0.0.md).

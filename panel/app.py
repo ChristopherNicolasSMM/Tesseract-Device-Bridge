@@ -49,6 +49,8 @@ def create_panel_app(
 
     app.register_blueprint(api_bp)
     app.register_blueprint(admin_bp)
+    from shared_ui.documentation import register_help
+    register_help(app)
 
     @app.before_request
     def emergency_interlock():
