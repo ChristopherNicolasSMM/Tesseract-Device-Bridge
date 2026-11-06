@@ -206,5 +206,16 @@
   "import_mapping_error": "Source data could not be mapped or verified without loss in the ORM model. Preserve the source for analysis.",
   "import_structure_error": "A field structure or type does not meet the import contract.",
   "import_filesystem_error": "A filesystem operation failed. Check free space, paths and locks.",
-  "import_internal_error": "Unclassified internal failure. Report the build and displayed stage for analysis."
+  "import_internal_error": "Unclassified internal failure. Report the build and displayed stage for analysis.",
+  "remote_resolve": "Review remote control",
+  "remote_explanation": "These actuators request remote control without a state feedback topic. Choose how to handle the imported copy.",
+  "remote_keep": "Keep remote control for affected devices",
+  "remote_keep_help": "Enter each actuator’s actual state_topic. Confirm device configuration; setup does not test MQTT communication or invent topics.",
+  "remote_disable": "Disable remote control only for affected devices",
+  "remote_disable_help": "Sets hardware.remote_control to false only for listed devices. Local control remains subject to normal rules; Tesseract/MashControl loses remote actuation authorization for these devices. Other devices remain unchanged.",
+  "remote_source_unchanged": "Only the migration copy changes, with an audit record in the report. Original files remain intact. Import does not start hardware.",
+  "remote_choice_required": "Choose an option before continuing.",
+  "remote_apply": "Apply choice and import again",
+  "remote_changes_recorded": "Remote control changes were recorded for this import. Review devices before authorizing operation.",
+  "devices_remote_topic_invalid": "Invalid state topic. Enter an actual, specific MQTT topic without + or # wildcards."
 }

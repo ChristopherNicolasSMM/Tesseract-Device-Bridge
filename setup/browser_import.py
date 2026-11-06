@@ -76,7 +76,7 @@ def descriptor():
 
 def remember(value, desc):
     # Source descriptions live server-side in the private manifest, never in cookies.
-    value.save(dict(value.value, browser_source=desc, browser_report=None))
+    value.save(dict(value.value, browser_source=desc, browser_report=None, browser_selection=[], browser_partial=False))
 
 
 def inventory_rows(root):
@@ -132,6 +132,7 @@ def page():
         theme=value.value.get('theme', 'light'), csrf=session['csrf'],
         source=source, source_input=value.value.get('source_input',
             {'path': source['root'], 'kind': 'directory'} if source and source.get('kind') == 'directory' else {}),
+        selection=value.value.get('browser_selection', []), partial=value.value.get('browser_partial', False),
         report=translate_report(report, language) if report else None,
         build=current_app.config['SETUP_BUILD'])
 
@@ -298,6 +299,15 @@ def run_import():
     allowed = {row['id']: row['path'] for row in desc['rows'] if row['status'] == 'supported'}
     if not selected or not set(selected) <= allowed.keys():
         raise SetupError('Select supported files.')
+    policy = request.form.get('remote_policy', '')
+    if policy not in ('', 'keep', 'disable_invalid'):
+        raise SetupError('Invalid remote migration choice.')
+    topics = {key[len('state_topic:'):]: val.strip() for key, val in request.form.items()
+              if key.startswith('state_topic:')}
+    if topics and policy != 'keep':
+        raise SetupError('Topic mapping requires an explicit keep choice.')
+    value.save(dict(value.value, browser_selection=selected,
+                    browser_partial=request.form.get('allow_partial') == '1'))
     try:
         if desc['kind'] == 'sqlite':
             from .sqlite_import import import_sqlite
@@ -309,7 +319,9 @@ def run_import():
             from .legacy import import_directory
             report = import_directory(value, desc['root'], selected=[allowed[key] for key in selected],
                 allow_partial=request.form.get('allow_partial') == '1',
-                _owned_upload=desc['kind'] == 'upload')
+                _owned_upload=desc['kind'] == 'upload',
+                disable_invalid_remote_control=policy == 'disable_invalid',
+                remote_state_topics=topics)
     except Exception as exc:
         from .reports import failure_report
         report = failure_report('import_preparation_failed', exc)

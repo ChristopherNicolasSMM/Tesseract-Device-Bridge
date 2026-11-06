@@ -262,3 +262,50 @@ def test_source_path_and_kind_survive_reload(browser, tmp_path, kind):
         assert 'value="' + str(escape(str(old))) + '" required' in page
         assert 'value="' + kind + '" selected' in page
     assert app.extensions['installation_state'].value['source_input'] == {'path': str(old), 'kind': kind}
+
+
+@pytest.mark.parametrize('partial', [False, True])
+@pytest.mark.parametrize('policy', ['keep', 'disable_invalid'])
+def test_remote_conflict_popup_and_explicit_resolution(browser, tmp_path, policy, partial):
+    import shutil
+    from contextlib import closing
+    import sqlite3
+    app, client, base, csrf = browser
+    old = tmp_path / 'old'
+    shutil.copytree(Path(__file__).parent / 'fixtures/legacy_main', old)
+    path = old / 'data/public/devices.yml'
+    raw = yaml.safe_load(path.read_text(encoding='utf-8'))
+    for device in raw['devices']:
+        if device['id'] in ('pump_b1', 'pump_b2', 'mash_heater', 'boil_heater'):
+            device['hardware']['remote_control'] = True
+    path.write_text(yaml.safe_dump(raw), encoding='utf-8')
+    before = path.read_bytes()
+    client.post('/import/discover', base_url=base, headers={'Origin': base},
+        data={'csrf': csrf, 'source': str(old), 'kind': 'directory'})
+    state = app.extensions['installation_state']
+    selected = [row['id'] for row in state.value['browser_source']['rows']]
+    payload = {'csrf': csrf, 'selected': selected, 'allow_partial': '1' if partial else '0'}
+    client.post('/import/run', base_url=base, headers={'Origin': base}, data=payload)
+    report = state.value['browser_report']
+    assert report['database'] is None
+    assert {d['id'] for d in report['remote_conflicts']} == {'pump_b1', 'pump_b2'}
+    page = client.get('/import/', base_url=base).get_data(as_text=True)
+    assert 'id="remote-dialog"' in page
+    assert 'state_topic:pump_b1' in page
+    assert state.value['browser_selection'] == selected
+    payload['remote_policy'] = policy
+    if policy == 'keep':
+        payload.update({'state_topic:pump_b1': 'actual/b1/state', 'state_topic:pump_b2': 'actual/b2/state'})
+    response = client.post('/import/run', base_url=base, headers={'Origin': base}, data=payload)
+    assert response.status_code == 303
+    report = state.value['browser_report']
+    assert report['database']
+    assert len(report['repairs']) == 2
+    assert not report['runtime_authorized']
+    with closing(sqlite3.connect(state.staging() / report['database'])) as conn:
+        pumps = conn.execute("SELECT id,remote_control,state_topic FROM bridge_devices_v2 WHERE id IN ('pump_b1','pump_b2') ORDER BY id").fetchall()
+        assert all(bool(row[1]) == (policy == 'keep') for row in pumps)
+        if policy == 'keep':
+            assert [row[2] for row in pumps] == ['actual/b1/state', 'actual/b2/state']
+        assert conn.execute("SELECT remote_control FROM bridge_devices_v2 WHERE id='mash_heater'").fetchone()[0] == 1
+    assert path.read_bytes() == before

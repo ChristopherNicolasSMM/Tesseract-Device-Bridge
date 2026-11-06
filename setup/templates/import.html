@@ -47,21 +47,21 @@
   <h2>{{ t.inventory }}</h2>
   <p class="bridge-muted">{{ t.inventory_filter }}</p>
   {% if not source.rows %}<p class="setup-alert warning">{{ t.inventory_empty }}</p>{% endif %}
-  <form method="post" action="/import/run" data-run>
+  <form method="post" action="/import/run" data-run id="import-run">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <div class="setup-table-scroll">
     <table class="setup-table">
       <thead><tr><th>{% if source.kind != 'sqlite' %}<input type="checkbox" data-select-all aria-label="{{ t.select_all }}">{% endif %}</th>
         <th>{{ t.file_name }}</th><th>{{ t.format }}</th><th>{{ t.records }}</th><th>{{ t.compatibility }}</th><th>{{ t.preview }}</th></tr></thead>
       <tbody>{% for row in source.rows %}<tr>
-        <td><input type="{{ 'radio' if source.kind == 'sqlite' else 'checkbox' }}" name="selected" value="{{ row.id }}" aria-label="{{ row.path }}" {% if row.status != 'supported' %}disabled{% endif %}></td>
+        <td><input type="{{ 'radio' if source.kind == 'sqlite' else 'checkbox' }}" name="selected" value="{{ row.id }}" {% if row.id in selection %}checked{% endif %} aria-label="{{ row.path }}" {% if row.status != 'supported' %}disabled{% endif %}></td>
         <td><code>{{ row.path }}</code><small>{{ row.bytes }} bytes</small></td>
         <td>{{ row.format }}</td><td>{{ row.count if row.count is not none else '—' }}</td>
         <td><span class="setup-badge">{{ t.get(row.status, row.status) }}</span></td>
         <td>{% if row.status == 'supported' %}<button class="bridge-button secondary" type="button" data-preview="{{ row.id }}">{{ t.preview }}</button>{% endif %}</td>
       </tr>{% endfor %}</tbody>
     </table></div>
-    {% if source.kind != 'sqlite' %}<label class="setup-check"><input type="checkbox" name="allow_partial" value="1">{{ t.allow_partial }}</label>{% endif %}
+    {% if source.kind != 'sqlite' %}<label class="setup-check"><input type="checkbox" name="allow_partial" value="1" {% if partial %}checked{% endif %}>{{ t.allow_partial }}</label>{% endif %}
     <p class="bridge-muted">{{ t.import_options_hint }}</p>
     <button class="bridge-button" {% if not source.rows %}disabled{% endif %}>{{ t.run_import }}</button>
   </form>
@@ -72,6 +72,11 @@
   <h2>{{ t.report }}</h2>
   <p class="setup-alert {% if report.needs_review %}warning{% else %}success{% endif %}">{{ t.get(report.status, report.status) }}</p>
   {% if report.counts %}<p>{{ t.records }}: {{ report.counts }}</p>{% endif %}
+  {% if report.remote_conflicts %}
+  <button type="button" class="bridge-button" id="remote-open">{{ t.remote_resolve }}</button>
+  {% endif %}
+  {% if report.repairs %}<p class="setup-alert warning">{{ t.remote_changes_recorded }}</p>
+  <ul>{% for repair in report.repairs %}<li><code>{{ repair.device_id }}</code> — <code>{{ repair.field }}</code>: <code>{{ repair.source_value | tojson }}</code> → <code>{{ repair.imported_value | tojson }}</code></li>{% endfor %}</ul>{% endif %}
   <ul class="setup-events">{% for item in report.events %}
     <li class="{{ item.category }}"><span class="setup-badge">{{ t[item.category] }}</span> {{ item.message }}
       {% if item.file %}<code>{{ item.file }}</code>{% endif %}
@@ -92,6 +97,24 @@
 
 {% block dialogs %}
 {{ super() }}
+{% if report and report.remote_conflicts %}
+<dialog id="remote-dialog" aria-labelledby="remote-title">
+  <header><h2 id="remote-title">{{ t.remote_resolve }}</h2><button type="button" class="bridge-button secondary" id="remote-close">{{ t.close }}</button></header>
+  <p>{{ t.remote_explanation }}</p>
+  <ul>{% for device in report.remote_conflicts %}<li><strong>{{ device.name }}</strong> <code>{{ device.id }}</code></li>{% endfor %}</ul>
+  <label class="setup-check"><input type="radio" name="remote_policy" value="keep" form="import-run">{{ t.remote_keep }}</label>
+  <p class="bridge-muted">{{ t.remote_keep_help }}</p>
+  <div id="remote-topics">{% for device in report.remote_conflicts %}
+    <label for="remote-topic-{{ loop.index }}">{{ device.name }} — state_topic</label>
+    <input class="bridge-field" id="remote-topic-{{ loop.index }}" name="state_topic:{{ device.id }}" form="import-run" maxlength="2048" disabled>
+  {% endfor %}</div>
+  <label class="setup-check"><input type="radio" name="remote_policy" value="disable_invalid" form="import-run">{{ t.remote_disable }}</label>
+  <p class="bridge-muted">{{ t.remote_disable_help }}</p>
+  <p>{{ t.remote_source_unchanged }}</p>
+  <p id="remote-error" class="setup-alert warning" hidden>{{ t.remote_choice_required }}</p>
+  <button type="button" class="bridge-button" id="remote-apply">{{ t.remote_apply }}</button>
+</dialog>
+{% endif %}
 <dialog id="folder-dialog" aria-labelledby="folder-title">
   <header><h2 id="folder-title">{{ t.folder_choose }}</h2><button type="button" class="bridge-button secondary" data-folder-close>{{ t.close }}</button></header>
   <p>{{ t.server_paths }}</p>

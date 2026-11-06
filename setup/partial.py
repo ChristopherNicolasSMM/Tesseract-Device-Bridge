@@ -6,7 +6,7 @@ from pathlib import Path
 from .reports import event
 
 
-def collect_partial(source, devices_file, *, disable_invalid_remote_control=False):
+def collect_partial(source, devices_file, *, disable_invalid_remote_control=False, remote_state_topics=None):
     from storage.legacy_import import collect
     # The input is already a bounded private snapshot.
     working = Path(source).parent / 'validated'
@@ -15,7 +15,7 @@ def collect_partial(source, devices_file, *, disable_invalid_remote_control=Fals
     devices.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(Path(source) / devices_file, devices)
     options = dict(devices_file=devices_file,
-                   disable_invalid_remote_control=disable_invalid_remote_control)
+                   disable_invalid_remote_control=disable_invalid_remote_control, remote_state_topics=remote_state_topics)
     events = []
     try:
         snapshot = collect(working, **options)
@@ -73,6 +73,8 @@ def collect_partial(source, devices_file, *, disable_invalid_remote_control=Fals
 def devices_error_code(exc):
     """Map known validation failures to static messages; never expose source values."""
     text = str(exc)
+    if 'Invalid remote state topic' in text:
+        return 'devices_remote_topic_invalid'
     if 'ao menos um device' in text:
         return 'devices_empty'
     if 'sem state_topic' in text:

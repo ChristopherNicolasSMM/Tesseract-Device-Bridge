@@ -113,3 +113,31 @@ def test_conversion_failure_keeps_partial_warnings_without_exception_text(tmp_pa
         assert 'private-token' not in json.dumps(report)
     finally:
         state.close()
+
+
+@pytest.mark.parametrize('topic', ['', '#', 'a/+', 'a\x00b', ' padded '])
+def test_remote_topic_choice_rejects_invalid_topics(topic):
+    import copy
+    from storage.sqlite_store import INITIAL_CONFIG
+    from storage.legacy_import import _normalize_legacy_config, LegacyImportError
+    config = copy.deepcopy(INITIAL_CONFIG)
+    config['devices'].append(dict(id='pump', name='Pump', role='actuator', subtype='digital',
+        command_topic='pump/set', hardware={'pin': 19, 'remote_control': True}))
+    with pytest.raises(LegacyImportError):
+        _normalize_legacy_config(config, disable_invalid_remote_control=False,
+                                 remote_state_topics={'pump': topic})
+    assert config['devices'][-1]['hardware']['remote_control'] is True
+    assert 'state_topic' not in config['devices'][-1]
+
+
+def test_remote_resolution_rejects_unknown_devices_and_conflicting_choices():
+    import copy
+    from storage.sqlite_store import INITIAL_CONFIG
+    from storage.legacy_import import _normalize_legacy_config, LegacyImportError
+    config = copy.deepcopy(INITIAL_CONFIG)
+    with pytest.raises(LegacyImportError):
+        _normalize_legacy_config(config, disable_invalid_remote_control=False,
+                                 remote_state_topics={'not_affected': 'actual/state'})
+    with pytest.raises(LegacyImportError):
+        _normalize_legacy_config(config, disable_invalid_remote_control=True,
+                                 remote_state_topics={'not_affected': 'actual/state'})

@@ -70,13 +70,31 @@ def _needs_remote_disable(device):
     )
 
 
-def _normalize_legacy_config(original, *, disable_invalid_remote_control):
+def _normalize_legacy_config(original, *, disable_invalid_remote_control, remote_state_topics=None):
     """No source writes; opt-in safety downgrade is visible and auditable."""
     if not isinstance(original, dict):
         raise LegacyImportError("devices.yml deve conter um objeto YAML.")
     config = copy.deepcopy(original)
     invalid = [d for d in config.get("devices", []) if _needs_remote_disable(d)]
-    if invalid and not disable_invalid_remote_control:
+    repairs = []
+    topics = {} if remote_state_topics is None else remote_state_topics
+    if not isinstance(topics, dict) or (topics and disable_invalid_remote_control):
+        raise LegacyImportError('Invalid remote control migration choice.')
+    if not set(topics) <= {d.get('id') for d in invalid}:
+        raise LegacyImportError('Remote topic mapping must target affected devices only.')
+    for device in invalid:
+        if device.get('id') not in topics:
+            continue
+        topic = topics[device['id']]
+        if (not isinstance(topic, str) or not topic.strip() or topic != topic.strip()
+                or len(topic.encode('utf-8')) > 65535 or any(c in topic for c in ('+', '#', '\x00'))):
+            raise LegacyImportError('Invalid remote state topic.')
+        device['state_topic'] = topic
+        repairs.append(dict(device_id=device['id'], field='state_topic',
+                            source_value=None, imported_value=topic,
+                            reason='user_supplied_state_topic'))
+    unresolved = [d for d in invalid if not d.get('state_topic')]
+    if unresolved and not disable_invalid_remote_control:
         names = ", ".join(repr(d.get("id", "<sem ID>")) for d in invalid)
         raise LegacyImportError(
             f"Dispositivos legados com hardware.remote_control=true sem state_topic: {names}. "
@@ -86,7 +104,6 @@ def _normalize_legacy_config(original, *, disable_invalid_remote_control):
             "com remote_control=false (sem alterar os arquivos de origem). "
             "Nenhum controle remoto será habilitado automaticamente."
         )
-    repairs = []
     if disable_invalid_remote_control:
         for device in invalid:
             device["hardware"]["remote_control"] = False
@@ -106,7 +123,7 @@ def _normalize_legacy_config(original, *, disable_invalid_remote_control):
 
 
 
-def collect(source_dir, *, devices_file="data/public/devices.yml", disable_invalid_remote_control=False):
+def collect(source_dir, *, devices_file="data/public/devices.yml", disable_invalid_remote_control=False, remote_state_topics=None):
     """Preflight all content before touching the destination DB."""
     root = Path(source_dir).resolve()
     if not root.is_dir():
@@ -119,7 +136,8 @@ def collect(source_dir, *, devices_file="data/public/devices.yml", disable_inval
     with config_path.open("r", encoding="utf-8") as stream:
         original_config = yaml.safe_load(stream) or {}
     config, parsed, repairs = _normalize_legacy_config(
-        original_config, disable_invalid_remote_control=disable_invalid_remote_control
+        original_config, disable_invalid_remote_control=disable_invalid_remote_control,
+        remote_state_topics=remote_state_topics
     )
 
     all_paths = {p for p in LEGACY_FILES if (root / p).is_file()}

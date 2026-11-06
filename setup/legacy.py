@@ -61,7 +61,7 @@ def discover(source):
 
 @record_import
 def import_directory(state, source, *, selected=None, disable_invalid_remote_control=False,
-                     allow_partial=False, _owned_upload=False):
+                     allow_partial=False, _owned_upload=False, remote_state_topics=None):
     """Import selected YAML/JSON through legacy adapters into an independent ORM copy."""
     from storage.legacy_import import collect, import_snapshot
     from storage.orm_normalize import normalize_copy
@@ -107,7 +107,7 @@ def import_directory(state, source, *, selected=None, disable_invalid_remote_con
     if allow_partial:
         from .partial import collect_partial
         snapshot, events = collect_partial(snapshot_dir, next(iter(devices)),
-            disable_invalid_remote_control=disable_invalid_remote_control)
+            disable_invalid_remote_control=disable_invalid_remote_control, remote_state_topics=remote_state_topics)
     else:
         from .partial import devices_error_code
         from storage.legacy_import import _normalize_legacy_config
@@ -116,17 +116,23 @@ def import_directory(state, source, *, selected=None, disable_invalid_remote_con
         try:
             with (snapshot_dir / devices_file).open(encoding='utf-8') as stream:
                 _normalize_legacy_config(yaml.safe_load(stream) or {},
-                    disable_invalid_remote_control=disable_invalid_remote_control)
+                    disable_invalid_remote_control=disable_invalid_remote_control, remote_state_topics=remote_state_topics)
         except Exception as exc:
             snapshot = None
             events = [event('blocking_error', devices_error_code(exc), file=devices_file)]
         else:
             snapshot = collect(snapshot_dir, devices_file=devices_file,
-                disable_invalid_remote_control=disable_invalid_remote_control)
+                disable_invalid_remote_control=disable_invalid_remote_control, remote_state_topics=remote_state_topics)
             events = [event('imported', 'legacy_validated')]
     if snapshot is None:
         report = dict(version=1, status='needs_review', database=None, files=hashes,
                       needs_review=True, runtime_authorized=False, events=events)
+        if any(e['code'] in ('devices_remote_invalid', 'devices_remote_topic_invalid') for e in events):
+            import yaml
+            from storage.legacy_import import _needs_remote_disable
+            raw = yaml.safe_load((snapshot_dir / next(iter(devices))).read_text(encoding='utf-8'))
+            report['remote_conflicts'] = [dict(id=d['id'], name=d.get('name', d['id']))
+                for d in raw.get('devices', []) if _needs_remote_disable(d)]
         save_report(job, report)
         return report
     intermediate = job / 'legacy.sqlite3'
@@ -148,7 +154,7 @@ def import_directory(state, source, *, selected=None, disable_invalid_remote_con
               'files': hashes, 'counts': snapshot['counts'], 'repairs': snapshot['repairs'],
               'ignored': [row['path'] for row in rows if row['path'] not in chosen],
               'runtime_authorized': False,
-              'needs_review': any(e['category'] in ('warning', 'blocking_error') for e in events),
+              'needs_review': bool(snapshot['repairs']) or any(e['category'] in ('warning', 'blocking_error') for e in events),
               'events': events + [event('ignored', 'file_ignored', file=row['path'])
                                   for row in rows if row['path'] not in chosen]}
     save_report(job, report)

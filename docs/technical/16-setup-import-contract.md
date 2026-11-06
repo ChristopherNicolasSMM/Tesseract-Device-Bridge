@@ -71,3 +71,18 @@ públicos consultados da `main` em 06/11/2026: seis dispositivos e receita base.
 Os testes cobrem importação estrita/parcial sem banco operacional acessível.
 Os arquivos privados de uma instalação real continuam exigindo validação própria;
 a referência não comprova equivalência a uma origem com sete dispositivos.
+
+### Resolução explícita do remoto legado
+
+`remote_state_topics` é um mapeamento opcional de ID para tópico real fornecido
+pelo usuário. `_normalize_legacy_config` aceita apenas IDs classificados por
+`_needs_remote_disable`, valida os tópicos, trabalha em `deepcopy` e registra cada
+mudança em `repairs`. Essa opção é mutuamente exclusiva com
+`disable_invalid_remote_control`. A validação completa de `BridgeConfig` ocorre
+após aplicar a decisão; configurações de aquecimento não são relaxadas.
+
+O adaptador web usa `remote_policy=keep|disable_invalid` e campos
+`state_topic:<id>`, com o mesmo CSRF e limite de corpo do restante do setup. O
+relatório bloqueante contém `remote_conflicts` para renderização escapada no
+popup; seleção e modo parcial ficam no manifesto privado. O popup não serve como
+validação de segurança: POSTs diretos passam pelas mesmas regras do backend.

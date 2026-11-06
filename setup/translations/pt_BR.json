@@ -206,5 +206,16 @@
   "import_mapping_error": "Os dados não puderam ser representados ou conferidos no modelo ORM sem perda. Preserve a origem para análise.",
   "import_structure_error": "A estrutura ou o tipo de um campo não atende ao contrato do importador.",
   "import_filesystem_error": "Uma operação de arquivo falhou. Confira espaço, caminho e bloqueios de outros programas.",
-  "import_internal_error": "Falha interna não classificada. Informe o build e a etapa exibida para análise."
+  "import_internal_error": "Falha interna não classificada. Informe o build e a etapa exibida para análise.",
+  "remote_resolve": "Revisar controle remoto",
+  "remote_explanation": "Estes atuadores pedem controle remoto, mas não informam o tópico de retorno de estado. Escolha como tratar a cópia importada.",
+  "remote_keep": "Manter controle remoto nos dispositivos afetados",
+  "remote_keep_help": "Informe o state_topic real de cada atuador. Confirme a configuração do equipamento; o setup não testa a comunicação MQTT nem inventa tópicos.",
+  "remote_disable": "Desativar controle remoto apenas nos dispositivos afetados",
+  "remote_disable_help": "Altera hardware.remote_control para false somente nos itens listados. O controle local continua sujeito às regras normais; o Tesseract/MashControl perde a autorização de acionamento remoto nesses itens. Outros dispositivos permanecem como estão.",
+  "remote_source_unchanged": "A escolha altera apenas a cópia de migração e será registrada no relatório. Os arquivos originais permanecem intactos. A importação não inicia hardware.",
+  "remote_choice_required": "Escolha uma opção antes de continuar.",
+  "remote_apply": "Aplicar escolha e importar novamente",
+  "remote_changes_recorded": "Ajustes de controle remoto foram registrados nesta importação. Revise os dispositivos antes de autorizar operação.",
+  "devices_remote_topic_invalid": "Tópico de estado inválido. Informe um tópico MQTT real e específico, sem curingas + ou #."
 }

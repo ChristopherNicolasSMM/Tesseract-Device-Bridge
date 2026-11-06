@@ -92,12 +92,42 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-folder-close]').forEach(button => button.addEventListener('click', () => folderDialog.close()));
     folderDialog.addEventListener('close', () => { if (!folderDialog.open) navigation++; });
   }
+  const remoteDialog = document.getElementById('remote-dialog');
+  if (remoteDialog) {
+    const radios = document.querySelectorAll('input[name="remote_policy"]');
+    const topics = remoteDialog.querySelectorAll('input[name^="state_topic:"]');
+    radios.forEach(radio => radio.addEventListener('change', () => {
+      const keep = document.querySelector('input[name="remote_policy"]:checked')?.value === 'keep';
+      topics.forEach(input => { input.disabled = !keep; input.required = keep; });
+    }));
+    document.getElementById('remote-open').addEventListener('click', () => remoteDialog.showModal());
+    const resetRemoteChoice = () => {
+      radios.forEach(radio => { radio.checked = false; });
+      topics.forEach(input => { input.disabled = true; input.required = false; });
+    };
+    document.getElementById('remote-close').addEventListener('click', () => {
+      resetRemoteChoice(); remoteDialog.close();
+    });
+    remoteDialog.addEventListener('cancel', resetRemoteChoice);
+    document.getElementById('remote-apply').addEventListener('click', () => {
+      if (!document.querySelector('input[name="remote_policy"]:checked')) {
+        document.getElementById('remote-error').hidden = false; return;
+      }
+      if ([...topics].some(input => !input.disabled && !input.reportValidity())) return;
+      remoteDialog.close(); document.getElementById('import-run').requestSubmit();
+    });
+    remoteDialog.showModal();
+  }
   document.querySelectorAll('form').forEach(form => form.addEventListener('submit', async event => {
     if (!window.fetch) return;
     event.preventDefault();
     if (form.dataset.confirm && !window.confirm(form.dataset.confirm)) return;
     if (form.hasAttribute('data-run') && !form.querySelector('input[name="selected"]:checked')) {
       showError(messages.select_required); return;
+    }
+    if (form.hasAttribute('data-run') && remoteDialog &&
+        !document.querySelector('input[name="remote_policy"]:checked')) {
+      if (!remoteDialog.open) remoteDialog.showModal(); return;
     }
     const data = new FormData(form);
     busy.hidden = false;

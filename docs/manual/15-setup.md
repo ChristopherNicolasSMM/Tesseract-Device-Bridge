@@ -88,3 +88,27 @@ ainda exigem revisar uma cópia do arquivo; não habilite hardware para contorn�
 Se o descarte falhar, o diagnóstico distingue publicação existente de arquivos
 bloqueados. No primeiro caso use recuperação/rollback; no segundo feche o programa
 que usa os temporários e repita. A tentativa permanece disponível para repetição.
+
+### Escolha de controle remoto na migração (setup.15)
+
+Quando um atuador legado solicita `hardware.remote_control: true` sem informar
+`state_topic`, a importação apresenta os dispositivos afetados em um popup.
+Nenhuma opção é escolhida automaticamente:
+
+- **Manter remoto:** informe o tópico real de estado de cada dispositivo listado.
+  O setup valida o formato, mas não testa MQTT nem garante que o equipamento
+  publique nesse tópico. Não há geração automática de tópicos.
+- **Desativar nos afetados:** aplica `remote_control: false` somente nos itens
+  listados. Os demais dispositivos conservam a configuração original. O acesso
+  local continua sujeito às regras normais; a autorização de acionamento remoto
+  pelo Tesseract/MashControl é retirada nesses itens.
+
+Fechar o popup permite revisar a seleção; o botão **Revisar controle remoto** o
+abre novamente. A decisão reaplica a importação usando os arquivos selecionados,
+mantém a escolha de importação parcial e registra os ajustes no relatório e no
+histórico de migração. O original nunca é regravado. Escolher manter remoto não
+inicia hardware, não autoriza runtime e não altera os intertravamentos de gás.
+
+Selecione a raiz da instalação antiga (a pasta que contém `data/`). Quando o
+material recebido for apenas a pasta `data`, coloque-a numa pasta de origem e
+selecione essa pasta superior.
