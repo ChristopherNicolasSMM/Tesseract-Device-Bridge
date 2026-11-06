@@ -217,5 +217,6 @@
   "remote_choice_required": "Choose an option before continuing.",
   "remote_apply": "Apply choice and import again",
   "remote_changes_recorded": "Remote control changes were recorded for this import. Review devices before authorizing operation.",
-  "devices_remote_topic_invalid": "Invalid state topic. Enter an actual, specific MQTT topic without + or # wildcards."
+  "devices_remote_topic_invalid": "Invalid state topic. Enter an actual, specific MQTT topic without + or # wildcards.",
+  "abort_blocked_file": "Blocked temporary file: {file}."
 }

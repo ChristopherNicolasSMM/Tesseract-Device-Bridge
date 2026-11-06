@@ -83,7 +83,7 @@ def create_app(root=None, *, port=8090):
                 abort(403)
             receipt = state.root / "data/private/installation.json"
             if (receipt.exists() or receipt.is_symlink()) and request.path not in (
-                    "/finish/recover", "/finish/rollback", "/finish/revalidate", "/finish/service", "/finish/close", "/appearance"):
+                    "/finish/recover", "/finish/rollback", "/finish/revalidate", "/finish/service", "/finish/close", "/appearance", "/abort"):
                 raise SetupError("Publication exists; use completion/recovery.")
 
 
@@ -156,6 +156,16 @@ def create_app(root=None, *, port=8090):
     def setup_error(exc):
         # Never render paths, imported data or credentials in HTTP errors.
         code = getattr(exc, "code", "error")
-        return jsonify(code=code, message=translations[state.value["language"]].get(code, translations[state.value["language"]]["error"])), 409
+        message = translations[state.value["language"]].get(code, translations[state.value["language"]]["error"])
+        details = {}
+        if code == 'abort_files_busy':
+            # Never return raw exception text or an absolute filesystem path.
+            if getattr(exc, 'temporary_file', None):
+                details['file'] = exc.temporary_file
+                message += ' ' + translations[state.value['language']]['abort_blocked_file'].format(file=exc.temporary_file)
+            if isinstance(getattr(exc, 'os_error', None), int):
+                details['os_error'] = exc.os_error
+                message += ' (' + str(exc.os_error) + ')'
+        return jsonify(code=code, message=message, details=details), 409
 
     return app

@@ -217,5 +217,6 @@
   "remote_choice_required": "Escolha uma opção antes de continuar.",
   "remote_apply": "Aplicar escolha e importar novamente",
   "remote_changes_recorded": "Ajustes de controle remoto foram registrados nesta importação. Revise os dispositivos antes de autorizar operação.",
-  "devices_remote_topic_invalid": "Tópico de estado inválido. Informe um tópico MQTT real e específico, sem curingas + ou #."
+  "devices_remote_topic_invalid": "Tópico de estado inválido. Informe um tópico MQTT real e específico, sem curingas + ou #.",
+  "abort_blocked_file": "Arquivo temporário bloqueado: {file}."
 }

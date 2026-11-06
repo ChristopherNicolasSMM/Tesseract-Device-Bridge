@@ -112,3 +112,20 @@ inicia hardware, não autoriza runtime e não altera os intertravamentos de gás
 Selecione a raiz da instalação antiga (a pasta que contém `data/`). Quando o
 material recebido for apenas a pasta `data`, coloque-a numa pasta de origem e
 selecione essa pasta superior.
+
+### Descartar temporários no Windows (setup.16)
+
+O descarte remove somente a pasta da tentativa atual e volta ao início. Arquivos
+somente leitura são liberados para exclusão dentro dessa pasta. O lock do próprio
+setup fica fora dela e não deve ser apagado manualmente enquanto o setup roda.
+
+Se a resposta for `abort_files_busy`, a tela informa o caminho relativo do arquivo
+bloqueado, quando disponível, e o código do sistema. Feche o visualizador de banco,
+editor ou outro programa que o esteja usando e repita o descarte. A tentativa
+permanece registrada até a exclusão terminar; alguns temporários já podem ter
+sido removidos. A operação pode ser repetida.
+
+Se a resposta for `abort_publication_exists`, existe uma publicação no destino.
+Abra **Concluir instalação** para examinar o estado e usar a recuperação ou o
+rollback permitido. O descarte de temporários não remove o banco publicado nem
+ignora essa proteção. O status HTTP 409 sozinho não identifica qual caso ocorreu.

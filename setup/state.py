@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import re
-import shutil
 import uuid
 from pathlib import Path
 
@@ -93,9 +92,17 @@ class InstallationState:
             path = self.staging()
             if path.exists():
                 try:
-                    shutil.rmtree(path)
+                    from reusable.guided_setup.cleanup import remove_staging_tree
+                    remove_staging_tree(path)
                 except OSError as exc:
                     error = SetupError('Temporary files could not be removed; close programs using them and retry.')
                     error.code = 'abort_files_busy'
+                    blocked = getattr(exc, 'filename', None)
+                    if blocked:
+                        try:
+                            error.temporary_file = str(Path(blocked).absolute().relative_to(path.absolute()))
+                        except ValueError:
+                            pass
+                    error.os_error = getattr(exc, 'winerror', None) or getattr(exc, 'errno', None)
                     raise error from exc
         self.save(dict(version=1, status="new", language=self.value["language"], attempt=None))

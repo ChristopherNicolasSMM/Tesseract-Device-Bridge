@@ -244,7 +244,7 @@ def test_abort_busy_preserves_attempt_for_retry(tmp_path, monkeypatch):
     try:
         state.start('en')
         original = shutil.rmtree
-        def busy(path):
+        def busy(path, **kwargs):
             raise PermissionError('locked')
         monkeypatch.setattr(shutil, 'rmtree', busy)
         with pytest.raises(SetupError) as error:
@@ -256,3 +256,86 @@ def test_abort_busy_preserves_attempt_for_retry(tmp_path, monkeypatch):
         assert state.value['status'] == 'new'
     finally:
         state.close()
+
+
+def test_abort_http_explains_publication_and_preserves_everything(wizard):
+    app, root = wizard
+    client = app.test_client()
+    state = app.extensions['installation_state']
+    # Start through the existing HTTP boundary, using the fixture's session.
+    post(client, '/start', language='en')
+    temporary = state.staging() / 'keep.tmp'
+    temporary.write_text('temporary', encoding='utf-8')
+    receipt = state.root / 'data/private/installation.json'
+    receipt.write_text('{}', encoding='utf-8')
+    response = post(client, '/abort')
+    assert response.status_code == 409
+    assert response.json['code'] == 'abort_publication_exists'
+    assert receipt.read_text(encoding='utf-8') == '{}'
+    assert temporary.read_text(encoding='utf-8') == 'temporary'
+
+
+def test_abort_cleans_readonly_temp_and_keeps_foreign_files(tmp_path):
+    import stat
+    state = InstallationState(tmp_path / 'new')
+    try:
+        state.start('en')
+        path = state.staging()
+        temporary = path / 'readonly.tmp'
+        temporary.write_text('temporary', encoding='utf-8')
+        temporary.chmod(stat.S_IREAD)
+        foreign = state.directory / 'foreign.tmp'
+        foreign.write_text('keep', encoding='utf-8')
+        state.abort()
+        assert not path.exists()
+        assert foreign.read_text(encoding='utf-8') == 'keep'
+        assert state.value['status'] == 'new'
+    finally:
+        state.close()
+
+
+def test_abort_http_busy_diagnostic_is_relative_and_retryable(wizard, monkeypatch):
+    from reusable.guided_setup import cleanup
+    app, root = wizard
+    client = app.test_client()
+    post(client, '/start', language='en')
+    state = app.extensions['installation_state']
+    temporary = state.staging() / 'captured.sqlite3'
+    temporary.write_bytes(b'keep until unlocked')
+    original = cleanup.remove_staging_tree
+    def locked(path):
+        raise PermissionError(13, 'secret exception text', str(temporary))
+    monkeypatch.setattr(cleanup, 'remove_staging_tree', locked)
+    response = post(client, '/abort')
+    assert response.status_code == 409
+    assert response.json['code'] == 'abort_files_busy'
+    assert response.json['details'] == {'file': 'captured.sqlite3', 'os_error': 13}
+    assert str(root) not in response.get_data(as_text=True)
+    assert 'secret exception text' not in response.get_data(as_text=True)
+    assert state.value['status'] == 'in_progress'
+    monkeypatch.setattr(cleanup, 'remove_staging_tree', original)
+    assert post(client, '/abort').status_code == 303
+    assert state.value['status'] == 'new'
+
+
+def test_readonly_cleanup_retries_owned_delete_only(tmp_path, monkeypatch):
+    from reusable.guided_setup import cleanup
+    import os
+    root = tmp_path / 'owned'
+    root.mkdir()
+    owned = root / 'temp.tmp'
+    owned.write_text('temporary')
+    outside = tmp_path / 'outside.tmp'
+    outside.write_text('keep')
+    original = cleanup.shutil.rmtree
+    def simulate_readonly(path, *, onerror):
+        error = PermissionError(13, 'read only', str(owned))
+        onerror(os.unlink, str(owned), (PermissionError, error, None))
+        assert not owned.exists()
+        with pytest.raises(PermissionError):
+            onerror(os.unlink, str(outside), (PermissionError, error, None))
+        original(path)
+    monkeypatch.setattr(cleanup.shutil, 'rmtree', simulate_readonly)
+    cleanup.remove_staging_tree(root)
+    assert not root.exists()
+    assert outside.read_text() == 'keep'
