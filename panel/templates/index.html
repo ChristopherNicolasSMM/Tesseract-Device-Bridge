@@ -17,7 +17,7 @@
     }
 
     body {
-      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Noto Color Emoji', 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'DejaVu Sans', 'Liberation Sans', Arial, sans-serif, 'Noto Color Emoji', 'Segoe UI Emoji', 'Apple Color Emoji';
       background: #0b0e14;
       color: #e2e8f0;
       padding: 0;
@@ -259,6 +259,8 @@
 
     .card-header {
       display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
       justify-content: space-between;
       align-items: flex-start;
     }
@@ -266,9 +268,9 @@
     .card-header h3 {
       font-size: 15px;
       font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 6px;
+      min-width: 0;
+      flex: 1 1 7em;
+      overflow-wrap: anywhere;
     }
 
     .card-header .type-tag {
@@ -283,6 +285,8 @@
     }
 
     .card-value {
+      overflow-wrap: anywhere;
+      font-variant-numeric: tabular-nums;
       font-size: 28px;
       font-weight: 700;
       line-height: 1.2;
@@ -296,6 +300,7 @@
     }
 
     .card-meta {
+      overflow-wrap: anywhere;
       font-size: 12px;
       color: var(--text-secondary);
       display: flex;
@@ -1788,6 +1793,7 @@
     #sensorCalibrationSection button { margin-right: 10px; padding: 10px 16px;
       border: 1px solid #64748b; border-radius: 6px; background: #1e293b; color: inherit; cursor: pointer; }
     #control-settings { max-width: 980px; }
+    #controlSettingsFields { min-width: 0; border: 0; }
     #control-settings h3 { margin: 24px 0 12px; }
     #control-settings p { margin: 12px 0; line-height: 1.6; }
     #control-settings label { line-height: 2.7; }
@@ -2101,23 +2107,25 @@
       <div class="section-title">⚙️ Controle de temperatura</div>
       <p>Configurações locais preservadas nas atualizações. Alterações entram na próxima execução, inclusive sem reiniciar o Bridge.</p>
       <p>A curva limita somente a potência automática. Comando manual e fail-safe mantêm suas prioridades.</p>
+      <p id="controlSettingsMessage" role="status">Carregando configurações térmicas…</p>
       <form id="controlSettingsForm">
-        <h3>Mosturação — curva de potência máxima</h3>
-        <p>Diferenças relativas ao alvo em °C; redução gradual entre os pontos.</p>
-        <div id="controlCurve"></div>
-        <h3>Oscilação e alertas</h3>
-        <label>Disparar acima do alvo + <input type="number" step="0.1" min="0.1" id="controlAlert" required> °C</label><br>
-        <label>Encerrar ao voltar para alvo + <input type="number" step="0.1" min="0" id="controlClear" required> °C</label><br>
-        <label><input type="checkbox" id="controlFreeze"> Congelar contagem do patamar durante excesso crítico</label>
-        <h3>Fervura</h3>
-        <p>O perfil fervura usa a temperatura abaixo como alvo de todas as etapas do recipiente selecionado. Não usa a curva de mosturação.</p>
-        <label>Temperatura local de fervura <input type="number" min="50" max="110" step="0.1" id="controlBoilTemp" required> °C</label><br>
-        <label>Potência para manter fervura <input type="number" min="0" max="100" step="0.1" id="controlBoilPower" required> %</label>
-        <h3>Perfil por recipiente</h3><div id="controlProfiles"></div>
-        <button type="submit">Salvar configurações</button>
-        <button type="button" id="controlRestore">Restaurar padrões de fábrica</button>
+        <fieldset id="controlSettingsFields" disabled>
+          <h3>Mosturação — curva de potência máxima</h3>
+          <p>Diferenças relativas ao alvo em °C; redução gradual entre os pontos.</p>
+          <div id="controlCurve"></div>
+          <h3>Oscilação e alertas</h3>
+          <label>Disparar acima do alvo + <input type="number" step="0.1" min="0.1" id="controlAlert" required> °C</label><br>
+          <label>Encerrar ao voltar para alvo + <input type="number" step="0.1" min="0" id="controlClear" required> °C</label><br>
+          <label><input type="checkbox" id="controlFreeze"> Congelar contagem do patamar durante excesso crítico</label>
+          <h3>Fervura</h3>
+          <p>O perfil fervura usa a temperatura abaixo como alvo de todas as etapas do recipiente selecionado. Não usa a curva de mosturação.</p>
+          <label>Temperatura local de fervura <input type="number" min="50" max="110" step="0.1" id="controlBoilTemp" required> °C</label><br>
+          <label>Potência para manter fervura <input type="number" min="0" max="100" step="0.1" id="controlBoilPower" required> %</label>
+          <h3>Perfil por recipiente</h3><div id="controlProfiles"></div>
+          <button type="submit">Salvar configurações</button>
+          <button type="button" id="controlRestore">Restaurar padrões de fábrica</button>
+        </fieldset>
       </form>
-      <p id="controlSettingsMessage" role="status"></p>
       </div>
       <div id="sensorCalibrationSection" style="display:none;">
         <div class="section-title">🌡️ Calibração individual de temperatura</div>
@@ -2576,6 +2584,20 @@
     }
 
     // ===== RENDER =====
+    const temperatureDisplay = new Intl.NumberFormat('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+      useGrouping: false,
+    });
+
+    function deviceValueDisplay(device) {
+      if (device.role === 'sensor' && device.subtype === 'temperature') {
+        return Number.isFinite(device.value) ? temperatureDisplay.format(device.value) : '—';
+      }
+      if (typeof device.value === 'boolean') return device.value ? 'Ligado' : 'Desligado';
+      return device.value;
+    }
+
     function renderDevices(devices) {
       // Atualiza contadores
       const sensors = devices.filter(d => d.role === 'sensor');
@@ -2613,7 +2635,7 @@
             <td>${d.gpio ?? '—'}</td>
             <td>
               <span class="status-indicator ${(d.value === true || d.value === 'true' || d.value > 0) ? 'on' : 'off'}"></span>
-              ${typeof d.value === 'boolean' ? (d.value ? 'Ligado' : 'Desligado') : d.value}${d.unit || ''}
+              ${deviceValueDisplay(d)}${d.unit ? ' ' + d.unit : ''}
             </td>
             <td>${d.range ? `${d.range.min} – ${d.range.max}` : '—'}</td>
             <td>${d.is_risk ? '⚠️ Sim' : '❌ Não'}</td>
@@ -2625,8 +2647,7 @@
     function renderCard(d) {
       const isRisk = d.is_risk ? 'risk' : '';
       const unit = d.unit || '';
-      let valueDisplay = d.value;
-      if (typeof d.value === 'boolean') valueDisplay = d.value ? 'Ligado' : 'Desligado';
+      let valueDisplay = deviceValueDisplay(d);
       if (d.window_seconds != null) {
         // Controle de potência: o pino físico pisca liga/desliga várias
         // vezes por janela (time-proportioning) — mostrar o valor cru
@@ -3689,7 +3710,7 @@
 
   </script>
 
-<script src="/static/control-settings.js"></script>
+<script src="{{ url_for('static', filename='control-settings.js', v='thermal-ui-1') }}"></script>
 <script src="/static/serial-monitor.js?v=1"></script>
 <script src="/static/admin-sqlite.js?v={{ app_version }}-serial1"></script>
 </body>

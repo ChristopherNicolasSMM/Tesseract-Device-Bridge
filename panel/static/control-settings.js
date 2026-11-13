@@ -4,13 +4,14 @@
   let saved, vessels = [];
   async function request(url, options) {
     const response = await fetch(url, options);
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Não foi possível salvar.');
+    const result = await response.json().catch(() => null);
+    if (!response.ok) throw new Error((result && result.error) || `HTTP ${response.status}`);
+    if (!result) throw new Error('Resposta inválida do Bridge.');
     return result;
   }
   function render(settings) {
     saved = settings;
-    $('controlCurve').replaceChildren();
+    $('controlCurve').textContent = '';
     settings.mash_curve.forEach(([delta, power]) => {
       const row = document.createElement('label');
       row.style.display = 'block';
@@ -31,7 +32,7 @@
     $('controlFreeze').checked = settings.freeze_hold_on_alert;
     $('controlBoilTemp').value = settings.boil_temperature;
     $('controlBoilPower').value = settings.boil_power;
-    $('controlProfiles').replaceChildren();
+    $('controlProfiles').textContent = '';
     const names = new Map(Object.keys(settings.vessel_profiles).map(id => [id, id]));
     vessels.forEach(v => names.set(v.id, v.name));
     names.forEach((name, id) => {
@@ -44,8 +45,16 @@
     });
   }
   async function load() {
-    try { const result = await request('/api/control-settings'); vessels = result.vessels; render(result.settings); }
-    catch (error) { $('controlSettingsMessage').textContent = error.message; }
+    const message = $('controlSettingsMessage');
+    try {
+      const result = await request('/api/control-settings');
+      vessels = result.vessels;
+      render(result.settings);
+      $('controlSettingsFields').disabled = false;
+      message.textContent = '';
+    } catch (error) {
+      message.textContent = 'Falha ao carregar o controle térmico: ' + error.message;
+    }
   }
   $('controlSettingsForm').addEventListener('submit', async event => {
     event.preventDefault();
@@ -84,7 +93,7 @@
   function renderCalibrations(sensors, maxOffset) {
     calibrationSensors = sensors;
     const list = $('sensorCalibrationList');
-    list.replaceChildren();
+    list.textContent = '';
     sensors.forEach(sensor => {
       const row = document.createElement('div');
       row.className = 'calibration-card';
